@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <defs>
+    <style>
+      .title { font: 700 26px Arial, sans-serif; fill: #1f2937; }
+      .label { font: 600 15px Arial, sans-serif; fill: #1f2937; }
+      .small { font: 12px Arial, sans-serif; fill: #374151; }
+      .layer1 { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; }
+      .layer2 { fill: #ecfdf5; stroke: #10b981; stroke-width: 2; }
+      .layer3 { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+      .layer4 { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 2; }
+      .box { fill: #ffffff; stroke: #475569; stroke-width: 2; }
+      .wire { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .warn { fill: #fff7ed; stroke: #f59e0b; stroke-width: 2; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#475569"/></marker>
+  </defs>
+
+  <text x="600" y="36" text-anchor="middle" class="title">Sparky Component Architecture</text>
+
+  <rect x="50" y="70" width="1100" height="120" rx="12" class="layer4"/>
+  <text x="600" y="100" text-anchor="middle" class="label">L4 Experience</text>
+  <rect x="100" y="120" width="180" height="52" rx="10" class="box"/><text x="190" y="152" text-anchor="middle" class="label">Persona Registry</text>
+  <rect x="330" y="120" width="180" height="52" rx="10" class="box"/><text x="420" y="152" text-anchor="middle" class="label">Persona Bundles</text>
+  <rect x="560" y="120" width="180" height="52" rx="10" class="box"/><text x="650" y="152" text-anchor="middle" class="label">Disclosure Policy</text>
+
+  <rect x="50" y="220" width="1100" height="180" rx="12" class="layer3"/>
+  <text x="600" y="250" text-anchor="middle" class="label">L3 Orchestration</text>
+  <rect x="100" y="285" width="170" height="60" rx="10" class="box"/><text x="185" y="322" text-anchor="middle" class="label">Session Manager</text>
+  <rect x="320" y="285" width="170" height="60" rx="10" class="box"/><text x="405" y="322" text-anchor="middle" class="label">Turn State Machine</text>
+  <rect x="540" y="285" width="170" height="60" rx="10" class="box"/><text x="625" y="322" text-anchor="middle" class="label">Generation IDs</text>
+  <rect x="760" y="285" width="170" height="60" rx="10" class="box"/><text x="845" y="322" text-anchor="middle" class="label">Gesture Validator</text>
+  <rect x="980" y="285" width="120" height="60" rx="10" class="box"/><text x="1040" y="322" text-anchor="middle" class="label">Degraded Mode</text>
+
+  <rect x="50" y="430" width="1100" height="170" rx="12" class="layer2"/>
+  <text x="600" y="460" text-anchor="middle" class="label">L2 Services</text>
+  <rect x="110" y="500" width="170" height="60" rx="10" class="box"/><text x="195" y="538" text-anchor="middle" class="label">Speech Client</text>
+  <rect x="340" y="500" width="170" height="60" rx="10" class="box"/><text x="425" y="538" text-anchor="middle" class="label">Broker Client</text>
+  <rect x="570" y="500" width="170" height="60" rx="10" class="box"/><text x="655" y="538" text-anchor="middle" class="label">Motion Arbiter</text>
+  <rect x="800" y="500" width="170" height="60" rx="10" class="box"/><text x="885" y="538" text-anchor="middle" class="label">Watchdog</text>
+  <rect x="980" y="500" width="120" height="60" rx="10" class="box"/><text x="1040" y="538" text-anchor="middle" class="label">Telemetry</text>
+
+  <rect x="50" y="635" width="1100" height="90" rx="12" class="layer1"/>
+  <text x="600" y="665" text-anchor="middle" class="label">L1 Platform</text>
+  <rect x="100" y="685" width="160" height="26" rx="8" class="box"/><text x="180" y="703" text-anchor="middle" class="small">Pi Adapter</text>
+  <rect x="300" y="685" width="160" height="26" rx="8" class="box"/><text x="380" y="703" text-anchor="middle" class="small">Simulator Adapter</text>
+  <rect x="500" y="685" width="180" height="26" rx="8" class="box"/><text x="590" y="703" text-anchor="middle" class="small">Audio Device Adapter</text>
+  <rect x="720" y="685" width="180" height="26" rx="8" class="box"/><text x="810" y="703" text-anchor="middle" class="small">Secret Provider</text>
+  <rect x="940" y="685" width="170" height="26" rx="8" class="box"/><text x="1025" y="703" text-anchor="middle" class="small">Config Provider</text>
+
+  <rect x="40" y="40" width="1000" height="690" rx="22" fill="none" stroke="#94a3b8" stroke-dasharray="12 10"/>
+  <rect x="1010" y="110" width="118" height="108" rx="12" class="warn"/>
+  <text x="1069" y="150" text-anchor="middle" class="label">exlibs</text>
+  <text x="1069" y="170" text-anchor="middle" class="small">read only</text>
+  <text x="1069" y="190" text-anchor="middle" class="small">pidog</text>
+  <text x="1069" y="205" text-anchor="middle" class="small">robot-hat</text>
+  <text x="1069" y="220" text-anchor="middle" class="small">vilib</text>
+
+  <path d="M280 146 L330 146" class="wire"/>
+  <path d="M510 146 L560 146" class="wire"/>
+  <path d="M740 146 L960 146" class="wire"/>
+  <path d="M185 176 L185 285" class="wire"/>
+  <path d="M405 176 L405 285" class="wire"/>
+  <path d="M625 176 L625 285" class="wire"/>
+  <path d="M845 176 L845 285" class="wire"/>
+  <path d="M196 345 L196 500" class="wire"/>
+  <path d="M425 345 L425 500" class="wire"/>
+  <path d="M655 345 L655 500" class="wire"/>
+  <path d="M845 345 L845 500" class="wire"/>
+  <path d="M180 560 L180 685" class="wire"/>
+  <path d="M380 560 L380 685" class="wire"/>
+  <path d="M590 560 L590 685" class="wire"/>
+  <path d="M810 560 L810 685" class="wire"/>
+  <path d="M1025 560 L1025 685" class="wire"/>
+
+  <path d="M755 536 L800 536" class="wire"/>
+  <path d="M720 520 L755 536 L720 550" stroke="#475569" fill="none" stroke-width="2"/>
+
+  <text x="720" y="500" class="small">semantic command</text>
+</svg>

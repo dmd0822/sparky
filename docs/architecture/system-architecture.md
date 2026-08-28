@@ -367,6 +367,10 @@ flowchart LR
     LLM -.->|"never reachable directly from device"| App
 ```
 
+> Mermaid-rendering viewers may hide or suppress this block in some editors. The static SVG view is guaranteed to render in GitHub/Markdown viewers and is shown below.
+
+![System context diagram](diagrams/system-context.svg)
+
 **Reading the diagram:** the dashed line from the model to the app is a deliberate negative statement. The device holds no model credential and has no direct model route. The only Azure endpoint the device knows is the broker. See [ADR-0004](decisions/ADR-0004-azure-broker-identity-boundary.md).
 
 ### 7.3 Component diagram
@@ -439,6 +443,10 @@ flowchart TB
     VIL -.-> EXCL
 ```
 
+> Stable SVG render: this diagram is also available as a static image for viewers that do not render Mermaid.
+
+![Component diagram](diagrams/component-diagram.svg)
+
 **Key invariants visible in this diagram:**
 
 - `ARB` is the only component with an edge into `HAL`. Nothing else may write actuators (SR-05).
@@ -478,6 +486,8 @@ flowchart LR
     C -.->|"discarded after request - never written to disk"| X["No retention"]
     F -.->|"discarded at session end - never written to disk"| X
 ```
+
+![Data flow diagram](diagrams/data-flow.svg)
 
 **What this flow deliberately shows:**
 
@@ -532,6 +542,8 @@ sequenceDiagram
     Note over TSM,AZ: any late G1 response from Azure is discarded on arrival
 ```
 
+![Interaction sequence diagram](diagrams/interaction-sequence.svg)
+
 **Why generation IDs matter here:** the late-response case at the end is the defect this design exists to prevent. Without a generation ID, a slow Azure reply for the abandoned turn arrives after the user has already started a new one, and the device speaks the wrong answer over the new question while performing the wrong gesture. With generation IDs, the late response is discarded on arrival at zero cost.
 
 ### 7.6 Runtime state transitions
@@ -576,6 +588,8 @@ stateDiagram-v2
     SafeStop --> EStopped: e-stop asserted
     EStopped --> Inhibited: e-stop released and operator reset
 ```
+
+![State transition diagram](diagrams/state-transitions.svg)
 
 **State rules:**
 
@@ -650,6 +664,10 @@ flowchart LR
     Reject -.->|"if this was the default persona"| Minimal["Minimal safe persona"]
     Minimal --> Active
 ```
+
+![Persona lifecycle diagram](diagrams/persona-lifecycle.svg)
+
+---
 
 ---
 

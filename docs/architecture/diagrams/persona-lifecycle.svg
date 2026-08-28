@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360" role="img" aria-labelledby="title desc">
+  <title id="title">Persona lifecycle diagram</title>
+  <desc id="desc">Persona bundle loads, validates, checks capability, freezes as immutable persona, and enters the active registry or safe fallback.</desc>
+  <defs>
+    <style>
+      .box { fill: #f4f7fb; stroke: #2d5f8c; stroke-width: 2; rx: 12; }
+      .decision { fill: #fff8e6; stroke: #c78a00; stroke-width: 2; }
+      .reject { fill: #fbeae8; stroke: #b42318; stroke-width: 2; }
+      .good { fill: #eafaf2; stroke: #0b8a5a; stroke-width: 2; }
+      .text { font: 16px Arial, sans-serif; fill: #1f2937; }
+      .small { font: 14px Arial, sans-serif; fill: #1f2937; }
+      .label { font: 13px Arial, sans-serif; fill: #334155; }
+      .arrow { stroke: #475569; stroke-width: 2.2; fill: none; marker-end: url(#arrowHead); }
+      .dashed { stroke-dasharray: 8 6; }
+    </style>
+    <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#475569" />
+    </marker>
+  </defs>
+
+  <rect x="50" y="30" width="160" height="80" class="box"/>
+  <text x="130" y="70" text-anchor="middle" class="text">Persona bundle</text>
+  <text x="130" y="92" text-anchor="middle" class="small">on disk - versioned</text>
+
+  <rect x="260" y="30" width="150" height="80" class="box"/>
+  <text x="335" y="70" text-anchor="middle" class="text">Registry load</text>
+
+  <rect x="470" y="30" width="190" height="80" class="decision"/>
+  <text x="565" y="62" text-anchor="middle" class="text">Schema validation</text>
+  <text x="565" y="85" text-anchor="middle" class="small">pass or fail</text>
+
+  <rect x="720" y="30" width="120" height="80" class="reject"/>
+  <text x="780" y="62" text-anchor="middle" class="text">Rejected</text>
+  <text x="780" y="84" text-anchor="middle" class="small">logged</text>
+
+  <path d="M210 70 H260" class="arrow"/>
+  <path d="M410 70 H470" class="arrow"/>
+  <path d="M660 70 H720" class="arrow"/>
+  <text x="690" y="55" class="label">fail</text>
+
+  <rect x="470" y="170" width="200" height="80" class="box"/>
+  <text x="570" y="205" text-anchor="middle" class="text">Capability check</text>
+  <text x="570" y="227" text-anchor="middle" class="small">adapter + device config</text>
+
+  <path d="M565 110 L565 170" class="arrow"/>
+  <text x="580" y="140" class="label">pass</text>
+
+  <rect x="260" y="170" width="160" height="90" class="good"/>
+  <text x="340" y="205" text-anchor="middle" class="text">Freeze</text>
+  <text x="340" y="227" text-anchor="middle" class="small">immutable persona</text>
+
+  <path d="M470 210 H420" class="arrow"/>
+  <text x="432" y="196" class="label">pass</text>
+
+  <rect x="45" y="170" width="160" height="90" class="reject"/>
+  <text x="125" y="205" text-anchor="middle" class="text">Reject</text>
+  <text x="125" y="227" text-anchor="middle" class="small">not loaded</text>
+
+  <path d="M470 250 L210 250" class="arrow dashed"/>
+  <text x="260" y="240" class="label">fail</text>
+
+  <rect x="260" y="300" width="250" height="60" class="box"/>
+  <text x="385" y="336" text-anchor="middle" class="text">Persona registry</text>
+
+  <path d="M340 260 L340 300" class="arrow"/>
+
+  <rect x="560" y="300" width="260" height="60" class="good"/>
+  <text x="690" y="336" text-anchor="middle" class="text">Active persona for next turn</text>
+
+  <path d="M340 300 L560 330" class="arrow"/>
+  <path d="M780 110 L780 300" class="arrow dashed"/>
+  <text x="640" y="155" class="label">default persona fallback</text>
+
+  <rect x="560" y="160" width="260" height="90" class="good"/>
+  <text x="690" y="194" text-anchor="middle" class="text">Minimal safe persona</text>
+  <text x="690" y="216" text-anchor="middle" class="small">neutral voice, no motion</text>
+
+  <path d="M690 250 L690 300" class="arrow"/>
+</svg>

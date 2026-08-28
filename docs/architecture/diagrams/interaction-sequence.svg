@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#475569"/></marker>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #1f2937; }
+      .label { font: 600 14px Arial, sans-serif; fill: #1f2937; }
+      .small { font: 12px Arial, sans-serif; fill: #374151; }
+      .actor { fill: #eef2ff; stroke: #4f46e5; stroke-width: 2; }
+      .system { fill: #ecfdf5; stroke: #10b981; stroke-width: 2; }
+      .note { fill: #fff7ed; stroke: #f59e0b; stroke-width: 2; }
+      .wire { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke: #64748b; stroke-width: 2; fill: none; stroke-dasharray: 8 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <text x="600" y="40" text-anchor="middle" class="title">Key Interaction and Barge-In Sequence</text>
+
+  <rect x="80" y="80" width="120" height="560" rx="10" class="actor"/><text x="140" y="110" text-anchor="middle" class="label">User</text>
+  <rect x="300" y="80" width="150" height="560" rx="10" class="system"/><text x="375" y="110" text-anchor="middle" class="label">Turn State Machine</text>
+  <rect x="560" y="80" width="150" height="560" rx="10" class="system"/><text x="635" y="110" text-anchor="middle" class="label">Speech Client</text>
+  <rect x="820" y="80" width="150" height="560" rx="10" class="system"/><text x="895" y="110" text-anchor="middle" class="label">Broker / Azure</text>
+  <rect x="1040" y="80" width="120" height="560" rx="10" class="system"/><text x="1100" y="110" text-anchor="middle" class="label">Motion</text>
+
+  <path d="M200 160 L300 160" class="wire"/>
+  <text x="245" y="145" class="small">press talk</text>
+  <path d="M450 190 L560 190" class="wire"/>
+  <text x="500" y="175" class="small">start capture</text>
+  <path d="M710 225 L820 225" class="wire"/>
+  <text x="760" y="210" class="small">transcribe</text>
+  <path d="M820 260 L710 260" class="dashed"/>
+  <text x="760" y="245" class="small">transcript</text>
+  <path d="M450 320 L820 320" class="wire"/>
+  <text x="640" y="305" class="small">generate reply</text>
+  <path d="M820 355 L450 355" class="dashed"/>
+  <text x="640" y="340" class="small">reply + gesture</text>
+  <path d="M450 390 L1040 390" class="wire"/>
+  <text x="740" y="375" class="small">semantic command</text>
+  <path d="M1040 420 L560 420" class="dashed"/>
+  <text x="790" y="405" class="small">playback + motion</text>
+
+  <path d="M200 470 L300 470" class="wire"/>
+  <text x="245" y="455" class="small">barge in</text>
+  <path d="M300 500 L560 500" class="wire"/>
+  <text x="440" y="485" class="small">invalidate G1</text>
+  <path d="M560 535 L1040 535" class="wire"/>
+  <text x="790" y="520" class="small">cancel commands &amp; unwind</text>
+  <path d="M300 560 L560 560" class="wire"/>
+  <text x="440" y="545" class="small">start new capture</text>
+
+  <rect x="275" y="610" width="650" height="120" rx="12" class="note"/>
+  <text x="600" y="640" text-anchor="middle" class="label">Generation IDs prevent stale Azure replies</text>
+  <text x="600" y="665" text-anchor="middle" class="small">Late reply for G1 is discarded on arrival. The new turn continues with G2, avoiding wrong speech or wrong motion.</text>
+</svg>
