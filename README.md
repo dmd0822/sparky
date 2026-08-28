@@ -57,6 +57,8 @@ python3 src/pidog_connectivity.py
 python3 src/pidog_connectivity.py --init
 ```
 
+The `--init` mode performs a quick PiDog startup check and plays a short bark sound (`single_bark_1`) to confirm the audio stack is working.
+
 If the PiDog Python packages are installed using the standard SunFounder setup, the import pattern should match the official PiDog examples:
 
 ```python

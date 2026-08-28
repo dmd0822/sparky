@@ -70,10 +70,15 @@ def instantiate_pidog() -> dict[str, Any]:
         from pidog import Pidog
 
         dog = Pidog()
+        bark_result = dog.speak_block("single_bark_1", 80)
         return {
             "ok": True,
             "instance_type": type(dog).__name__,
             "module": Pidog.__module__,
+            "bark": {
+                "ok": bark_result is not False,
+                "sound": "single_bark_1",
+            },
         }
     except Exception as exc:  # pragma: no cover - diagnostic only
         return {
