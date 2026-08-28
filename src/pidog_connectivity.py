@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Minimal PiDog connectivity smoke test.
 
-This script verifies that the vendored PiDog and robot_hat libraries in
-`exlibs/` can be discovered and imported from this repository without changing
-those vendor sources.
+This script is intended to run directly on a PiDog where the SunFounder
+`pidog` and `robot_hat` packages are already installed via the standard
+installation path.
 
 Usage:
-    python src/pidog_connectivity.py
-    python src/pidog_connectivity.py --init
+    python3 src/pidog_connectivity.py
+    python3 src/pidog_connectivity.py --init
 """
 
 from __future__ import annotations
@@ -17,21 +17,10 @@ import importlib
 import json
 import os
 import platform
-import sys
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-EXLIBS = ROOT / "exlibs"
-
-
-def add_vendor_paths() -> None:
-    """Prepend the local vendored libraries to Python's import path."""
-    for library_dir in (EXLIBS / "pidog", EXLIBS / "robot-hat"):
-        if library_dir.exists():
-            path_text = str(library_dir)
-            if path_text not in sys.path:
-                sys.path.insert(0, path_text)
 
 
 def build_report() -> dict[str, Any]:
@@ -40,10 +29,6 @@ def build_report() -> dict[str, Any]:
         "platform": platform.platform(),
         "python_version": platform.python_version(),
         "machine": platform.machine(),
-        "vendor_paths": {
-            "pidog": str(EXLIBS / "pidog"),
-            "robot_hat": str(EXLIBS / "robot-hat"),
-        },
         "imports": {},
     }
 
@@ -78,7 +63,7 @@ def instantiate_pidog() -> dict[str, Any]:
     if not can_instantiate_hardware():
         return {
             "ok": False,
-            "skipped": "Hardware probe skipped; script is running outside a Pi-like environment.",
+            "skipped": "Hardware probe skipped; this script is running outside a Pi-like environment.",
         }
 
     try:
@@ -98,7 +83,7 @@ def instantiate_pidog() -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Smoke-test vendored PiDog connectivity.")
+    parser = argparse.ArgumentParser(description="Smoke-test PiDog library connectivity on the robot itself.")
     parser.add_argument(
         "--init",
         action="store_true",
@@ -106,7 +91,6 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    add_vendor_paths()
     report = build_report()
     if args.init:
         report["hardware_init"] = instantiate_pidog()

@@ -17,7 +17,6 @@ Sparky is a Raspberry Pi-based companion device intended to combine:
 The architecture and planning work is complete, and the first implementation milestone has begun.
 
 - Architecture and project-planning documentation are complete under `docs/architecture/`
-- A read-only assessment of the supplied `exlibs` libraries has been captured
 - Minimal source-code validation has begun under `src/` with a PiDog connectivity smoke test
 - The project is now moving from planning into a small, incremental implementation phase
 
@@ -33,7 +32,7 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 
 ## Key design directions
 
-- Use a Pi-local hardware adapter to isolate all direct access to `exlibs`
+- Use a Pi-local hardware adapter to isolate direct access to the robot runtime
 - Keep personas modular and immutable, with easy swapping between bundles
 - Route Azure access through an explicit broker boundary rather than direct device-to-cloud coupling
 - Default to privacy-safe behavior: no camera, no raw-audio retention, no transcript retention
@@ -42,9 +41,28 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 
 ## Important constraints
 
-- `exlibs` is treated as read-only evidence and not modified
-- The architecture intentionally does not rely on the vendor-provided PiDog AI assistant path because the supplied library versions are mismatched with the documented runtime
-- The project is not build-ready until the architecture and project plan are approved
+- The PiDog runtime should use the standard SunFounder packages installed on the robot itself
+- The architecture intentionally keeps the model, persona, and motion logic separate from direct hardware control
+- The project is moving into incremental implementation after the architecture and project plan were defined
+
+## Running on the PiDog
+
+From the PiDog terminal, clone or sync this repository onto the robot, then run the smoke test directly against the installed PiDog packages:
+
+```bash
+cd ~
+git clone <your-repo-url> sparky
+cd sparky
+python3 src/pidog_connectivity.py
+python3 src/pidog_connectivity.py --init
+```
+
+If the PiDog Python packages are installed using the standard SunFounder setup, the import pattern should match the official PiDog examples:
+
+```python
+from pidog import Pidog
+from robot_hat import Servo, Motors
+```
 
 ## Repository layout
 
@@ -57,7 +75,8 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 │       ├── project-plan.md
 │       ├── decisions/
 │       └── diagrams/
-├── exlibs/
+├── src/
+│   └── pidog_connectivity.py
 ├── .squad/
 ├── README.md
 └── ...
@@ -65,23 +84,4 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 
 ## Next step
 
-Run the basic PiDog import smoke test in `src/pidog_connectivity.py` and capture any hardware or dependency issues before expanding into the hardware adapter layer.
-
-## Source layout
-
-```text
-.
-├── docs/
-│   └── architecture/
-│       ├── README.md
-│       ├── system-architecture.md
-│       ├── project-plan.md
-│       ├── decisions/
-│       └── diagrams/
-├── exlibs/
-├── src/
-│   └── pidog_connectivity.py
-├── .squad/
-├── README.md
-└── ...
-```
+Run the PiDog import smoke test in `src/pidog_connectivity.py` on the PiDog itself and capture any hardware-specific issues before expanding into the hardware adapter layer.
