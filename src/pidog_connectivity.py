@@ -59,6 +59,35 @@ def can_instantiate_hardware() -> bool:
     return Path("/dev/i2c-1").exists() or Path("/dev/i2c-0").exists()
 
 
+def get_battery_status(dog: Any) -> dict[str, Any]:
+    """Return raw voltage and an approximate percentage for the PiDog battery pack."""
+    try:
+        voltage = float(dog.get_battery_voltage())
+    except Exception as exc:  # pragma: no cover - diagnostic only
+        return {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    min_voltage = 6.5
+    max_voltage = 8.4
+    percent = max(0, min(100, round(((voltage - min_voltage) / (max_voltage - min_voltage)) * 100)))
+    return {
+        "ok": True,
+        "voltage_v": round(voltage, 2),
+        "percent": percent,
+        "state": "low" if percent < 20 else "ok",
+    }
+
+
+def display_battery_level(dog: Any) -> str:
+    """Human-readable battery detail for the PiDog startup check."""
+    battery = get_battery_status(dog)
+    if not battery.get("ok", False):
+        return f"Battery unavailable: {battery.get('error', 'unknown error')}"
+    return f"Battery: {battery['voltage_v']}V ({battery['percent']}%)"
+
+
 def instantiate_pidog() -> dict[str, Any]:
     if not can_instantiate_hardware():
         return {
@@ -71,10 +100,13 @@ def instantiate_pidog() -> dict[str, Any]:
 
         dog = Pidog()
         bark_result = dog.speak_block("single_bark_1", 80)
+        battery = get_battery_status(dog)
         return {
             "ok": True,
             "instance_type": type(dog).__name__,
             "module": Pidog.__module__,
+            "battery": battery,
+            "display": display_battery_level(dog),
             "bark": {
                 "ok": bark_result is not False,
                 "sound": "single_bark_1",
