@@ -14,12 +14,12 @@ Sparky is a Raspberry Pi-based companion device intended to combine:
 
 ## Current status
 
-This repository is currently in the planning phase.
+The architecture and planning work is complete, and the first implementation milestone has begun.
 
 - Architecture and project-planning documentation are complete under `docs/architecture/`
 - A read-only assessment of the supplied `exlibs` libraries has been captured
-- No application code or product implementation has been started yet
-- Implementation remains blocked until the architecture and plan are explicitly approved
+- Minimal source-code validation has begun under `src/` with a PiDog connectivity smoke test
+- The project is now moving from planning into a small, incremental implementation phase
 
 ## Architecture package
 
@@ -65,4 +65,23 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 
 ## Next step
 
-Review the architecture package and explicitly approve both architecture and project plan before implementation begins.
+Run the basic PiDog import smoke test in `src/pidog_connectivity.py` and capture any hardware or dependency issues before expanding into the hardware adapter layer.
+
+## Source layout
+
+```text
+.
+├── docs/
+│   └── architecture/
+│       ├── README.md
+│       ├── system-architecture.md
+│       ├── project-plan.md
+│       ├── decisions/
+│       └── diagrams/
+├── exlibs/
+├── src/
+│   └── pidog_connectivity.py
+├── .squad/
+├── README.md
+└── ...
+```
