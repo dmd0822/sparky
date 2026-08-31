@@ -29,7 +29,7 @@
 | Approval by anyone other than Dave Davis | 🔒 Still blocked |
 | **Explicit approval of both documents by Dave Davis** | 🔓 **Open** — M1 may start, subject to per-milestone entry gates |
 
-Opening the gate authorizes **M1 only**. Every milestone has its own entry gate, and several are independently blocked by unresolved user decisions. See [project-plan.md §0](project-plan.md#0-dual-approval-gate).
+Opening the gate authorizes **M1 only**. Every milestone has its own entry gate, and several are independently scoped by the user decisions recorded in the architecture package. Dave Davis has now approved all ten of those decisions; the remaining gate is explicit approval of both documents. See [project-plan.md §0](project-plan.md#0-dual-approval-gate).
 
 ### Hard constraint — `exlibs` is read-only
 
@@ -44,6 +44,9 @@ Nothing in this package authorizes any modification to `exlibs/pidog`, `exlibs/r
 | [`README.md`](README.md) | This index — package contents, review status, approval gate | Current |
 | [`system-architecture.md`](system-architecture.md) | Goals and non-goals, requirements, UX, assumptions, read-only `exlibs` assessment, architecture and diagrams, persona architecture, Azure approach, hardware abstraction and motion safety, audio and concurrency, privacy and RAI, observability and cost, risks, implementation readiness | ❌ Awaiting approval |
 | [`project-plan.md`](project-plan.md) | Phases M0–M7, dependencies, owners, deliverables, acceptance criteria, traceability matrix, test/HIL progression, risks, evidence, dual approval gate | ❌ Awaiting approval |
+| [`m0-issue-1-tracking.md`](m0-issue-1-tracking.md) | Issue #1 progress tracker for the dual-approval gate, user-decision owner mapping, and related review links | In progress |
+| [`dual-approval.md`](dual-approval.md) | Architecture-side review support package for issue #1 | Draft |
+| [`../project-plan/dual-approval.md`](../project-plan/dual-approval.md) | Project-plan support document for the issue #1 review package | Draft |
 | [`decisions/`](decisions/) | Six architecture decision records | 🟦 All proposed |
 
 ### Architecture Decision Records
@@ -77,9 +80,9 @@ Supporting diagrams: persona load and fallback ([§8.4](system-architecture.md#8
 
 ---
 
-## ⚠️ Ten Unresolved User Decisions
+## ⚠️ Ten User Decisions
 
-**All ten are open and owned by Dave Davis.** Full detail, including the interim planning assumption used for each, is in [system-architecture.md §4](system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10). Milestone blocking is in [project-plan.md §1](project-plan.md#1-decision-register-reference).
+**All ten are now approved by Dave Davis.** Full detail, including the interim planning assumption used for each, is in [system-architecture.md §4](system-architecture.md#4-user-decision-register-ud-01--ud-10). Milestone scope and entry conditions remain documented in [project-plan.md §1](project-plan.md#1-decision-register-reference).
 
 | # | Decision | Blocks | Referenced in |
 |---|----------|--------|---------------|
@@ -139,9 +142,9 @@ Every claim in this package carries one of five labels. This is what lets a read
 ## What Happens Next
 
 1. **Dave Davis reviews** both documents and the six ADRs.
-2. **Dave Davis resolves** as many of UD-01 to UD-10 as possible. UD-09 and UD-03 are the highest-value.
+2. **Dave Davis confirms the approved UD register** and the package uses those decisions as the current scope baseline. UD-09 and UD-03 remain the highest-value implementation constraints to track.
 3. **Dave Davis explicitly approves both documents**, or requests revisions — which returns the package to planning with the gate still closed.
-4. On dual approval, **M1 begins**: platform validation and the hardware adapter. Not M2 (blocked by UD-09), not M5 (blocked by UD-03).
+4. On dual approval, **M1 begins**: platform validation and the hardware adapter. Not M2 (blocked by the approved UD-09 scope), not M5 (blocked by the approved UD-03 scope).
 
 ---
 

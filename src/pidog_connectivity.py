@@ -13,12 +13,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import os
 import platform
 from pathlib import Path
 from typing import Any
+
+try:
+    from .hardware_adapter import PiAdapter, inspect_runtime
+except ImportError:  # pragma: no cover - executed when run as a script
+    from hardware_adapter import PiAdapter, inspect_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,23 +33,8 @@ def build_report() -> dict[str, Any]:
         "platform": platform.platform(),
         "python_version": platform.python_version(),
         "machine": platform.machine(),
-        "imports": {},
+        "imports": inspect_runtime(),
     }
-
-    for module_name in ("robot_hat", "pidog"):
-        try:
-            module = importlib.import_module(module_name)
-            report["imports"][module_name] = {
-                "ok": True,
-                "module": getattr(module, "__file__", None),
-                "version": getattr(module, "__version__", None),
-            }
-        except Exception as exc:  # pragma: no cover - diagnostic only
-            report["imports"][module_name] = {
-                "ok": False,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-
     return report
 
 
@@ -59,30 +48,14 @@ def can_instantiate_hardware() -> bool:
     return Path("/dev/i2c-1").exists() or Path("/dev/i2c-0").exists()
 
 
-def get_battery_status(dog: Any) -> dict[str, Any]:
+def get_battery_status(adapter: PiAdapter) -> dict[str, Any]:
     """Return raw voltage and an approximate percentage for the PiDog battery pack."""
-    try:
-        voltage = float(dog.get_battery_voltage())
-    except Exception as exc:  # pragma: no cover - diagnostic only
-        return {
-            "ok": False,
-            "error": f"{type(exc).__name__}: {exc}",
-        }
-
-    min_voltage = 6.5
-    max_voltage = 8.4
-    percent = max(0, min(100, round(((voltage - min_voltage) / (max_voltage - min_voltage)) * 100)))
-    return {
-        "ok": True,
-        "voltage_v": round(voltage, 2),
-        "percent": percent,
-        "state": "low" if percent < 20 else "ok",
-    }
+    return adapter.get_battery_status()
 
 
-def display_battery_level(dog: Any) -> str:
+def display_battery_level(adapter: PiAdapter) -> str:
     """Human-readable battery detail for the PiDog startup check."""
-    battery = get_battery_status(dog)
+    battery = get_battery_status(adapter)
     if not battery.get("ok", False):
         return f"Battery unavailable: {battery.get('error', 'unknown error')}"
     return f"Battery: {battery['voltage_v']}V ({battery['percent']}%)"
@@ -95,20 +68,18 @@ def instantiate_pidog() -> dict[str, Any]:
             "skipped": "Hardware probe skipped; this script is running outside a Pi-like environment.",
         }
 
+    adapter = PiAdapter()
     try:
-        from pidog import Pidog
-
-        dog = Pidog()
-        bark_result = dog.speak_block("single_bark_1", 80)
-        battery = get_battery_status(dog)
+        adapter.arm()
+        bark_result = adapter.speak("single_bark_1", 80)
+        battery = get_battery_status(adapter)
         return {
             "ok": True,
-            "instance_type": type(dog).__name__,
-            "module": Pidog.__module__,
+            "instance_type": type(adapter).__name__,
             "battery": battery,
-            "display": display_battery_level(dog),
+            "display": display_battery_level(adapter),
             "bark": {
-                "ok": bark_result is not False,
+                "ok": bool(bark_result),
                 "sound": "single_bark_1",
             },
         }
@@ -134,9 +105,9 @@ def main() -> int:
 
     print(json.dumps(report, indent=2, sort_keys=True))
 
-    if not report["imports"].get("robot_hat", {}).get("ok", False):
-        return 1
-    if not report["imports"].get("pidog", {}).get("ok", False):
+    missing_runtime = not report["imports"].get("robot_hat", {}).get("ok", False)
+    missing_runtime = missing_runtime or not report["imports"].get("pidog", {}).get("ok", False)
+    if missing_runtime and can_instantiate_hardware():
         return 1
     return 0
 

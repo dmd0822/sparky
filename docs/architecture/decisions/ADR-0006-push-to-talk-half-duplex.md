@@ -8,7 +8,7 @@
 | **Deciders** | Dave Davis (approval gate) |
 | **Supersedes** | — |
 | **Related** | [ADR-0002](ADR-0002-deterministic-motion-arbiter.md), [ADR-0005](ADR-0005-privacy-defaults-camera-disabled.md) |
-| **Related decisions** | [UD-03](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (mute control), [UD-06](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (offline behavior), [UD-08](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (languages, disclosure), [UD-09](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (latency) |
+| **Related decisions** | [UD-03](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (mute control), [UD-06](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (offline behavior), [UD-08](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (languages, disclosure), [UD-09](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (latency) |
 
 > **Approval gate:** This ADR describes a recommendation. It authorizes nothing. Implementation remains BLOCKED until Dave Davis explicitly approves **both** `system-architecture.md` **and** `project-plan.md`. Approval of one alone, silence, or requested revisions does not open the gate.
 
@@ -17,7 +17,7 @@
 The obvious design for a conversational companion is always-on wake-word listening with full-duplex speech. It is also the design that bundles together the four hardest problems in the system and asks us to solve them all before anything works.
 
 **Always-on listening costs:**
-- A microphone that is always open, which is a privacy posture we cannot justify while UD-04 (bystanders and children) is unresolved.
+- A microphone that is always open, which is a privacy posture we cannot justify while the approved UD-04 posture remains in force.
 - Wake-word false accepts, which mean the device starts listening — and possibly talking — when nobody addressed it.
 - Wake-word false rejects, which make the device feel broken in exactly the moments a user is trying hardest to use it.
 - A wake-word engine to select, tune, and validate, on hardware whose runtime compatibility is itself unvalidated (AS-01).

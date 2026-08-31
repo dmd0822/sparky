@@ -8,8 +8,8 @@
 | **Owner** | Architect (Lead & Software Architect) |
 | **Requested by** | Dave Davis |
 | **Status** | **DRAFT — AWAITING APPROVAL** |
-| **Approval state** | ❌ Not approved |
-| **Companion document** | [system-architecture.md](system-architecture.md) — also ❌ not approved |
+| **Approval state** | ⚠️ UDs approved; dual approval of both documents still pending |
+| **Companion document** | [system-architecture.md](system-architecture.md) — also ⚠️ pending dual approval |
 | **Implementation gate** | 🔒 **BLOCKED** |
 | **Last updated** | 2026-08-28 |
 
@@ -29,7 +29,7 @@ No application or product code may be written until **Dave Davis explicitly appr
 | Approval by anyone other than Dave Davis | 🔒 Blocked |
 | Explicit approval of **both** by Dave Davis | 🔓 Open — M1 may start, subject to per-milestone entry gates |
 
-Beyond the gate itself, **every milestone has its own entry gate**. Opening the approval gate does not authorize M5 or M6; it authorizes M1. This is deliberate. Several milestones are blocked by user decisions that approval alone does not resolve.
+Beyond the gate itself, **every milestone has its own entry gate**. Opening the approval gate does not authorize M5 or M6; it authorizes M1. This is deliberate. Dave Davis has now approved all ten user decisions, so the remaining gate is explicit approval of the architecture and project-plan documents themselves.
 
 Nothing in this plan authorizes any modification under `exlibs/`, at any milestone, ever.
 
@@ -37,7 +37,7 @@ Nothing in this plan authorizes any modification under `exlibs/`, at any milesto
 
 ## 1. Decision Register Reference
 
-Ten user decisions remain unresolved. They are defined in [system-architecture.md §4](system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10). This plan references them as blocking conditions on specific milestones.
+The ten user decisions are now approved by Dave Davis. They are defined in [system-architecture.md §4](system-architecture.md#4-user-decision-register-ud-01--ud-10) and remain referenced here as the decisions that govern specific milestone scope and entry conditions.
 
 | ID | Decision | Blocks milestone(s) |
 |----|----------|---------------------|
@@ -52,7 +52,7 @@ Ten user decisions remain unresolved. They are defined in [system-architecture.m
 | **UD-09** | Azure budget / regions / tenant / subscription / latency | **M2 entry — hard block** |
 | **UD-10** | Broker mandatory vs direct Speech evaluation | M2 scope |
 
-> **Rule:** a milestone whose entry gate references an unresolved decision **does not start**. Work does not "begin provisionally" on a blocked milestone.
+> **Rule:** a milestone whose entry gate references a decision that is still not approved for implementation **does not start**. Work does not "begin provisionally" on a blocked milestone.
 
 ---
 
@@ -124,11 +124,12 @@ flowchart LR
 | M0-D2 | `docs/architecture/project-plan.md` | Architect | ✅ Delivered, unapproved |
 | M0-D3 | Six ADRs under `docs/architecture/decisions/` | Architect | ✅ Delivered, proposed |
 | M0-D4 | Read-only `exlibs` evidence table with citations | Robotics → Architect | ✅ Delivered |
-| M0-D5 | Ten-item decision register | Architect | ✅ Delivered, **all open** |
+| M0-D5 | Ten-item decision register | Architect | ✅ Delivered; all ten decisions now approved by Dave Davis |
 | M0-D6 | Fact Checker verification pass | Fact Checker | ✅ Core claims verified; open items listed |
 | M0-D7 | Rai safety/privacy review | Rai | 🟡 Amber, 5 blockers |
 | M0-D8 | Reliability test-readiness review | Reliability | ✅ APPROVE WITH CONDITIONS — REL-C1 to REL-C6 confirmed at genuine re-review |
-| M0-D9 | Resolution of UD-01 to UD-10 | **Dave Davis** | ❌ **All ten open** |
+| M0-D9 | Resolution of UD-01 to UD-10 | **Dave Davis** | ✅ **All ten approved** |
+| M0-D10 | M0 issue #1 tracking and user-decision owner matrix | Architect | ✅ **Complete** — tracking doc updated and UD issues closed as approved |
 
 **Acceptance criteria**
 
@@ -592,7 +593,7 @@ flowchart LR
 | TP-02 | No restrained-HIL or later stage begins without a verified physical e-stop (UD-03, RAI-B1). |
 | TP-03 | Safety requirements are verified in simulation **and** on hardware; simulation alone is insufficient (REL-C4). |
 | TP-04 | A watchdog trip or e-stop assertion is a defect with a root cause, never a tuning parameter (REL-C6). |
-| TP-05 | No bystanders — and specifically no children — are present at any test stage while UD-04 is unresolved. |
+| TP-05 | No bystanders — and specifically no children — are present at any test stage under the approved UD-04 posture. |
 | TP-06 | The simulator is maintained as a first-class artifact for the life of the project, not abandoned after M5 (REL-C2). |
 
 ---
@@ -680,7 +681,7 @@ M7 exit, all Rai blockers closed or explicitly accepted in writing by Dave Davis
 |-------|-------|
 | Package index and approval status | [README.md](README.md) |
 | Architecture, diagrams, requirements | [system-architecture.md](system-architecture.md) |
-| Ten unresolved decisions | [system-architecture.md §4](system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) and §1 here |
+| Ten approved decisions | [system-architecture.md §4](system-architecture.md#4-user-decision-register-ud-01--ud-10) and §1 here |
 | ADR-0001 Pi-local hardware adapter | [decisions/ADR-0001-pi-local-hardware-adapter.md](decisions/ADR-0001-pi-local-hardware-adapter.md) |
 | ADR-0002 Deterministic motion arbiter | [decisions/ADR-0002-deterministic-motion-arbiter.md](decisions/ADR-0002-deterministic-motion-arbiter.md) |
 | ADR-0003 Immutable versioned personas | [decisions/ADR-0003-immutable-versioned-personas.md](decisions/ADR-0003-immutable-versioned-personas.md) |
