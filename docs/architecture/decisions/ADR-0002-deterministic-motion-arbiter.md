@@ -8,7 +8,7 @@
 | **Deciders** | Dave Davis (approval gate) |
 | **Supersedes** | — |
 | **Related** | [ADR-0001](ADR-0001-pi-local-hardware-adapter.md), [ADR-0003](ADR-0003-immutable-versioned-personas.md), [ADR-0006](ADR-0006-push-to-talk-half-duplex.md) |
-| **Related decisions** | [UD-02](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (stationary vs walking), [UD-03](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (physical e-stop) |
+| **Related decisions** | [UD-02](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (stationary vs walking), [UD-03](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (physical e-stop) |
 
 > **Approval gate:** This ADR describes a recommendation. It authorizes nothing. Implementation remains BLOCKED until Dave Davis explicitly approves **both** `system-architecture.md` **and** `project-plan.md`. Approval of one alone, silence, or requested revisions does not open the gate.
 
@@ -63,7 +63,7 @@ The arbiter maintains its own command state and drives the adapter to a known sa
 
 The e-stop is **independent of software** (SR-01). It is not an arbiter feature, not a state the software chooses to enter, and not a signal a hung process can swallow. It is a latched physical cutoff. Software observes and reports it; software cannot clear it. Clearing requires an explicit operator action at the device.
 
-⚠️ **Blocked by UD-03.** Specification, sourcing, and wiring are unresolved. **Hardware-in-the-loop testing does not begin without it** — this is a hard M5 entry gate.
+⚠️ **Blocked by UD-03.** Specification, sourcing, and wiring are now governed by the approved UD-03 decision. **Hardware-in-the-loop testing does not begin without it** — this is a hard M5 entry gate.
 
 ## Alternatives considered
 

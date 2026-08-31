@@ -17,6 +17,7 @@ Sparky is a Raspberry Pi-based companion device intended to combine:
 The architecture and planning work is complete, and the first implementation milestone has begun.
 
 - Architecture and project-planning documentation are complete under `docs/architecture/`
+- M0 issue-tracking work for the dual-approval gate is now being documented in `docs/architecture/m0-issue-1-tracking.md`
 - Minimal source-code validation has begun under `src/` with a PiDog connectivity smoke test
 - The project is now moving from planning into a small, incremental implementation phase
 
@@ -27,6 +28,9 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 - [`docs/architecture/README.md`](docs/architecture/README.md)
 - [`docs/architecture/system-architecture.md`](docs/architecture/system-architecture.md)
 - [`docs/architecture/project-plan.md`](docs/architecture/project-plan.md)
+- [`docs/architecture/m0-issue-1-tracking.md`](docs/architecture/m0-issue-1-tracking.md)
+- [`docs/architecture/dual-approval.md`](docs/architecture/dual-approval.md)
+- [`docs/project-plan/dual-approval.md`](docs/project-plan/dual-approval.md)
 - [`docs/architecture/decisions/`](docs/architecture/decisions/)
 - [`docs/architecture/diagrams/`](docs/architecture/diagrams/)
 

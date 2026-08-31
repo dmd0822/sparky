@@ -31,7 +31,7 @@ Explicitly, the gate does **not** open on any of the following:
 | Approval by anyone other than Dave Davis | 🔒 Still blocked |
 | Explicit approval of **both** documents by Dave Davis | 🔓 Open, subject to milestone entry gates in the project plan |
 
-In addition, ten user decisions listed in [§4, Decision Register](#4-unresolved-user-decision-register-ud-01--ud-10) are unresolved. Several of them materially change this architecture. Approval given without resolving them is accepted at the user's discretion, but the affected milestones in the project plan carry explicit entry gates that cannot be satisfied until the corresponding decision is made.
+In addition, ten user decisions are tracked in [§4, Decision Register](#4-user-decision-register-ud-01--ud-10). Dave Davis has now approved all ten of them, so the architecture package records them as resolved decisions rather than open questions. The affected milestones in the project plan still carry entry-gate references because those gates document the decisions that now govern implementation scope.
 
 This document does not authorize, and must not be read as authorizing, any change to files under `exlibs/`. That tree is read-only evidence.
 
@@ -172,9 +172,9 @@ When Azure is unreachable, the device does not pretend. It uses a local degraded
 
 ---
 
-## 4. Unresolved User Decision Register (UD-01 – UD-10)
+## 4. User Decision Register (UD-01 – UD-10)
 
-These ten decisions are owned by **Dave Davis** and are **unresolved**. They are cross-referenced from `README.md`, `project-plan.md`, and the relevant ADRs. Each entry states what is blocked and what this document assumes in the interim so that planning can proceed.
+These ten decisions are owned by **Dave Davis**. Dave Davis has now **approved all ten**. They remain cross-referenced from `README.md`, `project-plan.md`, and the relevant ADRs, and each entry still records the planning assumption used while the package was in draft so that the transition from planning to implementation is traceable.
 
 | ID | Decision | Blocks | Planning assumption used in this document |
 |----|----------|--------|-------------------------------------------|
@@ -263,7 +263,7 @@ Every claim in this package is labelled with one of:
 
 | ID | Question | Owner | Needed by |
 |----|----------|-------|-----------|
-| OQ-01 | Which robot-hat source of truth do we pin: supplied `2.3.6` or documented `2.5.x`? | Robotics | M1 |
+| OQ-01 | Which robot-hat source of truth do we pin: supplied `2.3.6` or documented `2.5.x`? — DECIDED: pin to supplied `2.3.6` | Robotics | M1 |
 | OQ-02 | What is the concrete safe-pose definition, and does it differ stationary vs walking? | Robotics | M3 |
 | OQ-03 | Which audio stack — raw ALSA, PulseAudio, or PipeWire — on the chosen image? | Speech | M2 |
 | OQ-04 | Streaming vs batch synthesis for first-syllable latency? | Speech | M2 |
@@ -701,7 +701,7 @@ The broker gives us four things that a direct-to-Azure device cannot have: per-d
 | Abandon criterion | No material improvement, or any requirement to hold a credential on the device beyond a short-lived scoped token, or complexity that compromises the revocation story |
 | Time box | Set in M2; abandoned by default if inconclusive |
 | Gate | Blocked by **UD-10**. Not started until the user rules on whether the broker is mandatory. |
-| Default if UD-10 unresolved | Broker-only. The experiment does not run. |
+| Default after the approved UD-10 decision | Broker-only. The experiment does not run. |
 
 ### 9.3 Resilience posture
 
@@ -716,7 +716,7 @@ The broker gives us four things that a direct-to-Azure device cannot have: per-d
 
 ### 9.4 Content safety
 
-Content safety is applied at **two** points (PR-06): on the transcript before it reaches the model, and on the model output before it reaches synthesis. Blocking at either point produces a persona-voiced safe refusal, never silence and never a raw error string. Strictness tier is a persona permission (§8.1), with the strictest tier as the default while UD-04 is unresolved.
+Content safety is applied at **two** points (PR-06): on the transcript before it reaches the model, and on the model output before it reaches synthesis. Blocking at either point produces a persona-voiced safe refusal, never silence and never a raw error string. Strictness tier is a persona permission (§8.1), with the strictest tier as the default under the approved UD-04 posture.
 
 ### 9.5 What is not decided
 
@@ -764,7 +764,7 @@ The arbiter deliberately does *not* use PiDog's `body_stop()` busy-wait (EV-15) 
 
 The e-stop is **independent of software** (SR-01). It is not an arbiter feature, not a state in the state machine that software chooses to enter, and not a signal that a hung process can swallow. It is a latched physical cutoff. Software observes it and reports it; software cannot clear it. Clearing requires an explicit operator action at the device.
 
-⚠️ **Blocked by UD-03.** The specification, sourcing, and wiring of this device are unresolved. **Hardware-in-the-loop testing does not begin without it** (M5 entry gate).
+⚠️ **Blocked by UD-03.** The specification, sourcing, and wiring of this device are now governed by the approved UD-03 decision. **Hardware-in-the-loop testing does not begin without it** (M5 entry gate).
 
 ### 10.4 Motion scope
 
@@ -833,7 +833,7 @@ If any step fails or times out, the process still drives to safe pose and inhibi
 | Cross-session memory | **None** | UD-07 assumption |
 | Transcript in logs | **Never at default level** | PR-05 |
 | AI disclosure | **On** | FR-12, PR-07 |
-| Content safety | **Strictest tier** while UD-04 unresolved | PR-06 |
+| Content safety | **Strictest tier** under the approved UD-04 posture | PR-06 |
 
 These are defaults in the strong sense: they hold unless a user decision explicitly changes them, and changing them requires a Rai re-review.
 
@@ -846,7 +846,7 @@ Rai's review status on this package is **🟡 AMBER — approved to plan, not ap
 | RAI-B1 | **Safety** — no specified physical e-stop / cutoff / mute exists. | UD-03. Until resolved, no HIL testing is authorized. |
 | RAI-B2 | **Safety** — bystander and child interaction model is undefined, so consent and content-strictness cannot be finalized. | UD-04 |
 | RAI-B3 | **Privacy** — retention, deletion, and memory policy is undefined, so no retention feature may be built. | UD-07 |
-| RAI-B4 | **Privacy** — Vilib's unauthenticated `0.0.0.0:9000` service (EV-08, EV-09) is an active exposure in the dependency tree. | Mitigated by ADR-0005 exclusion. The ban on this specific unauthenticated Flask/MJPEG service is **unconditional** — it does not depend on, and is not reopened by, UD-05. If UD-05 later confirms a camera is needed, that requires a **separately designed, authenticated** camera path, not this service; the broader camera-privacy question stays open and unresolved until then. |
+| RAI-B4 | **Privacy** — Vilib's unauthenticated `0.0.0.0:9000` service (EV-08, EV-09) is an active exposure in the dependency tree. | Mitigated by ADR-0005 exclusion. The ban on this specific unauthenticated Flask/MJPEG service is **unconditional** — it does not depend on, and is not reopened by, UD-05. If UD-05 later confirms a camera is needed, that requires a **separately designed, authenticated** camera path, not this service; the broader camera-privacy posture remains governed by the approved UD-05 and UD-07 decisions. |
 | RAI-B5 | **Credential** — device credential model is unratified pending the broker decision. | UD-10, plus ADR-0004 implementation |
 
 Rai's position, stated plainly: the architecture's *defaults* are correct and defensible, but three of the five blockers are user decisions that no amount of engineering can resolve. Amber is the correct status and it will not go green on documentation alone.
@@ -920,7 +920,7 @@ Reliability's initial review of this package returned **❌ REJECTED**, specific
 | R-10 | A persona bundle requests capabilities it should not have | Medium | Medium | Load-time capability validation, fail-closed, minimal safe persona (§8.3) | Architect + Rai |
 | R-11 | Device certificate compromise via physical access | Low | Medium | Per-device certs, individual revocation, no other credential on device (ADR-0004) | AzureAI |
 | R-12 | GPLv3 licensing of `exlibs` constrains distribution (EV-21, §6.3) | Unknown | Unknown | Flagged for legal review before any distribution decision | Architect |
-| R-13 | Ten unresolved user decisions stall the plan indefinitely | Medium | High | Decisions surfaced explicitly in §4 with named blocking milestones | Architect |
+| R-13 | User decisions are now resolved, but the planning package still needs explicit dual approval | Medium | Medium | Decisions surfaced explicitly in §4 with named blocking milestones; the remaining gate is dual approval of both documents | Architect |
 | R-14 | Scope creeps into walking, camera, or wake-word before the safety envelope supports it | Medium | High | Explicit non-goals (§1.3), gated milestones M6/M7 | Architect |
 | R-15 | The device speaks something harmful | Low | High | Dual content-safety checkpoints, strictest default tier, persona-voiced refusals (§9.4) | Rai |
 
@@ -939,7 +939,7 @@ Reliability's initial review of this package returned **❌ REJECTED**, specific
 | 5 | Fact Checker verification of core claims | ✅ Core claims verified; runtime, SDK, quota, latency remain open items |
 | 6 | Rai safety and responsibility review | 🟡 Amber — RAI-B1 to RAI-B5 open |
 | 7 | Reliability test-readiness review | ✅ **APPROVE WITH CONDITIONS** — REL-C1 to REL-C6 confirmed at genuine re-review |
-| 8 | Ten user decisions resolved | ❌ **All ten open** — §4 |
+| 8 | Ten user decisions resolved | ✅ **All ten approved** — §4 |
 | 9 | **Dave Davis explicit approval of `system-architecture.md`** | ❌ **Not given** |
 | 10 | **Dave Davis explicit approval of `project-plan.md`** | ❌ **Not given** |
 | 11 | Physical e-stop specified and available | ❌ Blocked by UD-03 |
@@ -972,7 +972,7 @@ Stated honestly, so that a reviewer can attack it efficiently:
 | ADR-0004 — Azure broker and identity boundary | [decisions/ADR-0004-azure-broker-identity-boundary.md](decisions/ADR-0004-azure-broker-identity-boundary.md) |
 | ADR-0005 — Privacy defaults and camera disabled | [decisions/ADR-0005-privacy-defaults-camera-disabled.md](decisions/ADR-0005-privacy-defaults-camera-disabled.md) |
 | ADR-0006 — Push-to-talk half-duplex first release | [decisions/ADR-0006-push-to-talk-half-duplex.md](decisions/ADR-0006-push-to-talk-half-duplex.md) |
-| Ten unresolved user decisions | [§4](#4-unresolved-user-decision-register-ud-01--ud-10) |
+| Ten user decisions | [§4](#4-user-decision-register-ud-01--ud-10) |
 
 ---
 

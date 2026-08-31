@@ -8,7 +8,7 @@
 | **Deciders** | Dave Davis (approval gate) |
 | **Supersedes** | — |
 | **Related** | [ADR-0001](ADR-0001-pi-local-hardware-adapter.md), [ADR-0003](ADR-0003-immutable-versioned-personas.md), [ADR-0006](ADR-0006-push-to-talk-half-duplex.md) |
-| **Related decisions** | [UD-04](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (bystanders), [UD-05](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (camera need), [UD-07](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (retention and memory) |
+| **Related decisions** | [UD-04](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (bystanders), [UD-05](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (camera need), [UD-07](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (retention and memory) |
 
 > **Approval gate:** This ADR describes a recommendation. It authorizes nothing. Implementation remains BLOCKED until Dave Davis explicitly approves **both** `system-architecture.md` **and** `project-plan.md`. Approval of one alone, silence, or requested revisions does not open the gate.
 
@@ -31,7 +31,7 @@ Anyone on the same network segment — a guest on the Wi-Fi, a compromised IoT d
 
 **Fact 2 — bystanders cannot consent.** A companion device in a home is heard by people who never agreed to interact with it: family members, guests, children, a delivery driver at the door. Any retention default other than "none" makes the device a recording device for people who did not opt in.
 
-**Fact 3 — three of the relevant decisions are unresolved.** UD-04 (bystanders and children), UD-05 (is the camera needed at all), and UD-07 (retention, deletion, memory) are all open. A design that assumes permissive answers to open questions is a design that has to be retracted.
+**Fact 3 — the planning package records the approved default posture for these decisions.** UD-04 (bystanders and children), UD-05 (is the camera needed at all), and UD-07 (retention, deletion, memory) are now recorded as approved decisions, and the design intentionally defaults to the more restrictive posture until a future change request is made. A design that assumes permissive answers to open questions is a design that has to be retracted.
 
 ## Decision
 

@@ -8,7 +8,7 @@
 | **Deciders** | Dave Davis (approval gate) |
 | **Supersedes** | — |
 | **Related** | [ADR-0002](ADR-0002-deterministic-motion-arbiter.md), [ADR-0005](ADR-0005-privacy-defaults-camera-disabled.md) |
-| **Related decisions** | [UD-04](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (bystanders), [UD-08](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (languages, personas, disclosure) |
+| **Related decisions** | [UD-04](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (bystanders), [UD-08](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (languages, personas, disclosure) |
 
 > **Approval gate:** This ADR describes a recommendation. It authorizes nothing. Implementation remains BLOCKED until Dave Davis explicitly approves **both** `system-architecture.md` **and** `project-plan.md`. Approval of one alone, silence, or requested revisions does not open the gate.
 

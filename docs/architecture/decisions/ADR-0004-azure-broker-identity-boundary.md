@@ -8,7 +8,7 @@
 | **Deciders** | Dave Davis (approval gate) |
 | **Supersedes** | — |
 | **Related** | [ADR-0001](ADR-0001-pi-local-hardware-adapter.md), [ADR-0005](ADR-0005-privacy-defaults-camera-disabled.md) |
-| **Related decisions** | [UD-09](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (budget, regions, tenant, latency), [UD-10](../system-architecture.md#4-unresolved-user-decision-register-ud-01--ud-10) (broker mandatory vs direct Speech) |
+| **Related decisions** | [UD-09](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (budget, regions, tenant, latency), [UD-10](../system-architecture.md#4-user-decision-register-ud-01--ud-10) (broker mandatory vs direct Speech) |
 
 > **Approval gate:** This ADR describes a recommendation. It authorizes nothing. Implementation remains BLOCKED until Dave Davis explicitly approves **both** `system-architecture.md` **and** `project-plan.md`. Approval of one alone, silence, or requested revisions does not open the gate.
 
@@ -68,7 +68,7 @@ The device holds **no** model key, **no** Speech key, **no** subscription key, a
 | Abandon criterion | No material improvement; **or** any requirement to hold a credential on the device beyond a short-lived scoped token; **or** complexity that compromises the per-device revocation story |
 | Time box | Set in M2; abandoned by default if inconclusive |
 | Gate | 🔒 **Blocked by UD-10.** Does not start until the user rules on whether the broker is mandatory. |
-| Default while UD-10 is unresolved | Broker-only. The experiment does not run. |
+| Default after the approved UD-10 decision | Broker-only. The experiment does not run. |
 
 The language-model path is **broker-only regardless of UD-10**. The experiment concerns Speech alone, because Speech is the only latency-critical leg and the only one where a short-lived scoped token is a coherent proposition.
 
@@ -101,7 +101,7 @@ The language-model path is **broker-only regardless of UD-10**. The experiment c
 
 - The broker is new infrastructure to build, deploy, secure, and operate.
 - It adds a network hop, which is a real latency cost — the very cost the direct-Speech experiment is designed to measure honestly rather than assume away.
-- Certificate enrolment, rotation, and revocation is genuine operational work (AS-06), and it depends on tenant policy that is unresolved under UD-09.
+- Certificate enrolment, rotation, and revocation is genuine operational work (AS-06), and it depends on the approved tenant and regional policy captured under UD-09.
 - The broker is a single point of failure for all cloud capability, which is why the degraded-mode design (§9.3, FR-09) is a first-class requirement and not an afterthought.
 
 ### Neutral
