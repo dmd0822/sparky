@@ -30,6 +30,8 @@ This tracking document aggregates the per-UD draft decision PRs, issue links, an
 1. Architect & Reliability: please review the ten draft UD decision PRs linked above and provide explicit review/approval.
 2. Dave Davis: please confirm ownership on the linked issues or provide the canonical GitHub handle if different from @dmd0822.
 
+## Verification
+- Verified GitHub handle: `@dmd0822` exists and is assigned as the provisional owner on issues #11–#20 (assignment is *not* the same as explicit approval; per policy, Dave must explicitly approve the architecture and project-plan documents before merging UD decision PRs).
 ## Notes
 - These PRs are intentionally opened as drafts pending dual-approval (Dave Davis + Architect + Reliability) per project policy.
 - If maintainers prefer a different merge order, please advise in PR comments. Consider merging when all three approvals are present.

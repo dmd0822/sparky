@@ -24,8 +24,9 @@ The review package also includes the decision issues [#11](https://github.com/dm
 
 ## Current state
 
-- The planning package remains draft-only and unapproved.
-- The user decisions are now tracked as individual issues and recorded as approved by Dave Davis, with the remaining gate being explicit approval of both architecture and project-plan documents.
+- The planning package has been populated with evidence artifacts; per-UD decision files were created under `.squad/decisions/` and per-decision branches were pushed.
+- Per-decision draft PRs were opened (PRs #23–#32) and a consolidated tracking PR (#33) was created and merged to `main` on 2026-09-08 to record and surface reviewer requests.
+- Provisional owners on the UD issues are set to `@dmd0822`. Dave Davis explicit approval remains pending and is required by policy before merging individual decision PRs.
 - The `exlibs/` tree remains read-only and is treated as evidence-only input for planning and architecture review.
 
 ## Review checklist
@@ -36,5 +37,6 @@ The review package also includes the decision issues [#11](https://github.com/dm
 
 ## Open questions
 
-- Which GitHub handles should own the UD decision issues and the explicit approval request?
-- Which review comments should be captured in the final issue comment once the reviewers complete their checks?
+- Confirm Dave Davis's canonical GitHub handle for explicit owner assignment (currently provisional: `@dmd0822`). This is the remaining blocker for final merges.
+- Confirm whether Architect & Reliability approvals should be recorded on the consolidated tracking PR (#33) or individually on each UD draft PR (#23–#32). Current automation posts reviewer requests to both the tracking PR and the individual PRs.
+- Decide whether the project prefers a single-PR merge (aggregate) or individual UD-PR merges once all approvals are present; add guidance to merge-order policy if desired.

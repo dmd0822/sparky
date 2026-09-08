@@ -34,3 +34,15 @@ This document stages the M0 planning work in a reviewable format so that approve
 - Dave Davis explicitly approves both the architecture and project-plan documents.
 - The decision issues have owners and actionable next steps, and the remaining gate is explicit dual approval by Dave Davis.
 - The review package is linked from the issue thread and the tracking document.
+
+## Status update (2026-09-08)
+
+- Per-UD decision files were created under `.squad/decisions/` and per-decision draft PRs were opened (PRs #23–#32).
+- A consolidated tracking PR (#33) was created to aggregate links and reviewer requests; it was merged to `main` on 2026-09-08 to make the tracking record visible in the repository history.
+- All UD draft PRs remain blocked pending dual-approval: explicit Dave Davis approval plus Architect & Reliability approvals on the decision PRs.
+
+## Remaining actions
+
+- Confirm Dave Davis's GitHub handle and record explicit approvals on the architecture and project-plan documents.
+- Track Architect & Reliability reviews on PRs #23–#32 and consolidate reviewer feedback into the decision issues as needed.
+- After dual-approval is observed, merge UD PRs per the project's merge-order guidance.
