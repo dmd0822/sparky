@@ -24,8 +24,11 @@ The review package also includes the decision issues [#11](https://github.com/dm
 
 ## Current state
 
-- The planning package remains draft-only and unapproved.
-- The user decisions are now tracked as individual issues and recorded as approved by Dave Davis, with the remaining gate being explicit approval of both architecture and project-plan documents.
+- The planning package has been populated with evidence artifacts; per-UD decision files were created under `.squad/decisions/` and per-decision branches were pushed.
+- Per-decision PRs were opened (PRs #23–#32) and have been merged to `main` (see the consolidated tracking PR #33 and the merged PR list in `.squad/decisions/ud-tracking.md`).
+- A central approvals issue (#35) was created to collect explicit approvals: https://github.com/dmd0822/sparky/issues/35. The UD tracking document (.squad/decisions/ud-tracking.md) links this issue for centralized follow-up.
+
+- Provisional owners on the UD issues were set to `@dmd0822`. Dave Davis explicit approval was requested; the PRs were merged before a textual approval comment was recorded. If Dave prefers to formally register approval after the merges, please post a confirmation comment on issue #35 (e.g., "Dave Davis: I approve the M0 architecture and project plan").
 - The `exlibs/` tree remains read-only and is treated as evidence-only input for planning and architecture review.
 
 ## Review checklist
@@ -36,5 +39,6 @@ The review package also includes the decision issues [#11](https://github.com/dm
 
 ## Open questions
 
-- Which GitHub handles should own the UD decision issues and the explicit approval request?
-- Which review comments should be captured in the final issue comment once the reviewers complete their checks?
+- Confirm Dave Davis's canonical GitHub handle for explicit owner assignment (currently provisional: `@dmd0822`). This is the remaining blocker for final merges.
+- Confirm whether Architect & Reliability approvals should be recorded on the consolidated tracking PR (#33) or individually on each UD draft PR (#23–#32). Current automation posts reviewer requests to both the tracking PR and the individual PRs.
+- Decide whether the project prefers a single-PR merge (aggregate) or individual UD-PR merges once all approvals are present; add guidance to merge-order policy if desired.

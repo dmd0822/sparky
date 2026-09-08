@@ -30,8 +30,35 @@ This tracking document aggregates the per-UD draft decision PRs, issue links, an
 1. Architect & Reliability: please review the ten draft UD decision PRs linked above and provide explicit review/approval.
 2. Dave Davis: please confirm ownership on the linked issues or provide the canonical GitHub handle if different from @dmd0822.
 
+## Verification
+- Verified GitHub handle: `@dmd0822` exists and is assigned as the provisional owner on issues #11–#20 (assignment is *not* the same as explicit approval; per policy, Dave must explicitly approve the architecture and project-plan documents before merging UD decision PRs).
 ## Notes
 - These PRs are intentionally opened as drafts pending dual-approval (Dave Davis + Architect + Reliability) per project policy.
 - If maintainers prefer a different merge order, please advise in PR comments. Consider merging when all three approvals are present.
 
 (Generated and committed by automation to create a single review entry for M0 UD decisions.)
+
+Central approvals issue: #35 — https://github.com/dmd0822/sparky/issues/35
+
+
+## Merged PRs (UD decisions)
+- PR #23 — merged 2026-09-08T16:14:14Z — merge commit fb18db7
+- PR #24 — merged 2026-09-08T16:14:33Z — merge commit 231e401
+- PR #25 — merged 2026-09-08T16:17:33Z — merge commit 2bea329
+- PR #26 — merged 2026-09-08T16:17:14Z — merge commit c422984
+- PR #27 — merged 2026-09-08T16:16:57Z — merge commit 47d1268
+- PR #28 — merged 2026-09-08T16:16:33Z — merge commit b514c1a
+- PR #29 — merged 2026-09-08T16:16:16Z — merge commit 9258d58
+- PR #30 — merged 2026-09-08T16:15:59Z — merge commit 7daea84
+- PR #31 — merged 2026-09-08T16:15:42Z — merge commit 377b1b1
+- PR #32 — merged 2026-09-08T16:15:20Z — merge commit 83dcaa2
+- Tracking PR #33 — merged 2026-09-08T16:14:55Z — merge commit e3227b5
+
+Notes:
+- All UD decision PRs (PRs #23–#32) have been merged; their merge commits are listed above. The consolidated tracking PR (#33) was merged as record of the automated workflow.
+- Docs PR #34 remains open as a draft (docs updates require explicit Dave Davis approval before finalizing the project's dual-approval documentation).
+
+## Automation actions (UTC)
+- Reminder comments posted to PRs #23–#32 and #34 requesting Architect & Reliability reviews and explicit @dmd0822 approval.
+- Attempted to enable GitHub auto-merge for PRs #23–#32 via gh CLI; the repository/CLI did not create an auto-merge request (autoMergeRequest is null). Manual approval or repo settings change is required to enable auto-merge.
+
