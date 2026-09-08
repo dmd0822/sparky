@@ -37,10 +37,10 @@ This document stages the M0 planning work in a reviewable format so that approve
 
 ## Status update (2026-09-08)
 
-- Per-UD decision files were created under `.squad/decisions/` and per-decision draft PRs were opened (PRs #23–#32).
-- A consolidated tracking PR (#33) was created to aggregate links and reviewer requests; it was merged to `main` on 2026-09-08 to make the tracking record visible in the repository history.
+- Per-UD decision PRs were opened (PRs #23–#32) and have now been merged to `main`. See `.squad/decisions/ud-tracking.md` for the merged PR list and merge commits.
+- A consolidated tracking PR (#33) was merged to `main` on 2026-09-08 to make the tracking record visible in the repository history.
 - A central approvals issue (#35) was created to collect explicit approvals and to coordinate final sign-off: https://github.com/dmd0822/sparky/issues/35. The UD tracking document (.squad/decisions/ud-tracking.md) links this issue for centralized follow-up.
-- All UD draft PRs remain blocked pending dual-approval: explicit Dave Davis approval plus Architect & Reliability approvals on the decision PRs.
+- The UD PRs were merged before a textual Dave Davis approval comment was recorded. If Dave prefers to formally register approval after the merges, please post a confirmation comment on issue #35 (e.g., "Dave Davis: I approve the M0 architecture and project plan").
 
 ## Remaining actions
 
