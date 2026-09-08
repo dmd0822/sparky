@@ -26,6 +26,8 @@ The review package also includes the decision issues [#11](https://github.com/dm
 
 - The planning package has been populated with evidence artifacts; per-UD decision files were created under `.squad/decisions/` and per-decision branches were pushed.
 - Per-decision draft PRs were opened (PRs #23–#32) and a consolidated tracking PR (#33) was created and merged to `main` on 2026-09-08 to record and surface reviewer requests.
+- A central approvals issue (#35) was created to collect explicit approvals: https://github.com/dmd0822/sparky/issues/35. The UD tracking document (.squad/decisions/ud-tracking.md) links this issue for centralized follow-up.
+
 - Provisional owners on the UD issues are set to `@dmd0822`. Dave Davis explicit approval remains pending and is required by policy before merging individual decision PRs.
 - The `exlibs/` tree remains read-only and is treated as evidence-only input for planning and architecture review.
 
