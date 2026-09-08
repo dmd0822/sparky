@@ -38,6 +38,9 @@ This tracking document aggregates the per-UD draft decision PRs, issue links, an
 
 (Generated and committed by automation to create a single review entry for M0 UD decisions.)
 
+Central approvals issue: #35 — https://github.com/dmd0822/sparky/issues/35
+
+
 ## Automation actions (UTC)
 - Reminder comments posted to PRs #23–#32 and #34 requesting Architect & Reliability reviews and explicit @dmd0822 approval.
 - Attempted to enable GitHub auto-merge for PRs #23–#32 via gh CLI; the repository/CLI did not create an auto-merge request (autoMergeRequest is null). Manual approval or repo settings change is required to enable auto-merge.
