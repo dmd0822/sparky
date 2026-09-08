@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | **Review target** | [docs/architecture/dual-approval.md](../../../docs/architecture/dual-approval.md) and [docs/project-plan/dual-approval.md](../../../docs/project-plan/dual-approval.md) |
-| **Status** | Draft — pending review |
+| **Status** | Ready for review |
 | **Owner** | Rai |
 
 ## Review focus

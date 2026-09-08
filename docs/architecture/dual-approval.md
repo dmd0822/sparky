@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | **Issue** | [#1](https://github.com/dmd0822/sparky/issues/1) |
-| **Status** | Draft — awaiting review |
-| **Owner** | Architect |
+| **Status** | Ready for review |
+| **Owner** | @dmd0822 (provisional) |
 | **Approval gate** | Dave Davis must explicitly approve this document and [docs/architecture/project-plan.md](project-plan.md) |
 
 ## Purpose
