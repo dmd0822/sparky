@@ -47,6 +47,24 @@ class MilestoneOneTests(unittest.TestCase):
         adapter.arm()
         self.assertTrue(adapter.describe()["armed"])
 
+    def test_pi_adapter_treats_backend_speak_none_as_success(self) -> None:
+        class NoneReturnBackend:
+            def speak_block(self, sound: str, volume: int) -> None:
+                return None
+
+            def get_battery_voltage(self) -> float:
+                return 7.4
+
+        adapter = PiAdapter(
+            backend=NoneReturnBackend(),
+            resolved_versions={"pidog": "1.3.13", "robot_hat": "2.5.5"},
+        )
+        adapter.arm()
+
+        result = adapter.speak("single_bark_1", 80)
+        self.assertEqual(result["ok"], True)
+        self.assertEqual(result["sound"], "single_bark_1")
+
     def test_import_guard_blocks_banned_modules_outside_adapter(self) -> None:
         root = Path(__file__).resolve().parents[1]
         violations = find_banned_imports(root)

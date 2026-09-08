@@ -80,6 +80,11 @@ def instantiate_pidog() -> dict[str, Any]:
     try:
         adapter.arm()
         bark_result = adapter.speak("single_bark_1", 80)
+        bark_ok = True
+        if isinstance(bark_result, dict):
+            bark_ok = bark_result.get("ok", True) is not False
+        elif bark_result is False:
+            bark_ok = False
         battery = get_battery_status(adapter)
         return {
             "ok": True,
@@ -87,7 +92,7 @@ def instantiate_pidog() -> dict[str, Any]:
             "battery": battery,
             "display": display_battery_level(adapter),
             "bark": {
-                "ok": bool(bark_result),
+                "ok": bark_ok,
                 "sound": "single_bark_1",
             },
         }

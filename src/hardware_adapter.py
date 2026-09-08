@@ -139,7 +139,15 @@ class PiAdapter(HardwareAdapterBase):
         if self._backend is None:
             raise RuntimeError("PiDog backend unavailable")
         if hasattr(self._backend, "speak_block"):
-            return self._backend.speak_block(sound, volume)
+            result = self._backend.speak_block(sound, volume)
+            if result is None:
+                return {"ok": True, "sound": sound, "volume": max(0, min(100, int(volume)))}
+            if isinstance(result, dict):
+                result.setdefault("ok", True)
+                result.setdefault("sound", sound)
+                result.setdefault("volume", max(0, min(100, int(volume))))
+                return result
+            return {"ok": True, "sound": sound, "volume": max(0, min(100, int(volume)))}
         return {"ok": True, "sound": sound, "volume": max(0, min(100, int(volume)))}
 
     def get_battery_status(self) -> dict[str, Any]:
