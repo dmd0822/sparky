@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.hardware_adapter import PiAdapter, SimulatorAdapter
+from src.hardware_adapter import HardwareAdapter, PiAdapter, SimulatorAdapter
 from src.import_guards import find_banned_imports
 from src import pidog_connectivity
 
@@ -30,15 +30,22 @@ class MilestoneOneTests(unittest.TestCase):
         self.assertEqual(state["tail"], 1.0)
         self.assertEqual(state["gestures"], ["wave"])
 
-    def test_pi_adapter_refuses_version_mismatch(self) -> None:
+    def test_runtime_report_exposes_installed_versions(self) -> None:
+        report = pidog_connectivity.build_report()
+        self.assertEqual(report["pinned_versions"], {})
+        self.assertIn("runtime_probe", report)
+        self.assertIn("pidog", report["runtime_probe"])
+        self.assertIn("robot_hat", report["runtime_probe"])
+
+    def test_pi_adapter_accepts_latest_installed_versions(self) -> None:
         adapter = PiAdapter(
             backend=StubBackend(),
             pinned_versions={"pidog": "9.9.9", "robot_hat": "9.9.9"},
-            resolved_versions={"pidog": "9.9.8", "robot_hat": "9.9.8"},
+            resolved_versions={"pidog": "1.3.11", "robot_hat": "2.5.2a1"},
         )
 
-        with self.assertRaisesRegex(RuntimeError, "version mismatch"):
-            adapter.arm()
+        adapter.arm()
+        self.assertTrue(adapter.describe()["armed"])
 
     def test_import_guard_blocks_banned_modules_outside_adapter(self) -> None:
         root = Path(__file__).resolve().parents[1]

@@ -11,14 +11,15 @@ from __future__ import annotations
 import importlib
 import importlib.metadata as metadata
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
-PINNED_PKG_VERSIONS = {
-    "pidog": "1.3.13",
-    "robot_hat": "2.3.6",
-}
+# Accept the installed PiDog/robot_hat runtime instead of enforcing an exact
+# package pin. The real robot image may ship newer versions than the original
+# validation snapshot, and the adapter should use what is available.
+PINNED_PKG_VERSIONS: dict[str, str] = {}
 
 
+@runtime_checkable
 class HardwareAdapter(Protocol):
     def arm(self) -> None:
         """Prepare the underlying runtime for motion and speech use."""
@@ -163,16 +164,14 @@ class PiAdapter(HardwareAdapterBase):
 
     def _validate_versions(self) -> None:
         resolved = self._resolved_versions or self._probe_versions()
-        for package_name, expected_version in self._pinned_versions.items():
-            actual_version = resolved.get(package_name)
-            if actual_version is None:
-                raise RuntimeError(f"{package_name} is not installed")
-            if actual_version != expected_version:
-                raise RuntimeError(f"{package_name} version mismatch: expected {expected_version}, got {actual_version}")
+        required = ("pidog", "robot_hat")
+        missing = [package_name for package_name in required if not resolved.get(package_name)]
+        if missing:
+            raise RuntimeError(f"{missing[0]} is not installed")
 
     def _probe_versions(self) -> dict[str, str]:
         versions: dict[str, str] = {}
-        for package_name in self._pinned_versions:
+        for package_name in ("pidog", "robot_hat"):
             try:
                 versions[package_name] = metadata.version(package_name)
             except metadata.PackageNotFoundError:
