@@ -39,6 +39,7 @@ This document stages the M0 planning work in a reviewable format so that approve
 
 - Per-UD decision files were created under `.squad/decisions/` and per-decision draft PRs were opened (PRs #23–#32).
 - A consolidated tracking PR (#33) was created to aggregate links and reviewer requests; it was merged to `main` on 2026-09-08 to make the tracking record visible in the repository history.
+- A central approvals issue (#35) was created to collect explicit approvals and to coordinate final sign-off: https://github.com/dmd0822/sparky/issues/35. The UD tracking document (.squad/decisions/ud-tracking.md) links this issue for centralized follow-up.
 - All UD draft PRs remain blocked pending dual-approval: explicit Dave Davis approval plus Architect & Reliability approvals on the decision PRs.
 
 ## Remaining actions
