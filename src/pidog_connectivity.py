@@ -20,20 +20,28 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .hardware_adapter import PiAdapter, inspect_runtime
+    from .hardware_adapter import PINNED_PKG_VERSIONS, PiAdapter, build_runtime_probe, inspect_runtime
 except ImportError:  # pragma: no cover - executed when run as a script
-    from hardware_adapter import PiAdapter, inspect_runtime
+    from hardware_adapter import PINNED_PKG_VERSIONS, PiAdapter, build_runtime_probe, inspect_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def build_report() -> dict[str, Any]:
+    runtime_probe = build_runtime_probe()
     report: dict[str, Any] = {
         "project_root": str(ROOT),
         "platform": platform.platform(),
         "python_version": platform.python_version(),
         "machine": platform.machine(),
         "imports": inspect_runtime(),
+        "pinned_versions": dict(PINNED_PKG_VERSIONS),
+        "runtime_versions": {
+            name: probe.version
+            for name, probe in runtime_probe.items()
+            if probe.version is not None
+        },
+        "runtime_probe": {name: probe.to_dict() for name, probe in runtime_probe.items()},
     }
     return report
 
