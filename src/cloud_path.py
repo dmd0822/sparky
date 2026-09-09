@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Iterable, Protocol
 
 
 @dataclass(frozen=True)
@@ -241,6 +241,36 @@ class CircuitBreaker:
         return time.time()
 
 
+@dataclass
+class TurnMeasurementSummary:
+    """Aggregated latency and cost data across a batch of turns."""
+
+    turn_count: int = 0
+    completed_turns: int = 0
+    blocked_turns: int = 0
+    discarded_turns: int = 0
+    failed_turns: int = 0
+    circuit_open_turns: int = 0
+    total_latency_ms: int = 0
+    total_cost_usd: float = 0.0
+    average_latency_ms: float = 0.0
+    average_cost_usd: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "turn_count": self.turn_count,
+            "completed_turns": self.completed_turns,
+            "blocked_turns": self.blocked_turns,
+            "discarded_turns": self.discarded_turns,
+            "failed_turns": self.failed_turns,
+            "circuit_open_turns": self.circuit_open_turns,
+            "total_latency_ms": self.total_latency_ms,
+            "total_cost_usd": round(self.total_cost_usd, 6),
+            "average_latency_ms": round(self.average_latency_ms, 2),
+            "average_cost_usd": round(self.average_cost_usd, 6),
+        }
+
+
 class CloudBroker:
     """Orchestrates a persona-conditioned turn through cloud stages."""
 
@@ -272,6 +302,36 @@ class CloudBroker:
             return False
         session.invalidated = True
         return True
+
+    def measure_turns(self, requests: Iterable[CloudTurnRequest]) -> TurnMeasurementSummary:
+        reports: list[TurnMeasurementReport] = []
+        summary = TurnMeasurementSummary()
+
+        for request in requests:
+            session = self.start_turn(request)
+            report = self.run_turn(session)
+            reports.append(report)
+            summary.turn_count += 1
+
+            if report.status == "completed":
+                summary.completed_turns += 1
+            elif report.status == "blocked":
+                summary.blocked_turns += 1
+            elif report.status == "discarded":
+                summary.discarded_turns += 1
+            elif report.status == "failed":
+                summary.failed_turns += 1
+            elif report.status == "circuit_open":
+                summary.circuit_open_turns += 1
+
+            summary.total_latency_ms += report.total_latency_ms
+            summary.total_cost_usd += report.total_cost_usd
+
+        if summary.turn_count:
+            summary.average_latency_ms = summary.total_latency_ms / summary.turn_count
+            summary.average_cost_usd = summary.total_cost_usd / summary.turn_count
+
+        return summary
 
     def run_turn(self, session: TurnSession) -> TurnMeasurementReport:
         report = TurnMeasurementReport(

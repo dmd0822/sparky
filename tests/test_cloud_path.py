@@ -59,6 +59,22 @@ class CloudPathTests(unittest.TestCase):
         self.assertTrue(report.stages[0].ok)
         self.assertTrue(report.stages[1].blocked)
 
+    def test_measurement_summary_reports_batch_averages(self) -> None:
+        broker = CloudBroker(config=BrokerConfig(), transport=StubCloudTransport())
+        requests = [
+            CloudTurnRequest(audio_ref="one.wav", transcript="hello", persona="spark", voice="echo"),
+            CloudTurnRequest(audio_ref="two.wav", transcript="goodbye", persona="spark", voice="echo"),
+        ]
+
+        summary = broker.measure_turns(requests)
+
+        self.assertEqual(summary.turn_count, 2)
+        self.assertEqual(summary.completed_turns, 2)
+        self.assertEqual(summary.total_latency_ms, (120 + 10 + 220 + 180) * 2)
+        self.assertAlmostEqual(summary.total_cost_usd, 0.0098 * 2, places=6)
+        self.assertAlmostEqual(summary.average_latency_ms, (120 + 10 + 220 + 180), places=2)
+        self.assertAlmostEqual(summary.average_cost_usd, 0.0098, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()
