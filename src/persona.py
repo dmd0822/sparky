@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from .motion_arbiter import DEFAULT_MOTION_ALLOWLIST
@@ -93,6 +95,15 @@ def validate_persona_bundle(
     return normalized
 
 
+def load_persona_file(path: str | Path, *, supported_gestures: Iterable[str] | None = None) -> PersonaBundle:
+    return PersonaRegistry.load_persona_file(path, supported_gestures=supported_gestures)
+
+
+def load_persona_directory(directory: str | Path, *, supported_gestures: Iterable[str] | None = None) -> dict[str, PersonaBundle]:
+    registry = PersonaRegistry(supported_gestures=supported_gestures)
+    return registry.load_directory(directory)
+
+
 class PersonaRegistry:
     """Runtime registry for immutable persona bundles."""
 
@@ -101,6 +112,7 @@ class PersonaRegistry:
         *,
         supported_gestures: Iterable[str] | None = None,
         default_persona: PersonaBundle | Mapping[str, Any] | None = None,
+        persona_directory: str | Path | None = None,
     ) -> None:
         self.supported_gestures = frozenset(supported_gestures or DEFAULT_MOTION_ALLOWLIST)
         self._bundles: dict[str, PersonaBundle] = {}
@@ -111,6 +123,74 @@ class PersonaRegistry:
             default_persona = minimal_safe_persona()
         self.register(default_persona)
         self._active_persona_id = self._bundles[default_persona.persona_id if isinstance(default_persona, PersonaBundle) else default_persona["persona_id"]].persona_id
+
+        if persona_directory is not None:
+            self.load_directory(persona_directory)
+
+    @staticmethod
+    def _load_mapping_from_path(path: str | Path) -> Mapping[str, Any]:
+        file_path = Path(path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"persona file not found: {file_path}")
+        if file_path.suffix.lower() in {".json"}:
+            with file_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        elif file_path.suffix.lower() in {".yaml", ".yml"}:
+            try:
+                import yaml  # type: ignore
+            except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+                raise RuntimeError("YAML persona files require PyYAML to be installed") from exc
+            with file_path.open("r", encoding="utf-8") as handle:
+                data = yaml.safe_load(handle)
+        else:
+            raise ValueError(f"unsupported persona file format: {file_path.suffix or '<unknown>'}")
+        if data is None:
+            raise ValueError(f"persona file was empty: {file_path}")
+        if not isinstance(data, Mapping):
+            raise ValueError(f"persona file must contain an object: {file_path}")
+        return data
+
+    @classmethod
+    def load_persona_file(cls, path: str | Path, *, supported_gestures: Iterable[str] | None = None) -> PersonaBundle:
+        data = cls._load_mapping_from_path(path)
+        return validate_persona_bundle(data, supported_gestures=supported_gestures or DEFAULT_MOTION_ALLOWLIST)
+
+    @classmethod
+    def from_directory(
+        cls,
+        directory: str | Path,
+        *,
+        supported_gestures: Iterable[str] | None = None,
+        default_persona: PersonaBundle | Mapping[str, Any] | None = None,
+    ) -> "PersonaRegistry":
+        registry = cls(supported_gestures=supported_gestures, default_persona=default_persona)
+        registry.load_directory(directory)
+        return registry
+
+    def load_directory(self, directory: str | Path) -> dict[str, PersonaBundle]:
+        directory_path = Path(directory)
+        if not directory_path.exists():
+            return {}
+        loaded: dict[str, PersonaBundle] = {}
+        for path in sorted(directory_path.iterdir()):
+            if path.is_dir():
+                continue
+            if path.suffix.lower() not in {".json", ".yaml", ".yml"}:
+                continue
+            try:
+                bundle = self.load_persona_file(path, supported_gestures=self.supported_gestures)
+            except (FileNotFoundError, OSError, ValueError, TypeError, RuntimeError):
+                continue
+            self.register(bundle)
+            loaded[bundle.persona_id] = bundle
+        return loaded
+
+    def register_file(self, path: str | Path, *, replace: bool = False) -> PersonaBundle:
+        bundle = self.load_persona_file(path, supported_gestures=self.supported_gestures)
+        if bundle.persona_id in self._bundles and not replace:
+            return self._bundles[bundle.persona_id]
+        self.register(bundle)
+        return bundle
 
     @property
     def active_persona(self) -> PersonaBundle:
@@ -157,6 +237,8 @@ __all__ = [
     "DEFAULT_VOICE",
     "PersonaBundle",
     "PersonaRegistry",
+    "load_persona_directory",
+    "load_persona_file",
     "minimal_safe_persona",
     "validate_persona_bundle",
 ]

@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from src import MotionArbiter, PersonaBundle, PersonaRegistry, validate_persona_bundle
 
@@ -97,6 +100,33 @@ class M3MotionSafetyPersonaTests(unittest.TestCase):
         invalid = {"persona_id": "bad", "version": "1.0", "prompt": "oops", "motion_vocabulary": ["not_real"]}
         with self.assertRaises(ValueError):
             validate_persona_bundle(invalid, supported_gestures={"bark"})
+
+    def test_persona_registry_loads_persona_files_from_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            persona_path = Path(temp_dir) / "calm.json"
+            persona_path.write_text(
+                json.dumps(
+                    {
+                        "persona_id": "calm",
+                        "version": "1.0",
+                        "prompt": "calm assistant",
+                        "voice": "neutral",
+                        "behavior": {"verbosity": "short"},
+                        "motion_vocabulary": ["bark", "wag"],
+                        "permissions": {"motion": True},
+                        "disclosure": "I am a calm companion.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            registry = PersonaRegistry.from_directory(temp_dir, supported_gestures={"bark", "wag"})
+
+            self.assertIn("calm", registry._bundles)
+            self.assertEqual(registry.active_persona.persona_id, "minimal_safe")
+            registry.switch_persona("calm", turn_boundary=True)
+            self.assertEqual(registry.apply_pending_switch().persona_id, "calm")
+            self.assertTrue(registry.can_request_motion("wag"))
 
 
 if __name__ == "__main__":
