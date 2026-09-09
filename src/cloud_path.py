@@ -362,6 +362,9 @@ class CloudBroker:
         report.stages.append(stt_outcome)
         report.total_latency_ms += stt_outcome.latency_ms
         report.total_cost_usd += stt_outcome.cost_usd
+        report.transcript = str(
+            stt_outcome.result.get("transcript") if isinstance(stt_outcome.result, dict) else stt_outcome.result
+        ) if stt_outcome.result is not None else report.transcript
         if not stt_outcome.ok or session.invalidated:
             self._breaker.record_failure()
             report.status = "failed" if not stt_outcome.ok else "discarded"
@@ -389,7 +392,7 @@ class CloudBroker:
             session,
             "model",
             lambda: self.transport.generate_reply(
-                prompt=session.request.transcript,
+                prompt=report.transcript or session.request.transcript,
                 persona=session.request.persona,
                 timeout_ms=self.config.model_timeout_ms,
             ),

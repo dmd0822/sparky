@@ -14,7 +14,7 @@ class CloudPathTests(unittest.TestCase):
 
         self.assertEqual(report.status, "completed")
         self.assertEqual(len(report.stages), 4)
-        self.assertEqual(report.reply_text, "[spark] hello")
+        self.assertEqual(report.reply_text, "[spark] hello from stub")
         self.assertEqual(report.transcript, "hello from stub")
         self.assertEqual(report.total_latency_ms, 120 + 10 + 220 + 180)
         self.assertAlmostEqual(report.total_cost_usd, 0.0098, places=6)
