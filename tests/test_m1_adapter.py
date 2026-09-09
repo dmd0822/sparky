@@ -18,6 +18,7 @@ class StubBackend:
 class MilestoneOneTests(unittest.TestCase):
     def test_simulator_adapter_supports_semantic_operations(self) -> None:
         adapter = SimulatorAdapter()
+        self.assertIsInstance(adapter, HardwareAdapter)
         adapter.arm()
         adapter.set_posture("happy")
         adapter.set_head("searching")
