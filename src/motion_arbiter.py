@@ -109,6 +109,10 @@ class MotionArbiter:
     def rejected(self) -> list[dict[str, Any]]:
         return [dict(entry) for entry in self._rejected]
 
+    @property
+    def generation_commands(self) -> dict[str, list[MotionCommand]]:
+        return {generation_id: list(commands) for generation_id, commands in self._generation_commands.items()}
+
     def arm(self) -> None:
         """Arm the arbiter after startup checks."""
         self._armed = True
@@ -130,8 +134,16 @@ class MotionArbiter:
                 continue
             remaining.append(command)
         self._pending = remaining
-        self.adapter.set_posture(self.safe_pose)
-        self.adapter.set_head("neutral")
+        self._generation_commands.pop(generation_id, None)
+        self._rejected.append(
+            {
+                "generation_id": generation_id,
+                "reason": "cancelled",
+                "gestures": cancelled,
+                "timestamp": monotonic(),
+            }
+        )
+        self.trigger_safe_pose()
         return cancelled
 
     def submit(
@@ -225,6 +237,8 @@ class MotionArbiter:
         self._pending.clear()
         self.adapter.set_posture(self.safe_pose)
         self.adapter.set_head("neutral")
+        if hasattr(self.adapter, "set_tail"):
+            self.adapter.set_tail(0.0)
 
     def ensure_serviced(self, *, now: float | None = None) -> bool:
         """Return True when the watchdog forces the safe pose and latches."""

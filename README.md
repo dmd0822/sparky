@@ -49,7 +49,45 @@ The planning package includes the architecture, ADRs, risk register, and milesto
 - The architecture intentionally keeps the model, persona, and motion logic separate from direct hardware control
 - The project is moving into incremental implementation after the architecture and project plan were defined
 
-## Running on the PiDog
+## Azure configuration
+
+For the Azure broker path, use the repo template in `.env.example` and the setup guide in [`docs/azure-config.md`](docs/azure-config.md).
+
+Across the first deployment, the intended design is:
+
+- device keeps only a per-device certificate
+- broker uses Azure managed identity
+- broker calls Azure Speech, Azure OpenAI, and Azure Content Safety on the device's behalf
+- local development may use environment variables, but production should not store keys on the Pi
+
+## Local configuration and runtime setup
+
+Use the workstation-safe simulator path when you are developing locally and do not have the PiDog hardware connected.
+
+1. Copy the environment template:
+
+```bash
+cp .env.example .env
+```
+
+2. Fill in the Azure values needed for your broker environment. For a keyless Azure design, prefer Entra ID / managed identity settings and leave all API-key fields unset.
+
+3. Run the repo's local Python tests to validate the simulation path and persona / motion logic:
+
+```bash
+python -m pytest -q
+```
+
+4. If you are testing the runtime in a non-Pi environment, the code will use the `SimulatorAdapter` and local broker stubs instead of the real robot runtime.
+
+The intended local workflow is:
+
+- `.env` contains the environment-specific config
+- cloud broker calls remain stubbed or brokered during development
+- persona selection and motion arbitration run in-process without hardware
+- the same session logic can be reused once the PiDog runtime is connected
+
+## Running on the PiDog / hardware
 
 From the PiDog terminal, clone or sync this repository onto the robot, then run the smoke test directly against the installed PiDog packages:
 
@@ -69,6 +107,14 @@ If the PiDog Python packages are installed using the standard SunFounder setup, 
 from pidog import Pidog
 from robot_hat import Servo, Motors
 ```
+
+Use the hardware path only when the PiDog runtime is available and the device is on the Raspberry Pi-like host that exposes the expected I2C interfaces. In that case, `PiAdapter` is used instead of the simulator adapter, and the runtime remains behind the same semantic hardware interface so the rest of the system does not change.
+
+## Recommended deployment pattern
+
+- Local development: use `.env` + simulator path + Azure broker access via managed identity
+- Hardware validation: run on the PiDog with `PiAdapter` and `src/pidog_connectivity.py`
+- Production: keep cloud credentials in Azure, not on the device, and use the broker boundary as the only Azure-facing endpoint
 
 ## Repository layout
 
