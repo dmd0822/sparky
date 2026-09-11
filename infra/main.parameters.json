@@ -6,7 +6,7 @@
       "value": "dev"
     },
     "location": {
-      "value": "eastus"
+      "value": "southcentralus"
     },
     "brokerContainerImage": {
       "value": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
