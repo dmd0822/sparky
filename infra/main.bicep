@@ -3,6 +3,9 @@ targetScope = 'resourceGroup'
 @description('Azure region for all deployed resources.')
 param location string = resourceGroup().location
 
+@description('Name of the target resource group. This can be set in the parameter file or pipeline config.')
+param resourceGroupName string = resourceGroup().name
+
 @description('Short environment identifier used in resource names.')
 param environmentName string = 'dev'
 
@@ -21,11 +24,12 @@ param maxReplicas int = 2
 var tags = {
   project: 'sparky'
   environment: environmentName
+  resourceGroup: resourceGroupName
   managedBy: 'bicep'
   workload: 'broker'
 }
 
-var uniqueSuffix = uniqueString(resourceGroup().id, location, environmentName)
+var uniqueSuffix = uniqueString(resourceGroup().id, resourceGroupName, location, environmentName)
 var workspaceName = 'law-${environmentName}-${uniqueSuffix}'
 var managedEnvironmentName = 'cae-${environmentName}-${uniqueSuffix}'
 var acrName = take(toLower('acr${uniqueSuffix}'), 50)
