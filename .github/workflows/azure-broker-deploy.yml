@@ -17,8 +17,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      AZURE_RESOURCE_GROUP: sparky-rg
-      AZURE_LOCATION: eastus
+      AZURE_RESOURCE_GROUP: rg-sparky
+      AZURE_LOCATION: southcentralus
       AZURE_ENVIRONMENT_NAME: dev
       BROKER_IMAGE_NAME: sparky-broker
 
