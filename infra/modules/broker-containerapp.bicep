@@ -135,7 +135,7 @@ resource brokerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/healthz'
+                path: '/'
                 port: containerPort
               }
               periodSeconds: 30
@@ -144,7 +144,7 @@ resource brokerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/healthz'
+                path: '/'
                 port: containerPort
               }
               periodSeconds: 15
