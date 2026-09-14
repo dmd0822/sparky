@@ -20,12 +20,32 @@ def _get_env(name: str, default: str | None = None) -> str | None:
     return value
 
 
+def _as_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def is_broker_ready() -> bool:
+    """The broker should fail closed unless Azure access is enabled via managed identity."""
+    if not _as_bool(_get_env("USE_MANAGED_IDENTITY", "false"), False):
+        return False
+    azure_endpoints = {
+        "openai": _get_env("AZURE_OPENAI_ENDPOINT"),
+        "speech": _get_env("AZURE_SPEECH_REGION"),
+        "content_safety": _get_env("AZURE_CONTENT_SAFETY_ENDPOINT"),
+    }
+    return any(value for value in azure_endpoints.values())
+
+
 def build_health_payload() -> dict[str, Any]:
+    managed_identity = _as_bool(_get_env("USE_MANAGED_IDENTITY", "false"), False)
     return {
         "service": APP_NAME,
         "version": APP_VERSION,
         "status": "ok",
-        "managed_identity": _get_env("USE_MANAGED_IDENTITY", "false").lower() == "true",
+        "ready": is_broker_ready(),
+        "managed_identity": managed_identity,
         "environment": _get_env("SPARKY_ENV", "development"),
         "azure": {
             "openai_endpoint": _get_env("AZURE_OPENAI_ENDPOINT"),
@@ -37,6 +57,15 @@ def build_health_payload() -> dict[str, Any]:
 
 def build_turn_response(payload: dict[str, Any] | None) -> dict[str, Any]:
     request = payload or {}
+    managed_identity = _as_bool(_get_env("USE_MANAGED_IDENTITY", "false"), False)
+    checks = [
+        "mTLS device authentication",
+        "managed identity access to Azure services",
+        "content-safety gate",
+        "turn timeout enforcement",
+    ]
+    if not managed_identity:
+        checks.insert(0, "fail-closed broker guard")
     return {
         "status": "accepted",
         "service": APP_NAME,
@@ -46,13 +75,8 @@ def build_turn_response(payload: dict[str, Any] | None) -> dict[str, Any]:
         "transcript": request.get("transcript") or "",
         "persona": request.get("persona") or "calm",
         "voice": request.get("voice") or "en-US-JennyNeural",
-        "managed_identity": True,
-        "checks": [
-            "mTLS device authentication",
-            "managed identity access to Azure services",
-            "content-safety gate",
-            "turn timeout enforcement",
-        ],
+        "managed_identity": managed_identity,
+        "checks": checks,
     }
 
 
@@ -83,12 +107,26 @@ class BrokerHandler(BaseHTTPRequestHandler):
             self._send_json(404, {"status": "not_found", "path": parsed.path})
             return
 
+        if not is_broker_ready():
+            self._send_json(
+                503,
+                {
+                    "status": "broker_unavailable",
+                    "error": "Managed identity / Azure broker configuration is not ready.",
+                },
+            )
+            return
+
         content_length = int(self.headers.get("Content-Length", "0"))
         raw_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
         try:
             payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
         except json.JSONDecodeError:
             self._send_json(400, {"status": "invalid_json"})
+            return
+
+        if not isinstance(payload, dict):
+            self._send_json(400, {"status": "invalid_payload", "error": "JSON body must be an object."})
             return
 
         self._send_json(202, build_turn_response(payload))
