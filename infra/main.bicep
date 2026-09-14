@@ -13,7 +13,7 @@ param environmentName string = 'dev'
 param brokerContainerImage string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
 @description('The container port exposed by the broker service.')
-param brokerContainerPort int = 8080
+param brokerContainerPort int = 80
 
 @description('Minimum broker replicas during normal operation.')
 param minReplicas int = 1

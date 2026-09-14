@@ -55,6 +55,14 @@ def build_health_payload() -> dict[str, Any]:
     }
 
 
+def get_server_port(default_port: str = "80") -> int:
+    value = _get_env("PORT", default_port)
+    try:
+        return int(value or default_port)
+    except (TypeError, ValueError):
+        return int(default_port)
+
+
 def build_turn_response(payload: dict[str, Any] | None) -> dict[str, Any]:
     request = payload or {}
     managed_identity = _as_bool(_get_env("USE_MANAGED_IDENTITY", "false"), False)
@@ -134,7 +142,7 @@ class BrokerHandler(BaseHTTPRequestHandler):
 
 def run_server() -> None:
     host = _get_env("HOST", "0.0.0.0")
-    port = int(_get_env("PORT", "8080") or "8080")
+    port = get_server_port()
     ThreadingHTTPServer((host, port), BrokerHandler).serve_forever()
 
 

@@ -14,13 +14,14 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  deploy-infrastructure:
     runs-on: ubuntu-latest
+    outputs:
+      acr_name: ${{ steps.acr.outputs.acr_name }}
     env:
       AZURE_RESOURCE_GROUP: rg-sparky
       AZURE_LOCATION: southcentralus
       AZURE_ENVIRONMENT_NAME: dev
-      BROKER_IMAGE_NAME: sparky-broker
 
     steps:
       - name: Check out repo
@@ -49,9 +50,34 @@ jobs:
               resourceGroupName="$AZURE_RESOURCE_GROUP" \
               environmentName="$AZURE_ENVIRONMENT_NAME" \
               location="$AZURE_LOCATION" \
-              brokerContainerImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+              brokerContainerImage="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
+              brokerContainerPort=80
 
-          echo "ACR_NAME=$(az acr list --resource-group "$AZURE_RESOURCE_GROUP" --query "[0].name" -o tsv)" >> "$GITHUB_ENV"
+      - name: Capture ACR name
+        id: acr
+        run: |
+          echo "acr_name=$(az acr list --resource-group "$AZURE_RESOURCE_GROUP" --query "[0].name" -o tsv)" >> "$GITHUB_OUTPUT"
+
+  build-broker:
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    env:
+      AZURE_RESOURCE_GROUP: rg-sparky
+      AZURE_LOCATION: southcentralus
+      AZURE_ENVIRONMENT_NAME: dev
+      BROKER_IMAGE_NAME: sparky-broker
+      ACR_NAME: ${{ needs.deploy-infrastructure.outputs.acr_name }}
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Build broker image in ACR
         run: |

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.broker.app import build_health_payload, build_turn_response, is_broker_ready
+from src.broker.app import build_health_payload, build_turn_response, get_server_port, is_broker_ready
 
 
 def test_health_payload_reports_status() -> None:
@@ -18,6 +18,14 @@ def test_turn_payload_includes_generation_and_checks() -> None:
     assert payload["generation_id"] == "abc123"
     assert payload["persona"] == "calm"
     assert "content-safety gate" in payload["checks"]
+
+
+def test_server_port_defaults_to_container_app_port(monkeypatch) -> None:
+    monkeypatch.delenv("PORT", raising=False)
+    assert get_server_port() == 80
+
+    monkeypatch.setenv("PORT", "8080")
+    assert get_server_port() == 8080
 
 
 def test_broker_readiness_tracks_managed_identity(monkeypatch) -> None:

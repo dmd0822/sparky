@@ -11,7 +11,7 @@ param brokerAppName string
 param brokerImage string
 
 @description('Container port exposed by the broker app.')
-param containerPort int = 8080
+param containerPort int = 80
 
 @description('Minimum number of broker replicas.')
 param minReplicas int = 1

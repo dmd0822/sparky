@@ -6,8 +6,8 @@ COPY app.py ./app.py
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8080
+    PORT=80
 
-EXPOSE 8080
+EXPOSE 80
 
 CMD ["python", "app.py"]
