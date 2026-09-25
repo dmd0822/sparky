@@ -50,7 +50,7 @@ Implementation has not started yet. The current branch establishes the architect
 Sparky's Azure resources are planned for the `rg-sparky` resource group in South
 Central US (`southcentralus`). The subscription is not committed to the repo;
 set it for automation with the `AZURE_SUBSCRIPTION_ID` GitHub repository
-variable, or select it locally with `az account set --subscription
+secret, or select it locally with `az account set --subscription
 "<subscription-id>"`. See [infra/README.md](infra/README.md) for Bicep naming
 and manual deployment commands, and [docs/deployment-setup.md](docs/deployment-setup.md)
 for the keyless GitHub Actions OIDC setup guide.

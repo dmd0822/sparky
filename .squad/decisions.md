@@ -2,8 +2,6 @@
 
 ## Active Decisions
 
-No decisions recorded yet.
-
 ## Governance
 
 - All meaningful changes require team consensus
@@ -42,3 +40,8 @@ No decisions recorded yet.
 ## 2026-09-25T11:30:11.945-04:00
 
 - **GitHub Actions Azure deployment setup:** Deployment documentation now specifies keyless GitHub Actions authentication through Microsoft Entra workload identity federation. The documented approach uses a secret-free app registration/service principal, federated credentials for `dev`, `prod`, `main`, and PR subjects as needed, repository variables for non-secret IDs, GitHub Environments for dev/prod approvals, and resource-group-scoped RBAC for `rg-sparky` with an additional RBAC administrator role only when Bicep creates role assignments.
+
+### 2026-09-25: Use paired Bash and PowerShell command blocks in deployment docs
+**By:** Docs
+**What:** Deployment documentation that contains copyable shell commands should provide paired **Bash / zsh** and **PowerShell** fenced blocks instead of assuming one shell.
+**Why:** Sparky maintainers run setup from both Unix-like shells and Windows PowerShell. Bash assignments, `$VAR` expansion, trailing `\` continuations, heredocs, and Unix utilities do not execute in PowerShell, so future deployment docs need explicit shell-specific variants while preserving the Bash experience.
