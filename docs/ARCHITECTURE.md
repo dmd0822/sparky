@@ -119,7 +119,74 @@ The baseline deployment should provision:
    Cloud telemetry, traces, and diagnostics.
 
 10. **Resource group(s)**
-    Separate dev/prod scopes managed by Bicep.
+    Dev and prod resources are deployed into the shared Sparky resource group with
+    environment-specific names.
+
+## Deployment target and environments
+
+The concrete Azure deployment target is:
+
+| Setting | Value |
+| --- | --- |
+| Resource group | `rg-sparky` |
+| Azure region | South Central US (`southcentralus`) |
+| Subscription | Supplied at deploy time through the `AZURE_SUBSCRIPTION_ID` GitHub Actions repository variable or the active `az` CLI subscription |
+
+The subscription ID is intentionally not committed into Bicep, parameter files,
+workflow YAML, or public setup snippets. GitHub Actions should read it from the
+repository variable `AZURE_SUBSCRIPTION_ID` during OIDC/WIF login, while local
+operators should select the same subscription with `az account set --subscription
+<subscription-id>` before running group-scope deployments.
+
+Dev and prod are logical environments in the same resource group and region. The
+environment boundary is expressed by Bicep parameters, tags, deployment outputs,
+GitHub Environments, and resource names rather than by separate resource groups.
+See [GitHub Actions Azure deployment setup](deployment-setup.md) for the keyless
+OIDC/workload identity federation setup used by deployment workflows.
+
+### Resource naming convention
+
+Use environment-suffixed names so resources remain readable in one resource
+group:
+
+- General pattern: `sparky-<resource>-<env>`
+- Azure Container Registry: `sparkyscr<env>` because ACR names must be globally
+  unique and alphanumeric
+- Log Analytics workspace: `sparky-law-<env>`
+- Application Insights: `sparky-appi-<env>`
+- Container Apps environment: `sparky-cae-<env>`
+- Relay Container App: `sparky-relay-<env>`
+- Managed identity or identity-bearing app resources: `sparky-mi-<purpose>-<env>`
+- Foundry/AI project resources: `sparky-ai-<env>` and `sparky-proj-<env>` where
+  provider naming rules permit them
+
+Every deployed resource should carry at least `app=sparky` and `environment=<env>`
+tags.
+
+### South Central US availability and caveats
+
+The single-region target is viable for the planned baseline:
+
+- Microsoft Foundry projects are supported in South Central US.
+- Foundry Models standard deployments list South Central US support for the
+  GPT-4.1 and GPT-4o families that can cover the initial chat and multimodal
+  vision needs. Exact model version, deployment type, and quota still need to be
+  confirmed immediately before deployment because model capacity is regional.
+- Azure Speech supports South Central US for core speech-to-text, text-to-speech,
+  speech translation, fast transcription, batch transcription, Whisper batch
+  transcription, custom speech training, neural TTS, batch synthesis, custom
+  voice, custom voice training, and TTS avatar basics.
+- Speech caveats in South Central US: LLM speech features are not listed there,
+  MAI voices, HD voices, Azure OpenAI voices, personal voice, voice conversion,
+  custom voice HD endpoints, preview voices/styles, and avatar voice sync are not
+  available there in the referenced Speech region matrix. Mitigation: use
+  standard neural/custom Speech voices in South Central US for M4, or explicitly
+  approve an alternate-region Speech/model resource if a later persona requires
+  one of those unavailable features.
+- Azure Container Apps, Azure Container Registry, Application Insights, and Log
+  Analytics are expected to deploy in South Central US for the baseline. Final
+  Bicep work should still validate provider registration and SKU availability
+  with `az deployment group what-if` before first deployment.
 
 ## Repo layout
 

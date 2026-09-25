@@ -6,6 +6,18 @@ This plan was generated from the lead architecture pass on 2026-09-25.
 
 These planning issues intentionally use domain/type labels but **do not** carry the `squad` inbox label. They are already triaged and sequenced by the lead, so adding `squad` would create redundant re-triage noise.
 
+## Deployment target note
+
+Infrastructure issues now target a single Azure resource group, `rg-sparky`, in
+South Central US (`southcentralus`). Dev and prod are logical environments in
+that resource group with names following `sparky-<resource>-<env>`. The
+subscription is supplied at deployment time through the `AZURE_SUBSCRIPTION_ID`
+GitHub repository variable or the active `az` CLI subscription; it is not
+committed into Bicep, workflow YAML, or parameter files.
+
+This refines M1 issues #2 and #3, the #4 keyless-auth spike, and the M6
+observability/security validation work without changing milestone sequencing.
+
 ## Milestones
 
 | Milestone | Scope | Issue count |
