@@ -30,3 +30,11 @@ No decisions recorded yet.
 - **Switching:** Persona switching is a runtime hot-swap through voice intent, command mode, or programmatic API after a safe-state transition that cancels/settles in-flight conversation, TTS, motion, and transient reactions. Conversation memory is persona-scoped by default and switches are logged/telemetried.
 - **Starter personas:** Sunny Companion (warm companion; gentle voice and relaxed movement) and Sentinel Scout (alert non-aggressive scout; crisp voice, patrol movement, inspection reactions).
 - **New issues:** #30 schema/validation, #31 loader/registry/default, #32 runtime switching/safe-state, #33 persona-aware TTS, #34 movement profiles/reactions, #35 LLM prompt composition/safety, #36 starter manifests, #37 third-persona release acceptance.
+
+## 2026-09-25T11:05:56.219-04:00
+
+- **Deployment target:** Sparky Azure resources target the existing `rg-sparky` resource group in South Central US (`southcentralus`).
+- **Subscription handling:** The concrete subscription is treated as deployment configuration. GitHub Actions must read it from the `AZURE_SUBSCRIPTION_ID` repository variable, and local operators must select it with `az account set`; it should not be committed into Bicep, parameter files, workflows, or general docs as a hardcoded value.
+- **Environment model:** Dev and prod are logical environments in the same resource group, separated by Bicep parameters, GitHub Environments, tags, outputs, and resource names.
+- **Naming convention:** Use `sparky-<resource>-<env>` where provider rules allow it; use provider-specific variants such as `sparkyscr<env>` for globally unique alphanumeric ACR names. Tag resources with `app=sparky` and `environment=<env>`.
+- **Regional caveats:** Foundry projects and baseline GPT-4.1/GPT-4o-family standard model deployments are documented as available in South Central US, subject to current quota. Azure Speech supports core STT/TTS there, but advanced features such as LLM speech, MAI voices, HD voices, Azure OpenAI voices, personal voice, voice conversion, custom voice HD endpoints, preview voices/styles, and avatar voice sync are not available there in the referenced Speech region matrix; later work must choose standard neural/custom voices in-region or record a separate alternate-region decision.

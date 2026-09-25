@@ -15,6 +15,7 @@ Sparky is an AI-powered robot dog built on the [SunFounder PiDog](https://docs.s
 - Architecture decisions: [docs/adr/](docs/adr/)
 - Persona design: [docs/personas.md](docs/personas.md) and [ADR 0004](docs/adr/0004-persona-framework.md)
 - Delivery plan: [docs/PLAN.md](docs/PLAN.md)
+- Azure deployment conventions: [infra/README.md](infra/README.md)
 
 ## What this project will contain
 
@@ -43,6 +44,15 @@ docs/                Architecture docs, ADRs, plans, diagrams
 ## Getting started
 
 Implementation has not started yet. The current branch establishes the architecture and delivery plan.
+
+### Azure deployment target
+
+Sparky's Azure resources are planned for the `rg-sparky` resource group in South
+Central US (`southcentralus`). The subscription is not committed to the repo;
+set it for automation with the `AZURE_SUBSCRIPTION_ID` GitHub repository
+variable, or select it locally with `az account set --subscription
+"<subscription-id>"`. See [infra/README.md](infra/README.md) for Bicep naming,
+OIDC/WIF workflow wiring, and manual deployment commands.
 
 ### Package and test conventions
 
