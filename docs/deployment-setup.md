@@ -90,6 +90,29 @@ Common constants:
 | Issuer | `https://token.actions.githubusercontent.com` |
 | Audience | `api://AzureADTokenExchange` |
 | Repository | `dmd0822/sparky` |
+| Subject prefix | `repo:dmd0822@176645/sparky@1387525209:` |
+
+### Subject format: immutable OIDC claims
+
+GitHub Actions issues this repository's OIDC tokens with **immutable subject claims**. The `sub` claim embeds numeric IDs that are never reused:
+
+```
+repo:<OWNER>@<OWNER_ID>/<REPO>@<REPO_ID>:<context>
+```
+
+For Sparky that resolves to the prefix `repo:dmd0822@176645/sparky@1387525209:`, where `176645` is the owner ID for `dmd0822` and `1387525209` is the repository ID for `sparky`. The trailing `<context>` is still the usual `environment:<name>`, `ref:refs/heads/<branch>`, or `pull_request` segment.
+
+Immutable subjects are the default for every github.com repository created on or after 2026-07-15. Sparky was created after that date, so it is opted in and the legacy `repo:<owner>/<repo>:<context>` format is **not** an alternative here — Entra ID rejects tokens whose subject does not match a federated credential exactly.
+
+Re-derive the IDs at any time:
+
+```bash
+gh api repos/dmd0822/sparky --jq '{owner_id: .owner.id, repo_id: .id}'
+```
+
+If this app registration is ever pointed at a different repository — or the repository is recreated — re-run that command and update every federated credential subject with the new IDs. Renaming the owner or repository does **not** change the IDs, which is the point of the immutable format.
+
+See [Immutable subject claims for GitHub Actions workload identity federation](https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-github-immutable-subjects) for the full specification.
 
 ### Recommended Sparky credentials
 
@@ -101,7 +124,7 @@ cat > github-dev-federated-credential.json <<'JSON'
 {
   "name": "github-env-dev",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:environment:dev",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:environment:dev",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky dev environment deployments from GitHub Actions"
 }
@@ -115,7 +138,7 @@ cat > github-prod-federated-credential.json <<'JSON'
 {
   "name": "github-env-prod",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:environment:prod",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:environment:prod",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky prod environment deployments from GitHub Actions"
 }
@@ -132,7 +155,7 @@ $DevFederatedCredentialJson = @'
 {
   "name": "github-env-dev",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:environment:dev",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:environment:dev",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky dev environment deployments from GitHub Actions"
 }
@@ -147,7 +170,7 @@ $ProdFederatedCredentialJson = @'
 {
   "name": "github-env-prod",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:environment:prod",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:environment:prod",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky prod environment deployments from GitHub Actions"
 }
@@ -167,7 +190,7 @@ cat > github-main-federated-credential.json <<'JSON'
 {
   "name": "github-main-branch",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:ref:refs/heads/main",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:ref:refs/heads/main",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky main branch automation from GitHub Actions"
 }
@@ -181,7 +204,7 @@ cat > github-pr-federated-credential.json <<'JSON'
 {
   "name": "github-pull-request",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:pull_request",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:pull_request",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky pull request what-if validation from GitHub Actions"
 }
@@ -198,7 +221,7 @@ $MainFederatedCredentialJson = @'
 {
   "name": "github-main-branch",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:ref:refs/heads/main",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:ref:refs/heads/main",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky main branch automation from GitHub Actions"
 }
@@ -213,7 +236,7 @@ $PrFederatedCredentialJson = @'
 {
   "name": "github-pull-request",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:dmd0822/sparky:pull_request",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:pull_request",
   "audiences": ["api://AzureADTokenExchange"],
   "description": "Sparky pull request what-if validation from GitHub Actions"
 }
@@ -241,10 +264,10 @@ Remove-Item -Path "github-*-federated-credential.json" -ErrorAction SilentlyCont
 
 | Subject | Matches | Use when |
 | --- | --- | --- |
-| `repo:dmd0822/sparky:environment:dev` | Jobs that declare `environment: dev` | Dev deployments or dev what-if jobs protected by the GitHub Environment. |
-| `repo:dmd0822/sparky:environment:prod` | Jobs that declare `environment: prod` | Production deployments with required reviewers. |
-| `repo:dmd0822/sparky:ref:refs/heads/main` | Jobs from `main` that do **not** declare an environment and are not pull-request events | Branch-scoped automation such as main-only validation. |
-| `repo:dmd0822/sparky:pull_request` | Pull request jobs that do **not** declare an environment | PR what-if validation before merge. |
+| `repo:dmd0822@176645/sparky@1387525209:environment:dev` | Jobs that declare `environment: dev` | Dev deployments or dev what-if jobs protected by the GitHub Environment. |
+| `repo:dmd0822@176645/sparky@1387525209:environment:prod` | Jobs that declare `environment: prod` | Production deployments with required reviewers. |
+| `repo:dmd0822@176645/sparky@1387525209:ref:refs/heads/main` | Jobs from `main` that do **not** declare an environment and are not pull-request events | Branch-scoped automation such as main-only validation. |
+| `repo:dmd0822@176645/sparky@1387525209:pull_request` | Pull request jobs that do **not** declare an environment | PR what-if validation before merge. |
 
 Important: GitHub's default `sub` claim changes depending on job context. If a job declares an `environment`, the subject is environment-based; a PR job without an environment uses `pull_request`; a normal branch job without an environment uses `ref:refs/heads/<branch>`. Subject mismatches are the most common OIDC setup failure.
 
@@ -361,7 +384,7 @@ gh api --method PUT repos/dmd0822/sparky/environments/dev
 gh api --method PUT repos/dmd0822/sparky/environments/prod
 ```
 
-Configure production protection rules in the GitHub UI unless you already have a standard API payload for reviewers. The environment names must exactly match the federated credential subjects (`dev` and `prod`). A workflow job that says `environment: production` will not match `repo:dmd0822/sparky:environment:prod`.
+Configure production protection rules in the GitHub UI unless you already have a standard API payload for reviewers. The environment names must exactly match the federated credential subjects (`dev` and `prod`). A workflow job that says `environment: production` will not match `repo:dmd0822@176645/sparky@1387525209:environment:prod`.
 
 Known constraint: GitHub Environment protection rules such as required reviewers and wait timers require GitHub Pro for a private User-owned repository. `dmd0822/sparky` is private under a User account and no paid plan is currently detected, so `prod` approval gates may not be available. That is not a blocker for OIDC; use branch protection on `main` as the deployment gate until environment protection becomes available.
 
@@ -492,7 +515,7 @@ jobs:
 
 `permissions.id-token: write` is mandatory because `azure/login@v2` must request a GitHub OIDC token for Entra ID. The login step intentionally uses `client-id`, `tenant-id`, and `subscription-id`; it must not use `creds:`.
 
-The PR job does not declare an environment so it can match the `repo:dmd0822/sparky:pull_request` federated credential. The deploy jobs declare `environment: dev` or `environment: prod`, so they match the environment federated credentials and can use GitHub Environment approvals.
+The PR job does not declare an environment so it can match the `repo:dmd0822@176645/sparky@1387525209:pull_request` federated credential. The deploy jobs declare `environment: dev` or `environment: prod`, so they match the environment federated credentials and can use GitHub Environment approvals.
 The example passes native `.bicepparam` files directly through `--parameters`; those files should include their `using` statement for the matching Bicep entry point.
 
 The existing live `python-validation.yml` pins actions by commit SHA. When issue #3 creates the real infra workflow, consider pinning `actions/checkout` and `azure/login` to immutable SHAs as part of the normal supply-chain hardening pass.
@@ -513,7 +536,7 @@ You can also inspect Entra sign-in logs for the service principal to confirm tok
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `AADSTS70021: No matching federated identity record found` | The GitHub OIDC `sub`, `issuer`, or `audience` does not match a federated credential. | Check whether the job uses `environment`, `pull_request`, or a branch ref. Add the matching subject exactly. |
+| `AADSTS70021` / `AADSTS700213: No matching federated identity record found for presented assertion subject` | Most likely the federated credential was created with a legacy-format subject (no `@<owner-id>` / `@<repo-id>` segments) while this repository issues immutable subjects (`repo:dmd0822@176645/sparky@1387525209:...`). Otherwise the `sub` context, `issuer`, or `audience` does not match. | Copy the subject quoted verbatim in the error message and recreate the federated credential with it. Confirm the immutable prefix, then check whether the job uses `environment`, `pull_request`, or a branch ref. | (`repo:dmd0822@176645/sparky@1387525209:...`). Otherwise the `sub` context, `issuer`, or `audience` does not match. | Copy the subject quoted verbatim in the error message and recreate the federated credential with it. Confirm the immutable prefix, then check whether the job uses `environment`, `pull_request`, or a branch ref. |
 | `azure/login` says it cannot get an ID token | Missing workflow permission. | Add `permissions: id-token: write` at workflow or job level. |
 | Token exchange fails with audience errors | Federated credential audience differs from the action's audience. | Use `api://AzureADTokenExchange` for Azure public cloud unless intentionally targeting another cloud. |
 | PR what-if fails with `AADSTS70021` after adding `environment: dev` | Environment jobs use `repo:...:environment:dev`, not `repo:...:pull_request`. | Either remove `environment` from the PR job or add an environment-scoped credential and accept environment approvals on PRs. |
@@ -529,5 +552,5 @@ You can also inspect Entra sign-in logs for the service principal to confirm tok
 - Federated credentials are scoped to exact GitHub subjects and can be removed independently when a branch, environment, or repository is retired.
 - Keep RBAC at `rg-sparky` scope unless a future deployment explicitly requires a broader scope.
 - Prefer environment-scoped credentials for deployments and require reviewers for `prod`.
-- If the repository is transferred, renamed, or opts into immutable OIDC subject claims, update the Entra federated credential subjects before relying on deployments.
+- This repository uses immutable OIDC subject claims, so federated credential subjects must carry the `@<owner-id>` and `@<repo-id>` segments. Renaming or transferring the repository does not change those IDs, but pointing the app registration at a different repository does — re-derive the IDs and update every subject before relying on deployments.
 - Periodically review app registration federated credentials and remove unused subjects.
