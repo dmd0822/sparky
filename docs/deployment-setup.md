@@ -17,9 +17,9 @@ You need:
 - Owner, User Access Administrator, Role Based Access Control Administrator, or equivalent rights on the target scope to assign Azure RBAC roles.
 - Existing resource group: `rg-sparky`.
 - Target region: South Central US (`southcentralus`).
-- Optional: GitHub CLI (`gh`) authenticated to `dmd0822/sparky` for repository variables and issue comments.
+- Optional: GitHub CLI (`gh`) authenticated to `dmd0822/sparky` for repository secrets, variables, and issue comments.
 
-Do not paste the real subscription ID into repo files. Use the `AZURE_SUBSCRIPTION_ID` GitHub repository variable and local shell variables only.
+Do not paste the real subscription ID into repo files. Use the `AZURE_SUBSCRIPTION_ID` GitHub repository secret and local shell variables only.
 
 ## 2. Create the Entra application and service principal
 
@@ -77,7 +77,7 @@ $TenantId = $TenantId.Trim()
 "SERVICE_PRINCIPAL_OBJECT_ID=$SpObjectId"
 ```
 
-Keep the printed IDs handy for GitHub variables and role assignments. These IDs are not passwords, but still avoid hardcoding them in committed workflow files. The Azure CLI `--query ... --output tsv` commands above should each return one value; PowerShell examples trim the captured text so copied IDs do not include an accidental trailing newline.
+Keep the printed IDs handy for GitHub secrets and role assignments. These IDs are not passwords, but still avoid hardcoding them in committed workflow files. The Azure CLI `--query ... --output tsv` commands above should each return one value; PowerShell examples trim the captured text so copied IDs do not include an accidental trailing newline.
 
 ## 3. Configure federated credentials
 
@@ -302,24 +302,36 @@ az role assignment create `
 
 If that role is unavailable in your tenant, use `User Access Administrator` at the same resource-group scope. Avoid subscription-wide assignment unless the deployment truly needs subscription-scope changes.
 
-## 5. Set GitHub repository variables
+## 5. Set GitHub repository secrets and variables
 
-Use GitHub Actions variables for non-secret deployment identifiers. OIDC means there is no password to store. These values are not credentials by themselves, though storing them as secrets is acceptable if your team prefers not to display IDs in the Actions settings UI.
+Use GitHub Actions secrets for the three Azure IDs and variables for non-sensitive deployment settings. OIDC means there is no secret material or long-lived password to store: the client ID and tenant ID are public identifiers, and the subscription ID is only mildly sensitive. Storing the IDs as secrets is a defensible defense-in-depth choice that keeps the subscription ID out of logs and matches Sparky's rule that it must not appear in the repo.
+
+Trade-off: secret values are masked in workflow logs, which can make authentication failures harder to debug. Repository secrets are also not exposed to workflows triggered by `pull_request` from forks. Keep the split explicit: **the three Azure IDs are secrets; resource group and location are variables.**
+
+The commands below prompt for the live IDs instead of using angle-bracket placeholders. Do not include quotes or brackets when pasting values at the prompt.
 
 **Bash / zsh:**
 ```bash
-gh variable set AZURE_CLIENT_ID --repo dmd0822/sparky --body "<azure-client-id>"
-gh variable set AZURE_TENANT_ID --repo dmd0822/sparky --body "<azure-tenant-id>"
-gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<your-subscription-id>"
+read -r -p "Azure client ID: " AZURE_CLIENT_ID
+read -r -p "Azure tenant ID: " AZURE_TENANT_ID
+read -r -p "Azure subscription ID: " AZURE_SUBSCRIPTION_ID
+
+gh secret set AZURE_CLIENT_ID --repo dmd0822/sparky --body "$AZURE_CLIENT_ID"
+gh secret set AZURE_TENANT_ID --repo dmd0822/sparky --body "$AZURE_TENANT_ID"
+gh secret set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "$AZURE_SUBSCRIPTION_ID"
 gh variable set AZURE_RESOURCE_GROUP --repo dmd0822/sparky --body "rg-sparky"
 gh variable set AZURE_LOCATION --repo dmd0822/sparky --body "southcentralus"
 ```
 
 **PowerShell:**
 ```powershell
-gh variable set AZURE_CLIENT_ID --repo dmd0822/sparky --body "<azure-client-id>"
-gh variable set AZURE_TENANT_ID --repo dmd0822/sparky --body "<azure-tenant-id>"
-gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<your-subscription-id>"
+$AzureClientId = Read-Host "Azure client ID"
+$AzureTenantId = Read-Host "Azure tenant ID"
+$AzureSubscriptionId = Read-Host "Azure subscription ID"
+
+gh secret set AZURE_CLIENT_ID --repo dmd0822/sparky --body "$AzureClientId"
+gh secret set AZURE_TENANT_ID --repo dmd0822/sparky --body "$AzureTenantId"
+gh secret set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "$AzureSubscriptionId"
 gh variable set AZURE_RESOURCE_GROUP --repo dmd0822/sparky --body "rg-sparky"
 gh variable set AZURE_LOCATION --repo dmd0822/sparky --body "southcentralus"
 ```
@@ -328,7 +340,7 @@ Do not create `AZURE_CREDENTIALS`, do not store a client secret, and do not use 
 
 ## 6. Create GitHub Environments
 
-Create `dev` and `prod` in **Settings → Environments**.
+The `dev` and `prod` GitHub Environments already exist in `dmd0822/sparky`.
 
 Recommended settings:
 
@@ -350,6 +362,8 @@ gh api --method PUT repos/dmd0822/sparky/environments/prod
 ```
 
 Configure production protection rules in the GitHub UI unless you already have a standard API payload for reviewers. The environment names must exactly match the federated credential subjects (`dev` and `prod`). A workflow job that says `environment: production` will not match `repo:dmd0822/sparky:environment:prod`.
+
+Known constraint: GitHub Environment protection rules such as required reviewers and wait timers require GitHub Pro for a private User-owned repository. `dmd0822/sparky` is private under a User account and no paid plan is currently detected, so `prod` approval gates may not be available. That is not a blocker for OIDC; use branch protection on `main` as the deployment gate until environment protection becomes available.
 
 ## 7. Example infrastructure deployment workflow
 
@@ -406,9 +420,9 @@ jobs:
       - name: Azure login with OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Azure context
         run: |
@@ -433,9 +447,9 @@ jobs:
       - name: Azure login with OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Azure context
         run: |
@@ -460,9 +474,9 @@ jobs:
       - name: Azure login with OIDC
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Azure context
         run: |
@@ -505,8 +519,9 @@ You can also inspect Entra sign-in logs for the service principal to confirm tok
 | PR what-if fails with `AADSTS70021` after adding `environment: dev` | Environment jobs use `repo:...:environment:dev`, not `repo:...:pull_request`. | Either remove `environment` from the PR job or add an environment-scoped credential and accept environment approvals on PRs. |
 | Deployment fails with authorization errors immediately after role assignment | RBAC propagation delay. | Wait a few minutes and rerun. Confirm role assignment scope is `rg-sparky`. |
 | Bicep deployment fails creating role assignments | Deployment principal has `Contributor` but not role-assignment permission. | Add `Role Based Access Control Administrator` or `User Access Administrator` at resource-group scope. |
-| Workflow deploys to the wrong subscription | Wrong `AZURE_SUBSCRIPTION_ID` variable or stale local Azure CLI context. | Check repository variable value, environment variable overrides, and the `az account show` verification step. |
-| Prod job never starts | GitHub Environment protection is waiting for approval. | Approve the deployment in the Actions run or adjust environment protection rules. |
+| `azure/login` fails with an unhelpful authentication error and the login step shows an empty or malformed `client-id` | Workflow references the wrong GitHub context: for example `vars.AZURE_CLIENT_ID` for a value stored as a secret, or `secrets.AZURE_RESOURCE_GROUP` for a value stored as a variable. GitHub resolves the wrong context to an empty string without warning. | Use `secrets.AZURE_CLIENT_ID`, `secrets.AZURE_TENANT_ID`, and `secrets.AZURE_SUBSCRIPTION_ID`; use `vars.AZURE_RESOURCE_GROUP` and `vars.AZURE_LOCATION`. |
+| Workflow deploys to the wrong subscription | Wrong `AZURE_SUBSCRIPTION_ID` secret or stale local Azure CLI context. | Check repository secret value, environment variable overrides, and the `az account show` verification step. |
+| Prod job never starts | GitHub Environment protection is waiting for approval, or protection rules are unavailable on the current plan. | Approve the deployment if the gate exists. If required reviewers/wait timers are unavailable for this private User-owned repository, use branch protection on `main` as the gate. |
 
 ## 10. Security notes
 

@@ -130,11 +130,11 @@ The concrete Azure deployment target is:
 | --- | --- |
 | Resource group | `rg-sparky` |
 | Azure region | South Central US (`southcentralus`) |
-| Subscription | Supplied at deploy time through the `AZURE_SUBSCRIPTION_ID` GitHub Actions repository variable or the active `az` CLI subscription |
+| Subscription | Supplied at deploy time through the `AZURE_SUBSCRIPTION_ID` GitHub Actions repository secret or the active `az` CLI subscription |
 
 The subscription ID is intentionally not committed into Bicep, parameter files,
 workflow YAML, or public setup snippets. GitHub Actions should read it from the
-repository variable `AZURE_SUBSCRIPTION_ID` during OIDC/WIF login, while local
+repository secret `AZURE_SUBSCRIPTION_ID` during OIDC/WIF login, while local
 operators should select the same subscription with `az account set --subscription
 <subscription-id>` before running group-scope deployments.
 

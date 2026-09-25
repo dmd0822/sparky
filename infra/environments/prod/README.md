@@ -7,8 +7,8 @@ Production Bicep compositions and parameters belong here.
 - Resource group: `rg-sparky`
 - Location: `southcentralus`
 - Environment name: `prod`
-- Subscription: supplied by the caller through `AZURE_SUBSCRIPTION_ID` in GitHub
-  Actions or the active `az` CLI account locally
+- Subscription: supplied by the caller through the `AZURE_SUBSCRIPTION_ID`
+  GitHub Actions repository secret or the active `az` CLI account locally
 
 Do not commit a subscription ID into this directory.
 
@@ -62,7 +62,8 @@ az deployment group create `
 
 ## GitHub Actions deployment
 
-The infra workflow should read `vars.AZURE_SUBSCRIPTION_ID`, authenticate with
-OIDC/WIF, and deploy the prod entry point to `rg-sparky` in `southcentralus`.
-Production deployments must require GitHub Environment approval before running
-`az deployment group create`.
+The infra workflow should read `secrets.AZURE_SUBSCRIPTION_ID`, authenticate
+with OIDC/WIF, and deploy the prod entry point to `rg-sparky` in `southcentralus`.
+Production deployments should use GitHub Environment approval before running
+`az deployment group create` when the repository plan supports protection rules;
+otherwise, use branch protection on `main` as the deployment gate.

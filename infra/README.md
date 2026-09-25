@@ -15,19 +15,21 @@ Sparky deploys Azure resources into a single resource group:
 | Environments | `dev` and `prod` are logical environments in the same resource group |
 
 The subscription is wired through the `AZURE_SUBSCRIPTION_ID` GitHub repository
-variable for GitHub Actions, or through the active Azure CLI subscription for
+secret for GitHub Actions, or through the active Azure CLI subscription for
 manual deployments.
 
-Set the GitHub repository variable with:
+Set the GitHub repository secret with:
 
 **Bash / zsh:**
 ```bash
-gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<subscription-id>"
+read -r -p "Azure subscription ID: " AZURE_SUBSCRIPTION_ID
+gh secret set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "$AZURE_SUBSCRIPTION_ID"
 ```
 
 **PowerShell:**
 ```powershell
-gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<subscription-id>"
+$AzureSubscriptionId = Read-Host "Azure subscription ID"
+gh secret set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "$AzureSubscriptionId"
 ```
 
 For local deployment, select the subscription before running Bicep:
@@ -47,7 +49,7 @@ az group show --name rg-sparky --output table
 The known target resource group already exists in South Central US.
 
 For the full GitHub Actions setup, including Entra app registration, federated
-credentials, RBAC, GitHub variables, environments, and an example infra CD
+credentials, RBAC, GitHub secrets and variables, environments, and an example infra CD
 workflow, see [GitHub Actions Azure deployment setup](../docs/deployment-setup.md).
 
 ## Naming convention
@@ -79,9 +81,10 @@ environment=<dev|prod>
 The infra workflow should authenticate with GitHub OIDC / workload identity
 federation. Keep the detailed setup in
 [docs/deployment-setup.md](../docs/deployment-setup.md) rather than duplicating
-it here. At runtime the workflow should consume repository variables such as
-`vars.AZURE_CLIENT_ID`, `vars.AZURE_TENANT_ID`, `vars.AZURE_SUBSCRIPTION_ID`,
-`vars.AZURE_RESOURCE_GROUP`, and `vars.AZURE_LOCATION`.
+it here. At runtime the workflow should consume repository secrets for
+`secrets.AZURE_CLIENT_ID`, `secrets.AZURE_TENANT_ID`, and
+`secrets.AZURE_SUBSCRIPTION_ID`; it should consume repository variables for
+`vars.AZURE_RESOURCE_GROUP` and `vars.AZURE_LOCATION`.
 
 Do not add Azure access keys, publish profiles, `AZURE_CREDENTIALS`, or
 long-lived service principal secrets. The workflow should run `what-if` before
