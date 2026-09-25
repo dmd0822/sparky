@@ -45,3 +45,29 @@
 **By:** Docs
 **What:** Deployment documentation that contains copyable shell commands should provide paired **Bash / zsh** and **PowerShell** fenced blocks instead of assuming one shell.
 **Why:** Sparky maintainers run setup from both Unix-like shells and Windows PowerShell. Bash assignments, `$VAR` expansion, trailing `\` continuations, heredocs, and Unix utilities do not execute in PowerShell, so future deployment docs need explicit shell-specific variants while preserving the Bash experience.
+
+
+### 2026-09-25: GitHub Actions Azure IDs are secrets, deployment settings are variables
+**By:** Docs
+**What:** Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` as GitHub repository secrets. Store `AZURE_RESOURCE_GROUP` and `AZURE_LOCATION` as GitHub repository variables. Workflow YAML must read the three IDs from `secrets.*` and the resource settings from `vars.*`.
+**Why:** OIDC does not require secret material, and the client and tenant IDs are public identifiers while the subscription ID is only mildly sensitive. Keeping the three IDs as secrets is still a defensible defense-in-depth choice that masks the subscription ID in logs and keeps it out of committed files. The trade-off is harder debugging because secrets are masked and unavailable to forked pull-request workflows.
+
+### 2026-09-25T20-55-52: Model deployments remain parameterized and telemetry secrets stay out of infra outputs
+**By:** lead
+**What:** Model deployments remain parameterized and telemetry secrets stay out of infra outputs
+**References:** GitHub issue #2, infra/modules/ai-services.bicep, infra/modules/monitoring.bicep, docs/adr/0003-keyless-edge-auth-pattern.md
+**Why:** ### 2026-09-25: Parameterize Foundry deployments and avoid telemetry secret outputs
+**By:** lead
+**What:** Baseline Bicep keeps chat and vision model deployments behind an empty-by-default `modelDeployments` array, and Application Insights outputs are limited to name and resource ID rather than connection strings or instrumentation keys.
+**Why:** South Central US model capacity, deployment type, and exact versions must be confirmed immediately before deployment; committing guesses would create brittle IaC. Telemetry connection strings and keys would violate the keyless baseline, so relay telemetry configuration must be resolved via managed identity-aware runtime configuration or out-of-band app settings.
+
+### 2026-09-25T16:39:28-04:00: Use Azure Monitor diagnostics for Container Apps logs
+**By:** Security
+**What:** Container Apps managed environments must use `appLogsConfiguration.destination = 'azure-monitor'` plus diagnostic settings to route console and system logs to Log Analytics by workspace resource ID. Do not use the `log-analytics` destination because it requires a workspace shared key.
+**Why:** The project has a hard no-Azure-access-keys policy; retrieving or supplying the Log Analytics shared key would create a key-based fallback path.
+
+### 2026-09-25T16:39:28-04:00: Document private ACR first-pull sequencing risk
+**By:** Security
+**What:** The baseline keeps the relay Container App on a public placeholder image and documents that future private ACR images need pre-granted AcrPull or a two-phase identity/RBAC deployment. No `dependsOn` was added because the current role assignment needs the app's system-assigned principal ID, so making the app depend on that assignment would create a cycle.
+**Why:** The current baseline is safe for the public image, but private-image cutover must avoid an identity/RBAC propagation race without broadening permissions or adding key fallback.
+

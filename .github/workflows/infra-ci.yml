@@ -1,13 +1,10 @@
 name: Infra CI
 
-# NOTE: infra/environments/{dev,prod}/main.bicep do not exist yet. This is
-# partial M1 scaffolding: validation is skipped (not faked) until both entry
-# points land together. See infra/README.md for the planned layout.
-
 on:
   pull_request:
     paths:
       - 'infra/**'
+      - 'tests/test_infra_policy.py'
       - '.github/workflows/infra-ci.yml'
       - 'docs/deployment-setup.md'
   push:
@@ -15,6 +12,7 @@ on:
       - main
     paths:
       - 'infra/**'
+      - 'tests/test_infra_policy.py'
       - '.github/workflows/infra-ci.yml'
       - 'docs/deployment-setup.md'
 
@@ -30,31 +28,28 @@ jobs:
       - name: Install Bicep CLI
         run: az bicep install
 
-      - name: Check environment entry points
-        id: check
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 #v5
+        with:
+          python-version: "3.11"
+
+      - name: Build Bicep modules
+        shell: pwsh
         run: |
-          dev_exists=false
-          prod_exists=false
-          if [ -f infra/environments/dev/main.bicep ]; then dev_exists=true; fi
-          if [ -f infra/environments/prod/main.bicep ]; then prod_exists=true; fi
+          Get-ChildItem infra/modules -Filter *.bicep | Sort-Object FullName | ForEach-Object {
+            az bicep build --file $_.FullName --stdout | Out-Null
+          }
 
-          if [ "$dev_exists" = "false" ] && [ "$prod_exists" = "false" ]; then
-            echo "::notice::Neither infra/environments/dev/main.bicep nor infra/environments/prod/main.bicep exist yet. Infra is still partial scaffolding (see infra/README.md); skipping Bicep validation until both entry points are added."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+      - name: Build environment entry points
+        shell: pwsh
+        run: |
+          az bicep build --file infra/environments/dev/main.bicep --stdout | Out-Null
+          az bicep build --file infra/environments/prod/main.bicep --stdout | Out-Null
 
-          if [ "$dev_exists" != "$prod_exists" ]; then
-            echo "::error::Only one of infra/environments/{dev,prod}/main.bicep exists (dev=$dev_exists, prod=$prod_exists). Both environment entry points must be added together, or neither. Failing instead of silently skipping validation."
-            exit 1
-          fi
+      - name: Build environment parameter files
+        shell: pwsh
+        run: |
+          az bicep build-params --file infra/environments/dev/main.bicepparam --stdout | Out-Null
+          az bicep build-params --file infra/environments/prod/main.bicepparam --stdout | Out-Null
 
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-
-      - name: Validate dev environment
-        if: steps.check.outputs.skip == 'false'
-        run: az bicep build --file infra/environments/dev/main.bicep --stdout >/dev/null
-
-      - name: Validate prod environment
-        if: steps.check.outputs.skip == 'false'
-        run: az bicep build --file infra/environments/prod/main.bicep --stdout >/dev/null
+      - name: Run static infra policy tests
+        run: python -m unittest tests.test_infra_policy
