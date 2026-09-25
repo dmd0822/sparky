@@ -44,6 +44,26 @@ docs/                Architecture docs, ADRs, plans, diagrams
 
 Implementation has not started yet. The current branch establishes the architecture and delivery plan.
 
+### Package and test conventions
+
+Each planned Python subproject is an independent package with its own
+`pyproject.toml`:
+
+- `src/device` → `sparky-device` / `sparky_device`
+- `src/cloud` → `sparky-cloud` / `sparky_relay`
+- `src/shared` → `sparky-shared` / `sparky_contracts`
+
+Keep package tests in the corresponding local `tests/` directory. Deterministic
+fixtures belong under `tests/fixtures/`; do not commit credentials, hardware
+captures, or generated build output. Generated artifacts must stay in ignored
+directories such as `build/`, `dist/`, or `.coverage/`.
+
+Run the scaffold validation with:
+
+```powershell
+python -m unittest discover -s tests
+```
+
 For next steps:
 
 1. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

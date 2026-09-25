@@ -1,0 +1,27 @@
+name: Python Validation
+
+on:
+  pull_request:
+    branches: [dev, preview, main, insider]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [dev, insider]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
+
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 #v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate repository structure and metadata
+        run: python -m unittest discover -s tests
+
+      - name: Compile Python sources
+        run: python -m compileall -q src tests
