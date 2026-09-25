@@ -13,10 +13,10 @@ These planning issues intentionally use domain/type labels but **do not** carry 
 | M1 Foundations & Keyless Platform | Scaffold the repo, establish Bicep and workflow baselines, and prove the keyless Entra-to-relay-to-Foundry path end to end. | 4 |
 | M2 Device Control Baseline | Wrap the SunFounder libraries behind testable interfaces and establish reliable motion and sensor control without requiring real hardware in CI. | 4 |
 | M3 Relay API & Vision Perception | Stand up the secure relay surface and connect camera capture to cloud vision understanding through typed contracts. | 4 |
-| M4 Voice Conversation Loop | Connect microphone input, speech recognition, Foundry reasoning, and spoken output into a secure end-to-end conversation pipeline. | 4 |
-| M5 Agent Behavior & Orchestration | Turn raw motion, sensor, voice, and vision capabilities into a coherent robot personality and decision loop. | 4 |
+| M4 Voice Conversation Loop | Connect microphone input, speech recognition, Foundry reasoning, persona-aware TTS, and spoken output into a secure end-to-end conversation pipeline. | 5 |
+| M5 Agent Behavior & Orchestration | Turn raw motion, sensor, voice, personas, and vision capabilities into coherent robot behavior and decision loops. | 10 |
 | M6 Hardening, Security & Observability | Add telemetry, resilience, and explicit security review so the system is supportable and trustworthy beyond demos. | 4 |
-| M7 Release Readiness & Demo | Package the system for repeatable setup, validate end-to-end scenarios, finish runbooks, and make an explicit release decision. | 4 |
+| M7 Release Readiness & Demo | Package the system for repeatable setup, validate end-to-end scenarios including persona extensibility, finish runbooks, and make an explicit release decision. | 5 |
 
 ## M1 Foundations & Keyless Platform
 
@@ -53,7 +53,7 @@ Stand up the secure relay surface and connect camera capture to cloud vision und
 
 ## M4 Voice Conversation Loop
 
-Connect microphone input, speech recognition, Foundry reasoning, and spoken output into a secure end-to-end conversation pipeline.
+Connect microphone input, speech recognition, Foundry reasoning, persona-aware TTS, and spoken output into a secure end-to-end conversation pipeline.
 
 | Issue | Title | Labels |
 | --- | --- | --- |
@@ -61,10 +61,11 @@ Connect microphone input, speech recognition, Foundry reasoning, and spoken outp
 | [#14](https://github.com/dmd0822/sparky/issues/14) | Integrate speech-to-text through Entra-authenticated Speech endpoints | type:feature, cloud, ai, security, testing |
 | [#15](https://github.com/dmd0822/sparky/issues/15) | Integrate text-to-speech with Speech and robot-hat speaker playback | type:feature, device, cloud, ai, testing |
 | [#16](https://github.com/dmd0822/sparky/issues/16) | Build the conversation orchestrator for STT, chat, and TTS | type:feature, device, cloud, ai, testing |
+| [#33](https://github.com/dmd0822/sparky/issues/33) | Make TTS synthesis persona-aware | type:feature, device, cloud, ai, testing, persona |
 
 ## M5 Agent Behavior & Orchestration
 
-Turn raw motion, sensor, voice, and vision capabilities into a coherent robot personality and decision loop.
+Turn raw motion, sensor, voice, personas, and vision capabilities into coherent robot behavior and decision loops.
 
 | Issue | Title | Labels |
 | --- | --- | --- |
@@ -72,6 +73,12 @@ Turn raw motion, sensor, voice, and vision capabilities into a coherent robot pe
 | [#18](https://github.com/dmd0822/sparky/issues/18) | Implement the behavior planner that fuses voice, vision, and sensor inputs | type:feature, device, ai, testing |
 | [#19](https://github.com/dmd0822/sparky/issues/19) | Implement action execution and interrupt arbitration | type:feature, device, testing, security |
 | [#20](https://github.com/dmd0822/sparky/issues/20) | Add interactive command mode and degraded offline fallback behaviors | type:feature, device, ai, testing |
+| [#30](https://github.com/dmd0822/sparky/issues/30) | Define persona manifest schema and validation rules | type:feature, ai, docs, testing, persona |
+| [#31](https://github.com/dmd0822/sparky/issues/31) | Implement persona loader, registry, and default selection | type:feature, device, ai, testing, persona |
+| [#32](https://github.com/dmd0822/sparky/issues/32) | Add runtime persona switching with safe-state transitions | type:feature, device, ai, testing, persona, security |
+| [#34](https://github.com/dmd0822/sparky/issues/34) | Apply persona movement profiles and signature reactions | type:feature, device, testing, persona |
+| [#35](https://github.com/dmd0822/sparky/issues/35) | Compose LLM prompts from active persona with safety rails enforced | type:feature, ai, security, testing, persona |
+| [#36](https://github.com/dmd0822/sparky/issues/36) | Author the two starter personas as reviewable manifests | type:feature, ai, device, docs, testing, persona |
 
 ## M6 Hardening, Security & Observability
 
@@ -86,7 +93,7 @@ Add telemetry, resilience, and explicit security review so the system is support
 
 ## M7 Release Readiness & Demo
 
-Package the system for repeatable setup, validate end-to-end scenarios, finish runbooks, and make an explicit release decision.
+Package the system for repeatable setup, validate end-to-end scenarios including persona extensibility, finish runbooks, and make an explicit release decision.
 
 | Issue | Title | Labels |
 | --- | --- | --- |
@@ -94,3 +101,9 @@ Package the system for repeatable setup, validate end-to-end scenarios, finish r
 | [#26](https://github.com/dmd0822/sparky/issues/26) | Build the end-to-end acceptance suite and demo scenarios | type:feature, testing, device, cloud, ai |
 | [#27](https://github.com/dmd0822/sparky/issues/27) | Write operator and developer runbooks plus the release checklist | type:docs, docs, security, testing |
 | [#28](https://github.com/dmd0822/sparky/issues/28) | Run the release candidate bug bash and record the v1 readiness decision | type:chore, testing, docs |
+| [#37](https://github.com/dmd0822/sparky/issues/37) | Validate persona extensibility in release acceptance suite | type:feature, testing, docs, persona |
+
+
+## Persona framework additions
+
+The multi-persona requirement extends the existing sequence rather than creating a separate milestone. Persona-aware TTS belongs in M4 because it changes the voice loop. Schema, registry, switching, prompt composition, movement profiles, reactions, and starter manifests belong in M5 because they shape agent behavior and orchestration. Third-persona extensibility belongs in M7 because it is release acceptance evidence for the framework.

@@ -21,3 +21,12 @@ No decisions recorded yet.
 ## 2026-09-25T09:38:29.971-04:00
 
 - **Security review verdict:** 🟡 The architecture and ADR 0003 are directionally sound for a keyless design (Pi authenticates only to the relay; relay uses managed identity to reach Foundry/Speech), but issues #2, #3, #4, #9, and #23 need explicit acceptance criteria for disabling local/key-based auth, enforcing GitHub OIDC/WIF-only deployment auth, proving no fallback key paths, tightening relay token/app-role validation, and threat-modeling token/logging/device-loss risks.
+
+
+## 2026-09-25T10:18:06.056-04:00
+
+- **Persona framework:** Sparky will use a declarative-first persona framework with manifests under `src/device/sparky_device/personas/` and shared schema/validation under `src/shared/sparky_contracts/personas/`. Core code loads personas through a registry; normal third-persona additions must require only a new manifest plus tests/fixtures.
+- **Persona controls:** A persona controls LLM prompt intent, TTS voice/prosody, movement profile, vision/sensor reaction mappings, sound/RGB idioms, and safety notes. Persona safety may tighten but never override global safety, authentication, privacy, or motion constraints.
+- **Switching:** Persona switching is a runtime hot-swap through voice intent, command mode, or programmatic API after a safe-state transition that cancels/settles in-flight conversation, TTS, motion, and transient reactions. Conversation memory is persona-scoped by default and switches are logged/telemetried.
+- **Starter personas:** Sunny Companion (warm companion; gentle voice and relaxed movement) and Sentinel Scout (alert non-aggressive scout; crisp voice, patrol movement, inspection reactions).
+- **New issues:** #30 schema/validation, #31 loader/registry/default, #32 runtime switching/safe-state, #33 persona-aware TTS, #34 movement profiles/reactions, #35 LLM prompt composition/safety, #36 starter manifests, #37 third-persona release acceptance.
