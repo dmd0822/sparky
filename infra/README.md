@@ -33,6 +33,10 @@ az group show --name rg-sparky --output table
 
 The known target resource group already exists in South Central US.
 
+For the full GitHub Actions setup, including Entra app registration, federated
+credentials, RBAC, GitHub variables, environments, and an example infra CD
+workflow, see [GitHub Actions Azure deployment setup](../docs/deployment-setup.md).
+
 ## Naming convention
 
 All resources should use environment-suffixed names because dev and prod share
@@ -60,26 +64,24 @@ environment=<dev|prod>
 ## GitHub Actions deployment wiring
 
 The infra workflow should authenticate with GitHub OIDC / workload identity
-federation and consume:
+federation. Keep the detailed setup in
+[docs/deployment-setup.md](../docs/deployment-setup.md) rather than duplicating
+it here. At runtime the workflow should consume repository variables such as
+`vars.AZURE_CLIENT_ID`, `vars.AZURE_TENANT_ID`, `vars.AZURE_SUBSCRIPTION_ID`,
+`vars.AZURE_RESOURCE_GROUP`, and `vars.AZURE_LOCATION`.
 
-- `vars.AZURE_SUBSCRIPTION_ID`
-- an environment-specific resource group value defaulting to `rg-sparky`
-- an environment-specific location value defaulting to `southcentralus`
-- federated credential values required by `azure/login`
-
-Do not add Azure access keys or long-lived service principal secrets. The
-workflow should run `what-if` before deploy and target a group-scope deployment:
+Do not add Azure access keys, publish profiles, `AZURE_CREDENTIALS`, or
+long-lived service principal secrets. The workflow should run `what-if` before
+deploy and target a group-scope deployment:
 
 ```powershell
 az deployment group what-if `
   --resource-group rg-sparky `
-  --template-file infra/environments/dev/main.bicep `
-  --parameters @infra/environments/dev/main.bicepparam
+  --parameters infra/environments/dev/main.bicepparam
 
 az deployment group create `
   --resource-group rg-sparky `
-  --template-file infra/environments/dev/main.bicep `
-  --parameters @infra/environments/dev/main.bicepparam
+  --parameters infra/environments/dev/main.bicepparam
 ```
 
 Use the matching `prod` entry point for production after environment approval.

@@ -38,13 +38,11 @@ az group show --name rg-sparky --output table
 
 az deployment group what-if `
   --resource-group rg-sparky `
-  --template-file infra/environments/prod/main.bicep `
-  --parameters @infra/environments/prod/main.bicepparam
+  --parameters infra/environments/prod/main.bicepparam
 
 az deployment group create `
   --resource-group rg-sparky `
-  --template-file infra/environments/prod/main.bicep `
-  --parameters @infra/environments/prod/main.bicepparam
+  --parameters infra/environments/prod/main.bicepparam
 ```
 
 ## GitHub Actions deployment

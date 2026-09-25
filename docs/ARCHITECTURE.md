@@ -141,6 +141,8 @@ operators should select the same subscription with `az account set --subscriptio
 Dev and prod are logical environments in the same resource group and region. The
 environment boundary is expressed by Bicep parameters, tags, deployment outputs,
 GitHub Environments, and resource names rather than by separate resource groups.
+See [GitHub Actions Azure deployment setup](deployment-setup.md) for the keyless
+OIDC/workload identity federation setup used by deployment workflows.
 
 ### Resource naming convention
 
