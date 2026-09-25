@@ -1,0 +1,2 @@
+# Test-only dependencies. Runtime packages declare their own deps in src/*/pyproject.toml.
+PyYAML>=6.0

@@ -2,6 +2,10 @@ name: Infra CD
 
 # Manual-only infrastructure deployment. Uses Incremental mode, never Complete,
 # and always runs what-if before create.
+#
+# Auth is keyless: GitHub OIDC / workload identity federation only. No publish
+# profiles, service principal secrets, storage keys, or ACR admin credentials.
+# See docs/deployment-setup.md for the federated credential and RBAC setup.
 
 on:
   workflow_dispatch:
@@ -15,6 +19,13 @@ on:
           - dev
           - prod
 
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-cd-${{ inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -22,6 +33,11 @@ jobs:
       id-token: write
       contents: read
     environment: ${{ inputs.environment }}
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-sparky' }}
+      TEMPLATE_FILE: infra/environments/${{ inputs.environment }}/main.bicep
+      PARAMETERS_FILE: infra/environments/${{ inputs.environment }}/main.bicepparam
+      DEPLOYMENT_NAME: sparky-infra-${{ inputs.environment }}-${{ github.run_id }}
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -33,16 +49,42 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Verify Azure context
+        run: |
+          az account show --query "{tenantId:tenantId, subscriptionId:id, name:name}" --output table
+          az group show --name "$RESOURCE_GROUP" --output table
+
       - name: What-if deployment
         run: |
           az deployment group what-if \
-            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --parameters infra/environments/${{ inputs.environment }}/main.bicepparam \
+            --name "$DEPLOYMENT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file "$TEMPLATE_FILE" \
+            --parameters "$PARAMETERS_FILE" \
             --mode Incremental
 
       - name: Deploy infrastructure
         run: |
           az deployment group create \
-            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --parameters infra/environments/${{ inputs.environment }}/main.bicepparam \
+            --name "$DEPLOYMENT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file "$TEMPLATE_FILE" \
+            --parameters "$PARAMETERS_FILE" \
             --mode Incremental
+
+      # Code delivery reads these to discover the ACR and Container App it must
+      # target, so code-cd.yml never has to hardcode infra resource names.
+      - name: Publish deployment outputs
+        run: |
+          az deployment group show \
+            --name "$DEPLOYMENT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.outputs \
+            --output json > deployment-outputs.json
+          cat deployment-outputs.json
+
+      - name: Upload deployment outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: infra-outputs-${{ inputs.environment }}
+          path: deployment-outputs.json

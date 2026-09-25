@@ -1,7 +1,24 @@
 name: Code CD
 
+# Application delivery only. Infrastructure is deployed by infra-cd.yml; this
+# workflow builds and publishes the relay image and rolls it out to the
+# existing Container App.
+#
+# Auth is keyless: GitHub OIDC / workload identity federation only. ACR access
+# goes through Entra ID RBAC (`az acr login` exchanges the ARM token), so the
+# registry admin user stays disabled and no registry password is ever stored.
+
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Logical environment to deploy
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - prod
   push:
     branches:
       - main
@@ -9,8 +26,16 @@ on:
       - 'src/**'
       - '.github/workflows/code-cd.yml'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: code-cd-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
 jobs:
-  release:
+  validate:
+    name: Validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,9 +43,111 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
 
-      - name: Validate Python package metadata
-        run: |
-          python -m unittest discover -s tests
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Confirm deployment package is ready
-        run: echo "Application delivery workflow ready. This placeholder pipeline is intentionally separated from infra deployment."
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tests/requirements.txt
+
+      - name: Run repository tests
+        run: python -m unittest discover -s tests
+
+  publish:
+    name: Build and publish relay image
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+    env:
+      ENVIRONMENT_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-sparky' }}
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Resolves infra-owned names from the deployed resource group instead of
+      # duplicating the sparky-<resource>-<env> convention in this workflow.
+      - name: Resolve registry from deployed infrastructure
+        id: registry
+        run: |
+          ACR_NAME="$(az acr list \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?tags.environment=='${ENVIRONMENT_NAME}'] | [0].name" \
+            --output tsv)"
+          if [ -z "$ACR_NAME" ]; then
+            echo "::error::No container registry tagged environment=${ENVIRONMENT_NAME} in ${RESOURCE_GROUP}. Run infra-cd.yml first."
+            exit 1
+          fi
+          echo "acr-name=$ACR_NAME" >> "$GITHUB_OUTPUT"
+
+      # Entra-backed registry auth. The registry admin user stays disabled and
+      # no registry password is ever read or stored.
+      - name: Authenticate to registry with Entra ID
+        run: az acr login --name "${{ steps.registry.outputs.acr-name }}"
+
+      - name: Build and push relay image
+        id: build
+        env:
+          ACR_NAME: ${{ steps.registry.outputs.acr-name }}
+        run: |
+          IMAGE="sparky-relay:${{ github.sha }}"
+          if [ -f src/cloud/Dockerfile ]; then
+            az acr build \
+              --registry "$ACR_NAME" \
+              --image "$IMAGE" \
+              --file src/cloud/Dockerfile \
+              src/cloud
+            echo "image=${ACR_NAME}.azurecr.io/${IMAGE}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::src/cloud/Dockerfile not present yet; skipping image build."
+            echo "image=" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy relay
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+    env:
+      ENVIRONMENT_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-sparky' }}
+      RELAY_IMAGE: ${{ needs.publish.outputs.image }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update relay container app
+        run: |
+          if [ -z "$RELAY_IMAGE" ]; then
+            echo "::notice::No image was published; leaving the relay container app unchanged."
+            exit 0
+          fi
+          az containerapp update \
+            --name "sparky-relay-${ENVIRONMENT_NAME}" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$RELAY_IMAGE"
