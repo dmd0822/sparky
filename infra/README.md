@@ -20,12 +20,25 @@ manual deployments.
 
 Set the GitHub repository variable with:
 
+**Bash / zsh:**
+```bash
+gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<subscription-id>"
+```
+
+**PowerShell:**
 ```powershell
 gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<subscription-id>"
 ```
 
 For local deployment, select the subscription before running Bicep:
 
+**Bash / zsh:**
+```bash
+az account set --subscription "<subscription-id>"
+az group show --name rg-sparky --output table
+```
+
+**PowerShell:**
 ```powershell
 az account set --subscription "<subscription-id>"
 az group show --name rg-sparky --output table
@@ -74,6 +87,18 @@ Do not add Azure access keys, publish profiles, `AZURE_CREDENTIALS`, or
 long-lived service principal secrets. The workflow should run `what-if` before
 deploy and target a group-scope deployment:
 
+**Bash / zsh:**
+```bash
+az deployment group what-if \
+  --resource-group rg-sparky \
+  --parameters infra/environments/dev/main.bicepparam
+
+az deployment group create \
+  --resource-group rg-sparky \
+  --parameters infra/environments/dev/main.bicepparam
+```
+
+**PowerShell:**
 ```powershell
 az deployment group what-if `
   --resource-group rg-sparky `

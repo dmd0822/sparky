@@ -32,6 +32,21 @@ All resources should be tagged with `app=sparky` and `environment=dev`.
 
 After selecting the target subscription:
 
+**Bash / zsh:**
+```bash
+az account set --subscription "<subscription-id>"
+az group show --name rg-sparky --output table
+
+az deployment group what-if \
+  --resource-group rg-sparky \
+  --parameters infra/environments/dev/main.bicepparam
+
+az deployment group create \
+  --resource-group rg-sparky \
+  --parameters infra/environments/dev/main.bicepparam
+```
+
+**PowerShell:**
 ```powershell
 az account set --subscription "<subscription-id>"
 az group show --name rg-sparky --output table

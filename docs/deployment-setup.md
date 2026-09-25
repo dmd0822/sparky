@@ -4,6 +4,10 @@ Audience: maintainers wiring Sparky's GitHub Actions to Azure. This guide sets u
 
 Sparky's infrastructure and code delivery workflows stay separate. Use this guide as the Azure authentication and infrastructure deployment spec for the future `infra-cd.yml`; keep container image/application rollout in a separate code workflow.
 
+## Shell conventions
+
+Shell command examples are provided in paired **Bash / zsh** and **PowerShell** blocks. Use the block that matches your shell verbatim; PowerShell users should not run the Bash variable assignments (`NAME=value`), `$NAME` expansions, or trailing `\` line continuations.
+
 ## 1. Prerequisites
 
 You need:
@@ -21,8 +25,9 @@ Do not paste the real subscription ID into repo files. Use the `AZURE_SUBSCRIPTI
 
 Use the secret-free path: create the app registration, then create its service principal. Do **not** use the default `az ad sp create-for-rbac` output as a GitHub secret because that command commonly creates and prints a password credential unless carefully constrained.
 
-Run these commands from Azure Cloud Shell or any shell with Azure CLI:
+Run these commands from Azure Cloud Shell, Bash/zsh, or PowerShell with Azure CLI:
 
+**Bash / zsh:**
 ```bash
 az login
 az account set --subscription "<your-subscription-id>"
@@ -49,7 +54,30 @@ printf 'AZURE_CLIENT_ID=%s\nAZURE_TENANT_ID=%s\nSERVICE_PRINCIPAL_OBJECT_ID=%s\n
   "$APP_ID" "$TENANT_ID" "$SP_OBJECT_ID"
 ```
 
-Keep the printed IDs handy for GitHub variables and role assignments. These IDs are not passwords, but still avoid hardcoding them in committed workflow files.
+**PowerShell:**
+```powershell
+az login
+az account set --subscription "<your-subscription-id>"
+
+$AppDisplayName = "sparky-github-deploy"
+$AppId = az ad app create --display-name $AppDisplayName --query appId --output tsv
+$AppId = $AppId.Trim()
+
+$AppObjectId = az ad app show --id $AppId --query id --output tsv
+$AppObjectId = $AppObjectId.Trim()
+
+$SpObjectId = az ad sp create --id $AppId --query id --output tsv
+$SpObjectId = $SpObjectId.Trim()
+
+$TenantId = az account show --query tenantId --output tsv
+$TenantId = $TenantId.Trim()
+
+"AZURE_CLIENT_ID=$AppId"
+"AZURE_TENANT_ID=$TenantId"
+"SERVICE_PRINCIPAL_OBJECT_ID=$SpObjectId"
+```
+
+Keep the printed IDs handy for GitHub variables and role assignments. These IDs are not passwords, but still avoid hardcoding them in committed workflow files. The Azure CLI `--query ... --output tsv` commands above should each return one value; PowerShell examples trim the captured text so copied IDs do not include an accidental trailing newline.
 
 ## 3. Configure federated credentials
 
@@ -67,6 +95,7 @@ Common constants:
 
 Create separate credentials for each trust boundary you need. Environment-based credentials are recommended for deploy jobs because Sparky already has `dev` and `prod` GitHub Environments.
 
+**Bash / zsh:**
 ```bash
 cat > github-dev-federated-credential.json <<'JSON'
 {
@@ -97,8 +126,42 @@ az ad app federated-credential create \
   --parameters @github-prod-federated-credential.json
 ```
 
+**PowerShell:**
+```powershell
+$DevFederatedCredentialJson = @'
+{
+  "name": "github-env-dev",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:dmd0822/sparky:environment:dev",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "Sparky dev environment deployments from GitHub Actions"
+}
+'@
+$DevFederatedCredentialJson | Set-Content -Path "github-dev-federated-credential.json"
+
+az ad app federated-credential create `
+  --id $AppObjectId `
+  --parameters "@github-dev-federated-credential.json"
+
+$ProdFederatedCredentialJson = @'
+{
+  "name": "github-env-prod",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:dmd0822/sparky:environment:prod",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "Sparky prod environment deployments from GitHub Actions"
+}
+'@
+$ProdFederatedCredentialJson | Set-Content -Path "github-prod-federated-credential.json"
+
+az ad app federated-credential create `
+  --id $AppObjectId `
+  --parameters "@github-prod-federated-credential.json"
+```
+
 Add either or both of these only if the workflow will use them:
 
+**Bash / zsh:**
 ```bash
 cat > github-main-federated-credential.json <<'JSON'
 {
@@ -129,7 +192,50 @@ az ad app federated-credential create \
   --parameters @github-pr-federated-credential.json
 ```
 
+**PowerShell:**
+```powershell
+$MainFederatedCredentialJson = @'
+{
+  "name": "github-main-branch",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:dmd0822/sparky:ref:refs/heads/main",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "Sparky main branch automation from GitHub Actions"
+}
+'@
+$MainFederatedCredentialJson | Set-Content -Path "github-main-federated-credential.json"
+
+az ad app federated-credential create `
+  --id $AppObjectId `
+  --parameters "@github-main-federated-credential.json"
+
+$PrFederatedCredentialJson = @'
+{
+  "name": "github-pull-request",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:dmd0822/sparky:pull_request",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "Sparky pull request what-if validation from GitHub Actions"
+}
+'@
+$PrFederatedCredentialJson | Set-Content -Path "github-pr-federated-credential.json"
+
+az ad app federated-credential create `
+  --id $AppObjectId `
+  --parameters "@github-pr-federated-credential.json"
+```
+
 Clean up local credential JSON files when you are done if you do not want to keep them in your shell directory. They contain no secrets, but they are setup artifacts.
+
+**Bash / zsh:**
+```bash
+rm -f github-*-federated-credential.json
+```
+
+**PowerShell:**
+```powershell
+Remove-Item -Path "github-*-federated-credential.json" -ErrorAction SilentlyContinue
+```
 
 ### Which subject should I use?
 
@@ -146,6 +252,7 @@ Important: GitHub's default `sub` claim changes depending on job context. If a j
 
 Prefer the narrowest scope that supports the deployment. For Sparky that is the `rg-sparky` resource group, not the whole subscription.
 
+**Bash / zsh:**
 ```bash
 AZURE_SUBSCRIPTION_ID="<your-subscription-id>"
 RESOURCE_GROUP="rg-sparky"
@@ -158,10 +265,24 @@ az role assignment create \
   --scope "$RG_SCOPE"
 ```
 
+**PowerShell:**
+```powershell
+$AzureSubscriptionId = "<your-subscription-id>"
+$ResourceGroup = "rg-sparky"
+$RgScope = "/subscriptions/$AzureSubscriptionId/resourceGroups/$ResourceGroup"
+
+az role assignment create `
+  --assignee-object-id $SpObjectId `
+  --assignee-principal-type ServicePrincipal `
+  --role "Contributor" `
+  --scope $RgScope
+```
+
 `Contributor` is needed for group-scope Bicep deployments that create and update Azure resources.
 
 Sparky's Bicep is expected to create role assignments for the relay's managed identity so it can call Foundry and Speech with RBAC. A principal that creates role assignments also needs `Microsoft.Authorization/roleAssignments/write`. `Contributor` does **not** include that permission. Add a scoped RBAC role only if the Bicep deployment creates role assignments:
 
+**Bash / zsh:**
 ```bash
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
@@ -170,13 +291,32 @@ az role assignment create \
   --scope "$RG_SCOPE"
 ```
 
+**PowerShell:**
+```powershell
+az role assignment create `
+  --assignee-object-id $SpObjectId `
+  --assignee-principal-type ServicePrincipal `
+  --role "Role Based Access Control Administrator" `
+  --scope $RgScope
+```
+
 If that role is unavailable in your tenant, use `User Access Administrator` at the same resource-group scope. Avoid subscription-wide assignment unless the deployment truly needs subscription-scope changes.
 
 ## 5. Set GitHub repository variables
 
 Use GitHub Actions variables for non-secret deployment identifiers. OIDC means there is no password to store. These values are not credentials by themselves, though storing them as secrets is acceptable if your team prefers not to display IDs in the Actions settings UI.
 
+**Bash / zsh:**
 ```bash
+gh variable set AZURE_CLIENT_ID --repo dmd0822/sparky --body "<azure-client-id>"
+gh variable set AZURE_TENANT_ID --repo dmd0822/sparky --body "<azure-tenant-id>"
+gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<your-subscription-id>"
+gh variable set AZURE_RESOURCE_GROUP --repo dmd0822/sparky --body "rg-sparky"
+gh variable set AZURE_LOCATION --repo dmd0822/sparky --body "southcentralus"
+```
+
+**PowerShell:**
+```powershell
 gh variable set AZURE_CLIENT_ID --repo dmd0822/sparky --body "<azure-client-id>"
 gh variable set AZURE_TENANT_ID --repo dmd0822/sparky --body "<azure-tenant-id>"
 gh variable set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "<your-subscription-id>"
@@ -197,7 +337,14 @@ Recommended settings:
 
 With GitHub CLI, create the environment records:
 
+**Bash / zsh:**
 ```bash
+gh api --method PUT repos/dmd0822/sparky/environments/dev
+gh api --method PUT repos/dmd0822/sparky/environments/prod
+```
+
+**PowerShell:**
+```powershell
 gh api --method PUT repos/dmd0822/sparky/environments/dev
 gh api --method PUT repos/dmd0822/sparky/environments/prod
 ```
