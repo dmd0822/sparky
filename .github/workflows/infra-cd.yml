@@ -1,0 +1,49 @@
+name: Infra CD
+
+# NOTE: This workflow is manual-only (workflow_dispatch) while infra is
+# partial M1 scaffolding. infra/environments/dev/main.bicepparam does not
+# exist yet, so any run fails fast at the parameter-file check below rather
+# than attempting a deployment. Uses Incremental mode, never Complete, to
+# avoid deleting resources not defined in the template.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: production
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Verify parameter file exists
+        run: |
+          if [ ! -f infra/environments/dev/main.bicepparam ]; then
+            echo "::error::infra/environments/dev/main.bicepparam is missing. Infra is still partial scaffolding; this manual workflow requires the parameter file to exist before it can run a deployment."
+            exit 1
+          fi
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if deployment
+        run: |
+          az deployment group what-if \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --parameters infra/environments/dev/main.bicepparam \
+            --mode Incremental
+
+      - name: Deploy infrastructure
+        run: |
+          az deployment group create \
+            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
+            --parameters infra/environments/dev/main.bicepparam \
+            --mode Incremental
