@@ -15,9 +15,14 @@ on:
       - 'tests/test_infra_policy.py'
       - '.github/workflows/infra-ci.yml'
       - 'docs/deployment-setup.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate-bicep:
+    name: Validate Bicep
     runs-on: ubuntu-latest
     permissions:
       contents: read

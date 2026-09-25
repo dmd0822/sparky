@@ -253,12 +253,15 @@ Responsibilities:
 
 Trigger:
 
-- push to `main` affecting `infra/**`
-- manual promotion to higher environments
+- manual `workflow_dispatch` only, with a `dev` / `prod` environment choice
+
+Infra deployment is never automatic. A push to `main` does not mutate Azure;
+promotion is an explicit human action gated by a GitHub Environment.
 
 Responsibilities:
 
-- deploy Bicep to dev
+- `what-if` before every `az deployment group create`
+- Incremental-mode deployment to the selected environment
 - environment approvals for prod
 - publish deployment outputs used by code delivery
 
@@ -283,14 +286,27 @@ Responsibilities:
 
 Trigger:
 
-- push to `main` affecting `src/**`
-- version tags / manual release
+- push to `main` affecting `src/**` (deploys `dev`)
+- manual `workflow_dispatch` with a `dev` / `prod` environment choice
 
 Responsibilities:
 
-- build and publish relay container image
+- validate before publishing
+- build and publish relay container image to ACR using Entra ID RBAC
 - deploy relay to Container Apps
-- publish device package/release artifacts for Raspberry Pi installation
+- publish device package/release artifacts for Raspberry Pi installation *(planned — not yet implemented)*
+
+Code delivery never runs `az deployment group create`; it only updates the
+Container App that `infra-cd.yml` already provisioned.
+
+### Workflow auth posture
+
+All four workflows are keyless. Azure access uses GitHub OIDC / workload
+identity federation (`permissions: id-token: write` plus `azure/login` with
+`client-id`, `tenant-id`, and `subscription-id`). There are no publish
+profiles, service principal secrets, storage keys, or ACR admin credentials in
+GitHub secrets, and the registry admin user stays disabled. These rules are
+enforced by `tests/test_workflow_policy.py`.
 
 
 ## Persona framework
