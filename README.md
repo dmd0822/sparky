@@ -1,6 +1,6 @@
 # Sparky
 
-Sparky is an AI-powered robot dog built on the [SunFounder PiDog](https://docs.sunfounder.com/projects/pidog/en/latest/) platform and augmented with Azure AI services through Microsoft Foundry.
+Sparky is an AI-powered robot dog built on the [SunFounder PiDog](https://docs.sunfounder.com/projects/pidog/en/latest/) platform and augmented with Azure AI services through Microsoft Foundry. Sparky is designed for multiple runtime-switchable personas so the same robot can act, sound, move, and react differently while preserving global safety rules.
 
 ## Vendor platform references
 
@@ -13,6 +13,7 @@ Sparky is an AI-powered robot dog built on the [SunFounder PiDog](https://docs.s
 
 - Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Architecture decisions: [docs/adr/](docs/adr/)
+- Persona design: [docs/personas.md](docs/personas.md) and [ADR 0004](docs/adr/0004-persona-framework.md)
 - Delivery plan: [docs/PLAN.md](docs/PLAN.md)
 
 ## What this project will contain
@@ -23,7 +24,7 @@ Sparky is planned as a monorepo with separate areas for source code, infrastruct
 src/                 Application code only
   device/            Raspberry Pi runtime and hardware adapters
   cloud/             Azure-hosted relay/API services
-  shared/            Shared contracts and reusable libraries
+  shared/            Shared contracts, persona schemas, and reusable libraries
 infra/               Bicep infrastructure as code only
 docs/                Architecture docs, ADRs, plans, diagrams
 .github/workflows/   Separate infra and code CI/CD workflows
@@ -36,6 +37,7 @@ docs/                Architecture docs, ADRs, plans, diagrams
 - IaC separated from source code
 - Infra and application pipelines kept separate
 - Tests required for all code changes
+- Persona manifests are declarative, validated, and subordinate to global safety constraints
 - README and architecture docs updated alongside meaningful changes
 
 ## Getting started
