@@ -1,13 +1,19 @@
 name: Infra CD
 
-# NOTE: This workflow is manual-only (workflow_dispatch) while infra is
-# partial M1 scaffolding. infra/environments/dev/main.bicepparam does not
-# exist yet, so any run fails fast at the parameter-file check below rather
-# than attempting a deployment. Uses Incremental mode, never Complete, to
-# avoid deleting resources not defined in the template.
+# Manual-only infrastructure deployment. Uses Incremental mode, never Complete,
+# and always runs what-if before create.
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Logical environment to deploy
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - prod
 
 jobs:
   deploy:
@@ -15,17 +21,10 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    environment: production
+    environment: ${{ inputs.environment }}
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
-
-      - name: Verify parameter file exists
-        run: |
-          if [ ! -f infra/environments/dev/main.bicepparam ]; then
-            echo "::error::infra/environments/dev/main.bicepparam is missing. Infra is still partial scaffolding; this manual workflow requires the parameter file to exist before it can run a deployment."
-            exit 1
-          fi
 
       - name: Azure login
         uses: azure/login@v2
@@ -38,12 +37,12 @@ jobs:
         run: |
           az deployment group what-if \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --parameters infra/environments/dev/main.bicepparam \
+            --parameters infra/environments/${{ inputs.environment }}/main.bicepparam \
             --mode Incremental
 
       - name: Deploy infrastructure
         run: |
           az deployment group create \
             --resource-group ${{ vars.AZURE_RESOURCE_GROUP }} \
-            --parameters infra/environments/dev/main.bicepparam \
+            --parameters infra/environments/${{ inputs.environment }}/main.bicepparam \
             --mode Incremental

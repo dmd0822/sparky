@@ -1,4 +1,0 @@
-### 2026-09-25: GitHub Actions Azure IDs are secrets, deployment settings are variables
-**By:** Docs
-**What:** Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` as GitHub repository secrets. Store `AZURE_RESOURCE_GROUP` and `AZURE_LOCATION` as GitHub repository variables. Workflow YAML must read the three IDs from `secrets.*` and the resource settings from `vars.*`.
-**Why:** OIDC does not require secret material, and the client and tenant IDs are public identifiers while the subscription ID is only mildly sensitive. Keeping the three IDs as secrets is still a defensible defense-in-depth choice that masks the subscription ID in logs and keeps it out of committed files. The trade-off is harder debugging because secrets are masked and unavailable to forked pull-request workflows.

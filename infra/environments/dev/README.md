@@ -1,68 +1,64 @@
 # Development environment
 
-Development Bicep compositions and parameters belong here.
+Development infrastructure is composed by `main.bicep` and parameterized by
+`main.bicepparam`.
 
 ## Target
 
 - Resource group: `rg-sparky`
 - Location: `southcentralus`
 - Environment name: `dev`
-- Subscription: supplied by the caller through the `AZURE_SUBSCRIPTION_ID`
-  GitHub Actions repository secret or the active `az` CLI account locally
+- Subscription: supplied by the caller through `AZURE_SUBSCRIPTION_ID` in GitHub Actions or the active `az` CLI account locally
 
 Do not commit a subscription ID into this directory.
 
-## Naming
+## Resources
 
-Use `sparky-<resource>-dev` for most resources, with provider-specific variants
-where required:
+The dev entry point composes shared modules to create:
 
-- Container Apps environment: `sparky-cae-dev`
-- Relay Container App: `sparky-relay-dev`
-- Log Analytics: `sparky-law-dev`
-- Application Insights: `sparky-appi-dev`
-- Container Registry: `sparkyscrdev` or another globally unique alphanumeric
-  variant
-- Foundry/AI resources: `sparky-ai-dev` and `sparky-proj-dev` where provider
-  naming rules permit them
+- `sparky-law-dev` Log Analytics workspace
+- `sparky-appi-dev` workspace-based Application Insights component
+- `sparky-ai-dev` AI Services account and `sparky-proj-dev` Foundry project
+- `sparky-speech-dev` Speech Services account
+- `sparkyscrdev` Azure Container Registry
+- `sparky-cae-dev` Container Apps environment
+- `sparky-relay-dev` relay Container App shell with system-assigned managed identity
+- Scoped RBAC assignments for AI, Speech, and ACR access
 
-All resources should be tagged with `app=sparky` and `environment=dev`.
+## Outputs
+
+The entry point outputs the names/resource IDs/endpoints needed by later code CD:
+ACR login server, relay app name/resource ID/FQDN/principal ID, Container Apps
+environment details, AI Services and Speech endpoints, Foundry project details,
+and monitoring resource names/resource IDs. It does not output keys or connection
+strings.
+
+## Validate
+
+```powershell
+.\infra\scripts\validate.ps1
+```
 
 ## Manual deployment
 
-After selecting the target subscription:
+See [GitHub Actions Azure deployment setup](../../../docs/deployment-setup.md)
+for authentication setup. After selecting the target subscription:
 
-**Bash / zsh:**
-```bash
-az account set --subscription "<subscription-id>"
-az group show --name rg-sparky --output table
-
-az deployment group what-if \
-  --resource-group rg-sparky \
-  --parameters infra/environments/dev/main.bicepparam
-
-az deployment group create \
-  --resource-group rg-sparky \
-  --parameters infra/environments/dev/main.bicepparam
-```
-
-**PowerShell:**
 ```powershell
-az account set --subscription "<subscription-id>"
 az group show --name rg-sparky --output table
 
 az deployment group what-if `
   --resource-group rg-sparky `
-  --parameters infra/environments/dev/main.bicepparam
+  --parameters infra/environments/dev/main.bicepparam `
+  --mode Incremental
 
 az deployment group create `
   --resource-group rg-sparky `
-  --parameters infra/environments/dev/main.bicepparam
+  --parameters infra/environments/dev/main.bicepparam `
+  --mode Incremental
 ```
 
-## GitHub Actions deployment
+## Open risks
 
-The infra workflow should read `secrets.AZURE_SUBSCRIPTION_ID`, authenticate
-with OIDC/WIF, and deploy the dev entry point to `rg-sparky` in `southcentralus`.
-Dev deployments can run automatically from `main` once the infra CD workflow is
-implemented.
+- Model deployments are intentionally empty until South Central US quota and exact versions are confirmed.
+- Validate Azure Monitor log flow after first deployment because the template avoids workspace-key retrieval by policy.

@@ -1,7 +1,20 @@
 # Infrastructure
 
-Azure Bicep modules, environment compositions, and deployment helpers belong
-under this tree. Do not place application Python code here.
+Azure Bicep modules, environment compositions, and deployment helpers live under
+this tree. Application Python code belongs under `src/`.
+
+## What exists now
+
+- `modules/monitoring.bicep` — Log Analytics workspace and workspace-based Application Insights.
+- `modules/ai-services.bicep` — Microsoft Foundry / Azure AI Services account, Foundry project child resource, and optional model deployment placeholders.
+- `modules/speech.bicep` — Speech Services account with custom subdomain support for Entra auth.
+- `modules/container-registry.bicep` — Azure Container Registry with admin user disabled.
+- `modules/container-app-environment.bicep` — Container Apps managed environment wired to the Log Analytics workspace without workspace-key retrieval.
+- `modules/relay-container-app.bicep` — externally reachable relay Container App shell with system-assigned managed identity.
+- `modules/rbac.bicep` — least-privilege role assignments scoped to the AI account, Speech account, and ACR.
+- `environments/dev/main.bicep` and `environments/prod/main.bicep` — resource-group-scope entry points that compose modules only.
+- `environments/*/main.bicepparam` — logical-environment parameter files.
+- `scripts/validate.ps1` — local validation helper that builds every module, both entry points, and both parameter files.
 
 ## Deployment target
 
@@ -14,113 +27,89 @@ Sparky deploys Azure resources into a single resource group:
 | Subscription | Supplied at deployment time, not committed |
 | Environments | `dev` and `prod` are logical environments in the same resource group |
 
-The subscription is wired through the `AZURE_SUBSCRIPTION_ID` GitHub repository
-secret for GitHub Actions, or through the active Azure CLI subscription for
-manual deployments.
+The subscription is supplied through the `AZURE_SUBSCRIPTION_ID` GitHub
+repository secret for GitHub Actions, or through the active Azure CLI
+subscription for local deployments. Do not commit subscription IDs to Bicep,
+parameter files, workflow YAML, or docs.
 
-Set the GitHub repository secret with:
-
-**Bash / zsh:**
-```bash
-read -r -p "Azure subscription ID: " AZURE_SUBSCRIPTION_ID
-gh secret set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "$AZURE_SUBSCRIPTION_ID"
-```
-
-**PowerShell:**
-```powershell
-$AzureSubscriptionId = Read-Host "Azure subscription ID"
-gh secret set AZURE_SUBSCRIPTION_ID --repo dmd0822/sparky --body "$AzureSubscriptionId"
-```
-
-For local deployment, select the subscription before running Bicep:
-
-**Bash / zsh:**
-```bash
-az account set --subscription "<subscription-id>"
-az group show --name rg-sparky --output table
-```
-
-**PowerShell:**
-```powershell
-az account set --subscription "<subscription-id>"
-az group show --name rg-sparky --output table
-```
-
-The known target resource group already exists in South Central US.
-
-For the full GitHub Actions setup, including Entra app registration, federated
-credentials, RBAC, GitHub secrets and variables, environments, and an example infra CD
-workflow, see [GitHub Actions Azure deployment setup](../docs/deployment-setup.md).
+For the full GitHub Actions OIDC / workload identity federation setup, see
+[GitHub Actions Azure deployment setup](../docs/deployment-setup.md).
 
 ## Naming convention
 
-All resources should use environment-suffixed names because dev and prod share
-one resource group:
+All resources use environment-suffixed names because dev and prod share one
+resource group:
 
-- General pattern: `sparky-<resource>-<env>`
-- Azure Container Registry: `sparkyscr<env>` or another globally unique
-  alphanumeric variant
-- Log Analytics workspace: `sparky-law-<env>`
-- Application Insights: `sparky-appi-<env>`
-- Container Apps environment: `sparky-cae-<env>`
-- Relay Container App: `sparky-relay-<env>`
-- Managed identity or identity-bearing app resources:
-  `sparky-mi-<purpose>-<env>`
-- Foundry/AI resources: `sparky-ai-<env>` and `sparky-proj-<env>` where provider
-  naming rules permit them
+| Resource | Pattern |
+| --- | --- |
+| Log Analytics workspace | `sparky-law-<env>` |
+| Application Insights | `sparky-appi-<env>` |
+| Container Apps environment | `sparky-cae-<env>` |
+| Relay Container App | `sparky-relay-<env>` |
+| Azure Container Registry | `sparkyscr<env>` by default; override if global uniqueness requires it |
+| Foundry / AI Services account | `sparky-ai-<env>` |
+| Foundry project | `sparky-proj-<env>` |
+| Speech resource | `sparky-speech-<env>` |
 
-Apply at least these tags to every resource:
+Every resource receives at least these tags:
 
 ```text
 app=sparky
 environment=<dev|prod>
 ```
 
-## GitHub Actions deployment wiring
+## Security posture
 
-The infra workflow should authenticate with GitHub OIDC / workload identity
-federation. Keep the detailed setup in
-[docs/deployment-setup.md](../docs/deployment-setup.md) rather than duplicating
-it here. At runtime the workflow should consume repository secrets for
-`secrets.AZURE_CLIENT_ID`, `secrets.AZURE_TENANT_ID`, and
-`secrets.AZURE_SUBSCRIPTION_ID`; it should consume repository variables for
-`vars.AZURE_RESOURCE_GROUP` and `vars.AZURE_LOCATION`.
+The baseline templates are keyless by design:
 
-Do not add Azure access keys, publish profiles, `AZURE_CREDENTIALS`, or
-long-lived service principal secrets. The workflow should run `what-if` before
-deploy and target a group-scope deployment:
+- Cognitive Services accounts set `disableLocalAuth: true` and explicit public network access.
+- ACR sets `adminUserEnabled: false`.
+- The relay Container App uses a system-assigned managed identity.
+- RBAC grants the relay identity `Cognitive Services User` only on the AI and Speech accounts, and `AcrPull` only on the ACR.
+- Outputs intentionally exclude keys, connection strings, instrumentation keys, passwords, and admin credentials. Application Insights outputs are limited to name and resource ID; runtime telemetry settings should be supplied via managed identity-aware app configuration or out-of-band app settings.
+- The static test in `tests/test_infra_policy.py` mechanically guards the no-key/no-secret constraints.
 
-**Bash / zsh:**
-```bash
-az deployment group what-if \
-  --resource-group rg-sparky \
-  --parameters infra/environments/dev/main.bicepparam
+## Local validation
 
-az deployment group create \
-  --resource-group rg-sparky \
-  --parameters infra/environments/dev/main.bicepparam
+From the repo root in PowerShell:
+
+```powershell
+.\infra\scripts\validate.ps1
+python -m unittest tests.test_infra_policy
 ```
 
-**PowerShell:**
+The script runs the same Bicep build set as infra CI: every module, both
+environment entry points, and both `.bicepparam` files.
+
+## Deployment
+
+Select the subscription locally before deploying:
+
+```powershell
+az account set --subscription "<subscription-id>"
+az group show --name rg-sparky --output table
+```
+
+Preview and deploy dev:
+
 ```powershell
 az deployment group what-if `
   --resource-group rg-sparky `
-  --parameters infra/environments/dev/main.bicepparam
+  --parameters infra/environments/dev/main.bicepparam `
+  --mode Incremental
 
 az deployment group create `
   --resource-group rg-sparky `
-  --parameters infra/environments/dev/main.bicepparam
+  --parameters infra/environments/dev/main.bicepparam `
+  --mode Incremental
 ```
 
-Use the matching `prod` entry point for production after environment approval.
+Use `infra/environments/prod/main.bicepparam` for production after the GitHub
+Environment approval gate. GitHub Actions deployment remains manual-only through
+`.github/workflows/infra-cd.yml` and always runs `what-if` before `create`.
 
-## Regional availability notes
+## Open risks and follow-ups
 
-South Central US supports Microsoft Foundry projects and the planned GPT-4.1 /
-GPT-4o-family standard model deployments for baseline chat and vision, subject to
-current model quota. Azure Speech supports core STT/TTS in `southcentralus`, but
-not every advanced voice feature is available there. If a later persona requires
-LLM speech, MAI voices, HD voices, personal voice, voice conversion, custom voice
-HD endpoints, preview voices/styles, or avatar voice sync, open an explicit
-architecture decision for either an alternate feature choice or an approved
-alternate-region resource.
+- Confirm South Central US model quota, deployment type, and exact chat/vision model versions immediately before adding entries to `modelDeployments`.
+- Confirm Speech voice availability for later personas; advanced voice features have documented South Central US caveats.
+- The Container Apps environment avoids workspace-key retrieval to honor the no-key policy. Validate first deployment with `az deployment group what-if` and Azure Monitor log flow before relying on production diagnostics.
