@@ -138,6 +138,115 @@ CI cannot exercise real hardware, so run this checklist on a Pi before closing
 a milestone that touches the device runtime. Record the result in the pull
 request.
 
+Before energising the servos, complete the bench setup from
+[Safety while testing motion](#safety-while-testing-motion): dog supported with
+legs clear, battery switched on, and the battery switch within reach. Keep one
+hand free for the operator prompts below; the script pauses before each physical
+sensor action.
+
+From the repository root on the Pi, set the shell up for real hardware:
+
+```bash
+cd ~/sparky
+export PYTHONPATH="$PWD/src/device"
+export SPARKY_HARDWARE=pidog
+```
+
+Run the vendor import check first. If this fails, stop and fix the Pi
+environment before continuing.
+
+```bash
+python3 -c "import pidog, robot_hat, vilib; print('vendor imports OK')"
+```
+
+Then run the bench procedure. It executes checklist steps 2-12 in order and
+prints the values you need to compare with the table.
+
+```bash
+cat > /tmp/sparky_hil_check.py <<'PY'
+import os
+import time
+
+from sparky_device.hardware import RgbColor, TouchState, create_ports
+
+
+def pause(message):
+    input(f"\n{message}\nPress Enter when ready...")
+
+
+def require_touch(label, expected, actual):
+    print(f"{label}: {actual.name}")
+    if actual is not expected:
+        print(f"  Expected {expected.name}; repeat this step before passing it.")
+
+
+with create_ports() as robot:
+    print(f"Step 2 profile: {robot.profile}")
+    if os.environ.get("SPARKY_HARDWARE") == "pidog" and robot.profile != "pidog":
+        raise SystemExit("SPARKY_HARDWARE=pidog did not create the pidog profile")
+
+    pause("Step 3: confirm the dog is supported with legs clear, then sit.")
+    robot.motion.do_action("sit", steps=1, speed=50)
+    robot.motion.wait_all_done(timeout=10)
+    print("Step 3 complete: sit command settled.")
+
+    pause("Step 4: watch the head turn right about 30 degrees.")
+    robot.motion.move_head(yaw=30, speed=50)
+    robot.motion.wait_all_done(timeout=5)
+    print("Step 4 complete: head command settled.")
+
+    pause("Step 5: the dog will start a slow forward gait; press Enter, then be ready for stop.")
+    robot.motion.do_action("forward", steps=5, speed=30)
+    time.sleep(0.5)
+    robot.motion.stop()
+    robot.motion.wait_all_done(timeout=3)
+    print("Step 5 complete: stop requested and motion drained.")
+
+    pause("Step 6: place your hand about 20 cm in front of the ultrasonic sensor.")
+    print(f"Step 6 distance_cm: {robot.sensors.read_distance_cm()}")
+
+    pause("Step 7a: touch only the left touch pad.")
+    require_touch("Step 7a left pad", TouchState.LEFT, robot.sensors.read_touch())
+    pause("Step 7b: touch only the right touch pad.")
+    require_touch("Step 7b right pad", TouchState.RIGHT, robot.sensors.read_touch())
+    pause("Step 7c: touch both pads at the same time.")
+    require_touch("Step 7c both pads", TouchState.BOTH, robot.sensors.read_touch())
+
+    pause("Step 8: hold the dog level for the baseline IMU sample.")
+    level = robot.sensors.read_imu()
+    print(f"Step 8 level acceleration: {level.acceleration}")
+    pause("Step 8: tilt the dog gently for the second IMU sample.")
+    tilted = robot.sensors.read_imu()
+    print(f"Step 8 tilted acceleration: {tilted.acceleration}")
+
+    pause("Step 9: listen for the bark sound.")
+    robot.board.play_sound("single_bark_1", volume=80)
+    print("Step 9 complete: sound command sent.")
+
+    pause("Step 10: watch the RGB strip turn blue.")
+    robot.board.set_rgb(style="solid", color=RgbColor(0, 64, 255), brightness=0.5, speed=50)
+    time.sleep(1)
+    robot.board.clear_rgb()
+    print("Step 10 complete: RGB cleared.")
+
+    pause("Step 11: uncover the camera and capture one frame.")
+    robot.camera.start(width=640, height=480)
+    frame = robot.camera.capture()
+    print(
+        f"Step 11 frame: {frame.width}x{frame.height} {frame.format}, "
+        f"{len(frame.data)} bytes, sequence {frame.sequence}"
+    )
+
+print("\nStep 12 complete: exited the context manager; shutdown ran.")
+PY
+
+python3 /tmp/sparky_hil_check.py
+```
+
+Use the table below as the pass/fail contract while the script runs. Record the
+overall result, any failed step numbers, and the observed values in the pull
+request.
+
 | # | Check | Expected result |
 | --- | --- | --- |
 | 1 | `python3 -c "import pidog, robot_hat, vilib"` | Imports cleanly |
@@ -190,7 +299,7 @@ rejected on the robot.
 | Servos twitch but the dog does not move | Battery low or powered through USB only |
 | `robot.sensors.read_distance_cm()` always returns `None` | Ultrasonic cable unseated; the adapter maps the vendor's negative error sentinel to `None` |
 | No audio | `i2samp.sh` was not run, or the Pi was not rebooted afterwards |
-| Camera `capture()` raises "vilib has not produced a frame yet" | `start()` was called but the pipeline needs a moment; retry after a short sleep |
+| Camera `capture()` raises "vilib has not produced a frame yet" | The camera pipeline never produced a usable frame within the adapter's startup wait; check the camera ribbon, enablement, and Vilib/Picamera2 installation |
 
 ## Related documents
 
