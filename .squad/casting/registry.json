@@ -29,6 +29,12 @@
       "persistent_name": "docs",
       "universe": "preset:default",
       "status": "active"
+    },
+    "device": {
+      "created_at": "2026-09-28T15:02:31.221-04:00",
+      "persistent_name": "device",
+      "universe": "preset:default",
+      "status": "active"
     }
   }
 }

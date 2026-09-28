@@ -6,6 +6,7 @@ How to decide who handles what.
 
 | Work Type | Route To | Examples |
 |-----------|----------|----------|
+| Device / Pi runtime | device | Hardware ports, adapters, simulators, motion and sensor services, `src/device/**` |
 
 Preset installation adds concrete routes for the configured team. Add or edit rows
 here only when their agent names also exist in the casting registry.
@@ -43,3 +44,6 @@ here only when their agent names also exist in the casting registry.
 | devrel | devrel | — |
 | security | security | — |
 | docs | docs | — |
+| device | device | lead |
+| Pi runtime / hardware | device | lead |
+| motion, sensors, camera, audio | device | lead |
