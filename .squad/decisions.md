@@ -92,3 +92,8 @@
 **By:** Scribe
 **What:** A missing or failed peripheral must degrade to a reported SKIP, never abort the hardware-in-the-loop bench and never be silently passed. Vendor libraries may raise non-ImportError exceptions at import time (vilib constructs Picamera2 in its class body), so adapter loaders must convert any vendor failure into HardwareUnavailableError with actionable recovery steps. Lazy vendor imports in adapter constructors are load-bearing: they are what allows a robot missing one peripheral to keep using every other port.
 **Why:** The first real PiDog hardware signal showed that a camera-less robot can still exercise motion, board, and sensor ports when vendor imports remain lazy and vendor failures are normalized into recoverable hardware-unavailable errors.
+
+### 2026-09-28T16:26:51-04:00: Keep simulator value domains identical to hardware
+**By:** Scribe
+**What:** A simulator must never accept a value the real hardware rejects. Any constrained value domain belongs in the contract layer (`ports.py`), shared by the adapter and the simulator, so the two cannot drift. Validate before any side effect, and raise `HardwareError` naming the invalid value and listing the valid ones.
+**Why:** A permissive simulator does not merely miss bugs; it actively manufactures false confidence and invalidates the triage rule that a hardware-only failure implicates the adapter layer.
