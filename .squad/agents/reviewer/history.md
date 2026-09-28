@@ -5,3 +5,5 @@
 - The reviewer's real contribution was adding the missing `Bearer ` scheme prefix to the demo-manifest placeholder headers in `src/cloud/sparky_relay/keyless_auth.py`, adding matching assertions in `tests/test_keyless_auth_spike.py`, and inserting the Step 5 clarification that the Speech relay call reuses the `SPARKY_RELAY_ACCESS_TOKEN` exported in Step 4.
 - **Durable lesson:** `Authorization:` header values are redacted in tool output. Never conclude a header is malformed from what is printed; decode or transform the raw bytes first, such as base64-encoding the line before printing, before reporting a defect or fixing it.
 - Verified the guide against `keyless_auth.py`, `keyless_guard.py`, and `docs/keyless-auth-spike.md`; no additional guide structure changes were needed.
+
+📌 Team update (2026-09-28T16:26:51-04:00): When a port forwards a value to a vendor API, check whether the vendor constrains that value; if so, confirm the simulator enforces the same constraint before any side effect — decided by Scribe.

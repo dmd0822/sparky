@@ -241,7 +241,8 @@ with create_ports() as robot:
     print("Step 9 complete: sound command sent.")
 
     pause("Step 10: watch the RGB strip turn blue.")
-    robot.board.set_rgb(style="solid", color=RgbColor(0, 64, 255), brightness=0.5, speed=50)
+    # Valid RGB styles are: monochromatic, breath, boom, bark, speak, listen.
+    robot.board.set_rgb(style="monochromatic", color=RgbColor(0, 64, 255), brightness=0.5, speed=50)
     time.sleep(1)
     robot.board.clear_rgb()
     print("Step 10 complete: RGB cleared.")

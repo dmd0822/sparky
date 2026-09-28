@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Final, Protocol, Sequence, runtime_checkable
 
 __all__ = [
     "BoardPort",
@@ -36,11 +36,13 @@ __all__ = [
     "MotionLimits",
     "MotionPort",
     "RgbColor",
+    "RGB_STYLES",
     "RobotPorts",
     "SensorPort",
     "ServoRange",
     "TouchState",
     "validate_angles",
+    "validate_rgb_style",
     "validate_speed",
 ]
 
@@ -95,6 +97,27 @@ class MotionLimits:
 
 
 DEFAULT_LIMITS = MotionLimits()
+
+RGB_STYLES: Final[tuple[str, ...]] = (
+    "monochromatic",
+    "breath",
+    "boom",
+    "bark",
+    "speak",
+    "listen",
+)
+_RGB_STYLE_SET: Final[frozenset[str]] = frozenset(RGB_STYLES)
+
+
+def validate_rgb_style(style: str) -> str:
+    """Return ``style`` unchanged, or raise :class:`HardwareError`."""
+
+    if style not in _RGB_STYLE_SET:
+        raise HardwareError(
+            f"RGB style {style!r} is invalid; expected one of: "
+            + ", ".join(RGB_STYLES)
+        )
+    return style
 
 
 def validate_speed(speed: int, limits: MotionLimits = DEFAULT_LIMITS) -> int:
@@ -275,7 +298,7 @@ class BoardPort(Protocol):
         brightness: float = 1.0,
         speed: int = 50,
     ) -> None:
-        """Drive the RGB strip with a named effect style."""
+        """Drive the RGB strip with one of: monochromatic, breath, boom, bark, speak, listen."""
 
     def clear_rgb(self) -> None:
         """Turn the RGB strip off."""

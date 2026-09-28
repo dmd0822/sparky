@@ -26,6 +26,7 @@ from .ports import (
     RobotPorts,
     TouchState,
     validate_angles,
+    validate_rgb_style,
     validate_speed,
 )
 
@@ -232,6 +233,7 @@ class SimulatedBoard:
     ) -> None:
         if self.closed:
             raise HardwareError("board port is closed")
+        style = validate_rgb_style(style)
         if not 0.0 <= brightness <= 1.0:
             raise HardwareError(
                 f"brightness must be between 0.0 and 1.0, got {brightness}"

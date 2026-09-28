@@ -28,6 +28,7 @@ from .ports import (
     MotionLimits,
     RgbColor,
     RobotPorts,
+    validate_rgb_style,
     TouchState,
     validate_angles,
     validate_speed,
@@ -227,6 +228,7 @@ class PidogBoardAdapter:
         brightness: float = 1.0,
         speed: int = 50,
     ) -> None:
+        style = validate_rgb_style(style)
         if not 0.0 <= brightness <= 1.0:
             raise HardwareError(
                 f"brightness must be between 0.0 and 1.0, got {brightness}"
