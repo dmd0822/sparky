@@ -8,6 +8,7 @@ assertions run on a GitHub-hosted runner and on the robot.
 
 from __future__ import annotations
 
+import builtins
 import threading
 import time
 import unittest
@@ -725,10 +726,48 @@ class VendorLoaderTests(unittest.TestCase):
     def test_load_vilib_explains_how_to_recover(self) -> None:
         from src.device.sparky_device.hardware import pidog_adapters
 
-        if pidog_adapters.vendor_libraries_available():
-            self.skipTest("vendor libraries are installed on this host")
-        with self.assertRaises(HardwareUnavailableError):
-            pidog_adapters.load_vilib()
+        original_import = builtins.__import__
+
+        def fail_vilib_import(name, *args, **kwargs):
+            if name == "vilib":
+                raise ImportError("no vilib")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = fail_vilib_import
+        try:
+            with self.assertRaises(HardwareUnavailableError) as ctx:
+                pidog_adapters.load_vilib()
+        finally:
+            builtins.__import__ = original_import
+
+        message = str(ctx.exception)
+        self.assertIn("vilib", message)
+        self.assertIn("not installed", message)
+        self.assertIn("SPARKY_HARDWARE=simulator", message)
+        self.assertIsInstance(ctx.exception.__cause__, ImportError)
+
+    def test_load_vilib_wraps_camera_initialisation_failure(self) -> None:
+        from src.device.sparky_device.hardware import pidog_adapters
+
+        original_import = builtins.__import__
+
+        def fail_vilib_import(name, *args, **kwargs):
+            if name == "vilib":
+                raise RuntimeError("No camera number 0 found")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = fail_vilib_import
+        try:
+            with self.assertRaises(HardwareUnavailableError) as ctx:
+                pidog_adapters.load_vilib()
+        finally:
+            builtins.__import__ = original_import
+
+        message = str(ctx.exception)
+        self.assertIn("installed but could not initialise", message)
+        self.assertIn("camera ribbon", message)
+        self.assertIn("rpicam-hello --list-cameras", message)
+        self.assertIsInstance(ctx.exception.__cause__, RuntimeError)
 
 
 class FactoryTests(unittest.TestCase):
@@ -786,6 +825,35 @@ class PidogBundleTests(unittest.TestCase):
         ports.close()
         self.assertIn(("body_stop",), dog.calls)
         self.assertIn(("close",), dog.calls)
+
+    def test_build_pidog_ports_keeps_non_camera_ports_usable_without_camera(self) -> None:
+        dog = FakePidog()
+        original_import = builtins.__import__
+        ports: RobotPorts | None = None
+
+        def fail_vilib_import(name, *args, **kwargs):
+            if name == "vilib":
+                raise RuntimeError("No camera number 0 found")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = fail_vilib_import
+        try:
+            ports = build_pidog_ports(dog=dog)
+            ports.motion.do_action("sit", speed=40)
+            ports.board.set_volume(25)
+            distance = ports.sensors.read_distance_cm()
+            with self.assertRaises(HardwareUnavailableError):
+                ports.camera.start()
+        finally:
+            builtins.__import__ = original_import
+            if ports is not None:
+                ports.close()
+
+        assert ports is not None
+        self.assertEqual(ports.profile, PIDOG_PROFILE)
+        self.assertEqual(dog.calls[0], ("do_action", "sit", 1, 40))
+        self.assertEqual(dog.music.volumes, [25])
+        self.assertEqual(distance, 42.0)
 
 
 if __name__ == "__main__":
