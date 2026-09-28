@@ -82,3 +82,8 @@
 **By:** security
 **What:** The keyless-auth spike uses `SPARKY_RELAY_DEVICE_SCOPE` for Pi-to-relay device-code auth and `SPARKY_FOUNDRY_SCOPE` / `SPARKY_SPEECH_SCOPE` for relay managed-identity calls. `AZURE_COGNITIVE_SCOPE` is retained only as a compatibility alias for downstream relay scopes and must never drive the device-code request.
 **Why:** A single scope can accidentally hand the Pi an Azure AI bearer token. Separate env vars make the token boundary explicit and let tests reject Azure AI audiences on the device hop.
+
+### 2026-09-28T19:40:00Z: Bound HIL camera capture and motion waits
+**By:** Device
+**What:** Vilib camera capture now waits briefly for the first asynchronous frame before failing, and PiDog/simulator motion waits now enforce explicit timeouts.
+**Why:** The HIL checklist calls camera start then capture back-to-back and calls wait_all_done with safety expectations; the adapters must avoid spurious camera failures and must not block indefinitely around powered motion.
