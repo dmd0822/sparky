@@ -43,7 +43,10 @@ docs/                Architecture docs, ADRs, plans, diagrams
 
 ## Getting started
 
-Implementation has not started yet. The current branch establishes the architecture and delivery plan.
+M1 is underway: the monorepo scaffold, Bicep infrastructure modules, and the
+CI/CD workflow skeletons have landed on `main`. Infrastructure is deployed with
+the manual `infra-cd.yml` workflow; application delivery runs through
+`code-cd.yml` once a service produces a container image.
 
 ### Azure deployment target
 
