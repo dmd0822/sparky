@@ -60,6 +60,26 @@ git clone https://github.com/dmd0822/sparky.git
 cd sparky
 ```
 
+For Pi deployments where disk usage matters, you can clone only the device
+package and docs instead:
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/dmd0822/sparky.git
+cd sparky
+git sparse-checkout set src/device docs
+```
+
+This sparse checkout is about 0.3 MB versus the full repo, and `src/device/` is
+self-contained for running on the Pi. Cone mode is the default with `--sparse`
+and accepts directories only, so the command includes all of `docs` rather than
+only this file; use `--no-cone` if you need file-level patterns. Top-level files
+such as `README.md`, `LICENSE`, and `.gitignore` still appear in cone mode. If
+you do not want the docs on the Pi, `src/device` alone is the true minimum.
+
+Use a full clone when you want to run the repo-root test suite. The tests in
+`tests/` import through the full tree, so a sparse checkout of `src/device`
+supports running device code but not the repo-root tests.
+
 Because the SunFounder packages are installed into the system interpreter, run
 device code with the system Python rather than an isolated virtual environment.
 If you prefer a virtual environment, create it with
