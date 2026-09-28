@@ -231,7 +231,10 @@ See [ADR 0002](adr/0002-bicep-for-azure-infrastructure.md).
 
 ## CI/CD strategy
 
-Infra and code workflows stay separate.
+Infra and code workflows stay separate. The separation is enforced by path
+filters: each pipeline watches only the paths it owns, so an infra change never
+starts a code pipeline and vice versa. A meta workflow lints the workflow files
+themselves.
 
 ### Infra workflows
 
@@ -239,7 +242,8 @@ Infra and code workflows stay separate.
 
 Trigger:
 
-- pull requests touching `infra/**`
+- pull requests touching `infra/**`, `docs/deployment-setup.md`, the infra
+  policy tests, or either infra workflow file
 - manual runs
 
 Responsibilities:
@@ -247,6 +251,7 @@ Responsibilities:
 - Bicep lint/build validation
 - static checks on parameters/modules
 - `what-if` against the target environment when credentials are available
+- static infra and workflow policy tests
 - block merges on invalid IaC
 
 #### `infra-cd.yml`
@@ -271,7 +276,7 @@ Responsibilities:
 
 Trigger:
 
-- pull requests touching `src/**`
+- pull requests touching `src/**`, `tests/**`, or either code workflow file
 - pull requests touching `docs/**` when doctest or link-check steps are added
 
 Responsibilities:
@@ -299,14 +304,36 @@ Responsibilities:
 Code delivery never runs `az deployment group create`; it only updates the
 Container App that `infra-cd.yml` already provisioned.
 
+### Meta workflows
+
+#### `workflow-lint.yml`
+
+Trigger:
+
+- pull requests and pushes to `main` touching `.github/workflows/**`
+- manual runs
+
+Responsibilities:
+
+- run [actionlint](https://github.com/rhysd/actionlint) over every workflow
+  file, catching invalid syntax, bad expressions, unknown runner labels, and
+  shellcheck findings in `run:` blocks
+
+actionlint is pinned to an exact release and the download is verified against a
+recorded SHA-256 checksum. This workflow is deliberately separate from the
+infra and code pipelines: linting is cross-cutting, so folding it into either
+one would either duplicate the job or reintroduce the broad
+`.github/workflows/**` trigger that the path-filter separation removes.
+
 ### Workflow auth posture
 
-All four workflows are keyless. Azure access uses GitHub OIDC / workload
-identity federation (`permissions: id-token: write` plus `azure/login` with
-`client-id`, `tenant-id`, and `subscription-id`). There are no publish
+All four delivery workflows are keyless. Azure access uses GitHub OIDC /
+workload identity federation (`permissions: id-token: write` plus `azure/login`
+with `client-id`, `tenant-id`, and `subscription-id`). There are no publish
 profiles, service principal secrets, storage keys, or ACR admin credentials in
-GitHub secrets, and the registry admin user stays disabled. These rules are
-enforced by `tests/test_workflow_policy.py`.
+GitHub secrets, and the registry admin user stays disabled. `workflow-lint.yml`
+needs no Azure access at all. These rules are enforced by
+`tests/test_workflow_policy.py`.
 
 
 ## Persona framework

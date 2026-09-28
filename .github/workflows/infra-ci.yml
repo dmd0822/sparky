@@ -5,7 +5,9 @@ on:
     paths:
       - 'infra/**'
       - 'tests/test_infra_policy.py'
+      - 'tests/test_workflow_policy.py'
       - '.github/workflows/infra-ci.yml'
+      - '.github/workflows/infra-cd.yml'
       - 'docs/deployment-setup.md'
   push:
     branches:
@@ -13,7 +15,9 @@ on:
     paths:
       - 'infra/**'
       - 'tests/test_infra_policy.py'
+      - 'tests/test_workflow_policy.py'
       - '.github/workflows/infra-ci.yml'
+      - '.github/workflows/infra-cd.yml'
       - 'docs/deployment-setup.md'
   workflow_dispatch:
 
@@ -58,3 +62,6 @@ jobs:
 
       - name: Run static infra policy tests
         run: python -m unittest tests.test_infra_policy
+
+      - name: Run workflow policy tests
+        run: python -m unittest tests.test_workflow_policy

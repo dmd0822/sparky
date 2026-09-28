@@ -5,14 +5,16 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
-      - '.github/workflows/**'
+      - '.github/workflows/code-ci.yml'
+      - '.github/workflows/code-cd.yml'
   push:
     branches:
       - main
     paths:
       - 'src/**'
       - 'tests/**'
-      - '.github/workflows/**'
+      - '.github/workflows/code-ci.yml'
+      - '.github/workflows/code-cd.yml'
   workflow_dispatch:
 
 permissions:
