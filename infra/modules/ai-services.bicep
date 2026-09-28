@@ -28,7 +28,7 @@ param publicNetworkAccess string = 'Enabled'
 @description('Optional model deployments. Keep empty until regional model quota, deployment type, and model versions are confirmed.')
 param modelDeployments array = []
 
-resource account 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+resource account 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = {
   name: accountName
   location: location
   tags: tags
@@ -40,6 +40,8 @@ resource account 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
     type: 'SystemAssigned'
   }
   properties: {
+    // Required before the account will accept a Foundry project child resource.
+    allowProjectManagement: true
     customSubDomainName: customSubDomainName
     disableLocalAuth: true
     publicNetworkAccess: publicNetworkAccess

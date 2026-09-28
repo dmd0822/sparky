@@ -72,5 +72,48 @@ class InfraPolicyTests(unittest.TestCase):
                 self.assertIn("targetScope = 'resourceGroup'", path.read_text())
 
 
+def flatten(path: Path) -> str:
+    """Collapse whitespace so patterns survive Bicep's multi-line formatting."""
+    return re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+
+
+class DeploymentCorrectnessTests(unittest.TestCase):
+    """Guards for two failures observed in infra-cd run 36434053500."""
+
+    def test_ai_services_account_declares_a_project_child(self) -> None:
+        # If this stops being true the guard below is vacuous, so assert it first.
+        self.assertRegex(
+            flatten(INFRA / "modules" / "ai-services.bicep"),
+            r"resource\s+\w+\s+'Microsoft\.CognitiveServices/accounts/projects@",
+        )
+
+    def test_ai_services_account_enables_project_management(self) -> None:
+        # Without this the child project fails with:
+        # "Project can only created under AIServices Kind account with
+        #  allowProjectManagement set to true."
+        self.assertRegex(
+            flatten(INFRA / "modules" / "ai-services.bicep"),
+            r"allowProjectManagement:\s*true",
+        )
+
+    def test_relay_module_omits_registries_without_a_login_server(self) -> None:
+        self.assertRegex(
+            flatten(INFRA / "modules" / "relay-container-app.bicep"),
+            r"registries:\s*empty\(acrLoginServer\)\s*\?\s*\[\]",
+        )
+
+    def test_relay_registry_is_gated_on_the_image_origin(self) -> None:
+        # The relay's system identity does not exist until the relay module runs,
+        # so its AcrPull grant necessarily lands afterwards. Declaring the registry
+        # on the baseline public-image deployment makes the first revision wait on
+        # a credential that cannot yet work; it expires ~16 minutes later with
+        # "Failed to provision revision ... Operation expired."
+        for path in ENV_ENTRYPOINTS:
+            with self.subTest(path=path.relative_to(ROOT)):
+                body = flatten(path)
+                self.assertNotRegex(body, r"acrLoginServer:\s*acr\.outputs\.loginServer\b")
+                self.assertRegex(body, r"acrLoginServer:\s*startsWith\(relayImage,")
+
+
 if __name__ == "__main__":
     unittest.main()

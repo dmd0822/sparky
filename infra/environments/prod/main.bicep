@@ -92,7 +92,13 @@ module relay '../../modules/relay-container-app.bicep' = {
     tags: tags
     managedEnvironmentId: containerAppsEnvironment.outputs.environmentResourceId
     image: relayImage
-    acrLoginServer: acr.outputs.loginServer
+    // Only declare the registry when the image is actually served from it. The
+    // relay's system identity does not exist until this module runs, so its
+    // AcrPull grant in the rbac module below necessarily lands afterwards.
+    // Declaring the registry on the baseline public-image deployment makes the
+    // revision wait on a credential that cannot yet work, and it times out with
+    // "Operation expired" roughly sixteen minutes later.
+    acrLoginServer: startsWith(relayImage, '${acr.outputs.loginServer}/') ? acr.outputs.loginServer : ''
   }
 }
 
