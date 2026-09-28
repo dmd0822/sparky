@@ -118,6 +118,8 @@ See [Immutable subject claims for GitHub Actions workload identity federation](h
 
 Create separate credentials for each trust boundary you need. Environment-based credentials are recommended for deploy jobs because Sparky already has `dev` and `prod` GitHub Environments.
 
+If this app registration already has federated credentials, the `create` commands below fail because the names are taken. Skip to [Updating credentials that already exist](#updating-credentials-that-already-exist).
+
 **Bash / zsh:**
 ```bash
 cat > github-dev-federated-credential.json <<'JSON'
@@ -259,6 +261,93 @@ rm -f github-*-federated-credential.json
 ```powershell
 Remove-Item -Path "github-*-federated-credential.json" -ErrorAction SilentlyContinue
 ```
+
+### Updating credentials that already exist
+
+The `create` commands above are for a first-time setup. If the app registration already has federated credentials — for example after a repository migration, or when correcting subjects that still use the legacy `repo:<owner>/<repo>:<context>` format — `create` fails because the credential names are already taken.
+
+Use `update` instead. It patches the credential in place, so the credential name and its object ID are preserved and nothing that references them has to change. Prefer this over delete-and-recreate.
+
+First, see what is actually there:
+
+**Bash / zsh:**
+```bash
+az ad app federated-credential list \
+  --id "$AppObjectId" \
+  --query "[].{name:name, subject:subject, issuer:issuer}" \
+  --output table
+```
+
+**PowerShell:**
+```powershell
+az ad app federated-credential list `
+  --id $AppObjectId `
+  --query "[].{name:name, subject:subject, issuer:issuer}" `
+  --output table
+```
+
+Then update any credential whose subject is wrong. `--federated-credential-id` accepts either the credential name or its object ID:
+
+**Bash / zsh:**
+```bash
+cat > update-env-dev.json <<'JSON'
+{
+  "name": "github-env-dev",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:environment:dev",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "Sparky dev environment deployments from GitHub Actions"
+}
+JSON
+
+az ad app federated-credential update \
+  --id "$AppObjectId" \
+  --federated-credential-id "github-env-dev" \
+  --parameters "@update-env-dev.json"
+```
+
+**PowerShell:**
+```powershell
+$UpdateEnvDevJson = @'
+{
+  "name": "github-env-dev",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:dmd0822@176645/sparky@1387525209:environment:dev",
+  "audiences": ["api://AzureADTokenExchange"],
+  "description": "Sparky dev environment deployments from GitHub Actions"
+}
+'@
+$UpdateEnvDevJson | Set-Content -Path "update-env-dev.json"
+
+az ad app federated-credential update `
+  --id $AppObjectId `
+  --federated-credential-id "github-env-dev" `
+  --parameters "@update-env-dev.json"
+```
+
+Repeat for `github-env-prod`, `github-main-branch`, and `github-pull-request`, changing only the `name`, `subject`, and `description` each time. Always pass the JSON through a file rather than inlining it — quoting rules differ between shells, and on Windows `cmd.exe` mangles inline JSON.
+
+Re-run the `list` command afterwards and confirm every subject carries the immutable prefix.
+
+Only fall back to deleting when a credential is genuinely obsolete — a trust boundary you no longer use, or a name you want to retire:
+
+**Bash / zsh:**
+```bash
+az ad app federated-credential delete \
+  --id "$AppObjectId" \
+  --federated-credential-id "github-old-credential"
+```
+
+**PowerShell:**
+```powershell
+az ad app federated-credential delete `
+  --id $AppObjectId `
+  --federated-credential-id "github-old-credential"
+```
+
+Deleting a credential takes effect immediately. Any workflow whose token matched only that subject starts failing its `azure/login` step with `AADSTS700213` on the very next run, so delete before you recreate, not after.
+
+You can do all of this in the portal instead: **Microsoft Entra ID → App registrations → your app → Certificates & secrets → Federated credentials**. Select a credential to edit its subject, or use the delete control on the row.
 
 ### Which subject should I use?
 
@@ -536,7 +625,7 @@ You can also inspect Entra sign-in logs for the service principal to confirm tok
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `AADSTS70021` / `AADSTS700213: No matching federated identity record found for presented assertion subject` | Most likely the federated credential was created with a legacy-format subject (no `@<owner-id>` / `@<repo-id>` segments) while this repository issues immutable subjects (`repo:dmd0822@176645/sparky@1387525209:...`). Otherwise the `sub` context, `issuer`, or `audience` does not match. | Copy the subject quoted verbatim in the error message and recreate the federated credential with it. Confirm the immutable prefix, then check whether the job uses `environment`, `pull_request`, or a branch ref. | (`repo:dmd0822@176645/sparky@1387525209:...`). Otherwise the `sub` context, `issuer`, or `audience` does not match. | Copy the subject quoted verbatim in the error message and recreate the federated credential with it. Confirm the immutable prefix, then check whether the job uses `environment`, `pull_request`, or a branch ref. |
+| `AADSTS70021` / `AADSTS700213: No matching federated identity record found for presented assertion subject` | Most likely the federated credential was created with a legacy-format subject (no `@<owner-id>` / `@<repo-id>` segments) while this repository issues immutable subjects (`repo:dmd0822@176645/sparky@1387525209:...`). Otherwise the `sub` context, `issuer`, or `audience` does not match. | Copy the subject quoted verbatim from the error message. If the credential already exists, patch it in place with `az ad app federated-credential update` (see [Updating credentials that already exist](#updating-credentials-that-already-exist)) rather than recreating it. Confirm the immutable prefix, then check whether the job uses `environment`, `pull_request`, or a branch ref. |
 | `azure/login` says it cannot get an ID token | Missing workflow permission. | Add `permissions: id-token: write` at workflow or job level. |
 | Token exchange fails with audience errors | Federated credential audience differs from the action's audience. | Use `api://AzureADTokenExchange` for Azure public cloud unless intentionally targeting another cloud. |
 | PR what-if fails with `AADSTS70021` after adding `environment: dev` | Environment jobs use `repo:...:environment:dev`, not `repo:...:pull_request`. | Either remove `environment` from the PR job or add an environment-scoped credential and accept environment approvals on PRs. |

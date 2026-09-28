@@ -148,5 +148,93 @@ class SecretsVersusVariablesTests(unittest.TestCase):
                     )
 
 
+class FederatedCredentialLifecycleTests(unittest.TestCase):
+    """The setup doc must cover existing credentials, not just greenfield create."""
+
+    def setUp(self) -> None:
+        self.path = DOCS / "deployment-setup.md"
+        self.text = flatten(read(self.path))
+
+    def test_documents_list_and_update_commands(self) -> None:
+        for command in (
+            "az ad app federated-credential list",
+            "az ad app federated-credential update",
+            "az ad app federated-credential delete",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(
+                    command,
+                    self.text,
+                    f"deployment-setup.md must document `{command}`; following it "
+                    "verbatim against an already-configured tenant otherwise fails",
+                )
+
+    def test_update_uses_federated_credential_id_flag(self) -> None:
+        self.assertRegex(
+            self.text,
+            r"az ad app federated-credential update\b[^`]{0,400}--federated-credential-id",
+            "the update example must pass --federated-credential-id to target a credential",
+        )
+
+    def test_create_section_points_at_update_path(self) -> None:
+        self.assertIn(
+            "#updating-credentials-that-already-exist",
+            self.text,
+            "the create instructions must link readers with existing credentials "
+            "to the update section",
+        )
+
+    def test_subject_mismatch_troubleshooting_prefers_update(self) -> None:
+        self.assertNotRegex(
+            self.text,
+            r"AADSTS700213.{0,600}?recreat\w* the federated credential",
+            "AADSTS700213 guidance should patch the credential in place with "
+            "`update`, which preserves the credential name and object ID",
+        )
+
+
+class MarkdownTableShapeTests(unittest.TestCase):
+    """Body rows must have the same cell count as their header row."""
+
+    @staticmethod
+    def _cell_count(row: str) -> int:
+        stripped = row.strip().strip("|")
+        return len(stripped.split("|"))
+
+    def test_table_rows_are_well_formed(self) -> None:
+        separator = re.compile(r"^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$")
+        for path in prose_files():
+            lines = read(path).splitlines()
+            in_code = False
+            header: str | None = None
+            width = 0
+            for number, line in enumerate(lines, start=1):
+                if line.lstrip().startswith("```"):
+                    in_code = not in_code
+                    header = None
+                    continue
+                if in_code:
+                    continue
+                if not line.lstrip().startswith("|"):
+                    header = None
+                    continue
+                if separator.match(line.strip()) and header is not None:
+                    width = self._cell_count(header)
+                    continue
+                if width and header is not None:
+                    label = f"{path.relative_to(ROOT).as_posix()}:{number}"
+                    with self.subTest(row=label):
+                        self.assertEqual(
+                            self._cell_count(line),
+                            width,
+                            f"table row has {self._cell_count(line)} cells but the "
+                            f"header declares {width}; duplicated or dropped cells "
+                            "silently corrupt the rendered table",
+                        )
+                else:
+                    header = line
+                    width = 0
+
+
 if __name__ == "__main__":
     unittest.main()
