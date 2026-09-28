@@ -97,3 +97,8 @@
 **By:** Scribe
 **What:** A simulator must never accept a value the real hardware rejects. Any constrained value domain belongs in the contract layer (`ports.py`), shared by the adapter and the simulator, so the two cannot drift. Validate before any side effect, and raise `HardwareError` naming the invalid value and listing the valid ones.
 **Why:** A permissive simulator does not merely miss bugs; it actively manufactures false confidence and invalidates the triage rule that a hardware-only failure implicates the adapter layer.
+### 2026-09-28T16:45:35-04:00: Treat vendor background-thread calls and per-style RGB quirks as adapter contracts
+**By:** Scribe
+**What:** PiDog RGB adapter code must treat vendor calls that dispatch work to background threads as having no reliable synchronous failure signal. Bench steps that print "complete" are not proof that hardware acted. Adapter workarounds must encode per-call vendor quirks instead of assuming uniform behavior across a vendor API, and each workaround needs an inline comment explaining why it exists.
+**Why:** The third consecutive real-hardware defect missed by simulator-based tests was silent: `pidog` swallowed a ws2812/SPI type error inside `_rgb_strip_thread`, so the HIL bench reported step 10 complete while the strip stayed dark. The vendor library was also internally inconsistent: five of six RGB styles cast scaled channel values to `int`, but `monochromatic()` did not, causing any float brightness — including the default `1.0` — to send float RGB values that the driver rejects.
+**References:** PR #60, commit `0152ecc`, `src/device/sparky_device/pidog_adapters.py`, `tests/test_hardware_ports.py`, `docs/running-on-the-pi.md`

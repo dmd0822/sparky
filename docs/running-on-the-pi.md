@@ -321,6 +321,7 @@ rejected on the robot.
 | Servos twitch but the dog does not move | Battery low or powered through USB only |
 | `robot.sensors.read_distance_cm()` always returns `None` | Ultrasonic cable unseated; the adapter maps the vendor's negative error sentinel to `None` |
 | No audio | `i2samp.sh` was not run, or the Pi was not rebooted afterwards |
+| `_rgb_strip_thread Exception: Third argument must be a list of at least one, but not more than 32 integers` | Float RGB values reached the LED driver; current adapters pre-scale monochromatic brightness to integer channels before calling the vendor strip |
 | Camera `capture()` raises "vilib has not produced a frame yet" | The camera pipeline never produced a usable frame within the adapter's startup wait; check the camera ribbon, enablement, and Vilib/Picamera2 installation |
 
 ## Related documents

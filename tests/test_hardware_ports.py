@@ -51,10 +51,14 @@ from src.device.sparky_device.hardware import (
 class FakeRgbStrip:
     def __init__(self) -> None:
         self.modes: list[dict] = []
+        self.colors: list[object] = []
+        self.brightness_values: list[object] = []
         self.close_count = 0
 
     def set_mode(self, **kwargs) -> None:
         self.modes.append(kwargs)
+        self.colors.append(kwargs.get("color"))
+        self.brightness_values.append(kwargs.get("brightness"))
 
     def close(self) -> None:
         self.close_count += 1
@@ -599,6 +603,50 @@ class PidogBoardAdapterTests(unittest.TestCase):
         self.assertEqual(mode["style"], "boom")
         self.assertEqual(mode["color"], "#FF0000")
         self.assertEqual(mode["brightness"], 0.8)
+
+    def test_monochromatic_half_brightness_sends_int_channels_and_int_brightness(self) -> None:
+        self.board.set_rgb(
+            style="monochromatic",
+            color=RgbColor(0, 64, 255),
+            brightness=0.5,
+        )
+
+        mode = self.dog.rgb_strip.modes[0]
+        self.assertEqual(mode["color"], [0, 32, 127])
+        self.assertTrue(all(isinstance(value, int) for value in mode["color"]))
+        self.assertEqual(mode["brightness"], 1)
+        self.assertIs(type(mode["brightness"]), int)
+
+    def test_monochromatic_default_brightness_still_sends_int_channels(self) -> None:
+        self.board.set_rgb(style="monochromatic", color=RgbColor(0, 64, 255))
+
+        mode = self.dog.rgb_strip.modes[0]
+        self.assertEqual(mode["color"], [0, 64, 255])
+        self.assertTrue(all(isinstance(value, int) for value in mode["color"]))
+        self.assertEqual(mode["brightness"], 1)
+        self.assertIs(type(mode["brightness"]), int)
+
+    def test_monochromatic_scaled_channels_are_clamped_to_byte_range(self) -> None:
+        self.board.set_rgb(
+            style="monochromatic",
+            color=RgbColor(255, 255, 255),
+            brightness=1.0,
+        )
+
+        channels = self.dog.rgb_strip.modes[0]["color"]
+        self.assertEqual(channels, [255, 255, 255])
+        self.assertTrue(all(0 <= value <= 255 for value in channels))
+
+    def test_non_monochromatic_rgb_keeps_caller_brightness_and_unscaled_colour(self) -> None:
+        self.board.set_rgb(
+            style="breath",
+            color=RgbColor(0, 64, 255),
+            brightness=0.5,
+        )
+
+        mode = self.dog.rgb_strip.modes[0]
+        self.assertEqual(mode["color"], "#0040FF")
+        self.assertEqual(mode["brightness"], 0.5)
 
     def test_set_rgb_rejects_invalid_style_before_vendor_call(self) -> None:
         with self.assertRaisesRegex(HardwareError, "solid.*monochromatic"):
