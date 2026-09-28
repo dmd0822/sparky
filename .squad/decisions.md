@@ -71,3 +71,14 @@
 **What:** The baseline keeps the relay Container App on a public placeholder image and documents that future private ACR images need pre-granted AcrPull or a two-phase identity/RBAC deployment. No `dependsOn` was added because the current role assignment needs the app's system-assigned principal ID, so making the app depend on that assignment would create a cycle.
 **Why:** The current baseline is safe for the public image, but private-image cutover must avoid an identity/RBAC propagation race without broadening permissions or adding key fallback.
 
+
+### 2026-09-28T12:26:41-04:00: Treat redacted Authorization output as unknown
+**By:** Scribe
+**What:** The agent harness redacts values that appear after the `Authorization:` header name, and likely other credential-shaped patterns, in tool output such as file views and grep results.
+**Why:** On 2026-09-28 this caused a false-positive defect report and a wasted revision cycle. An agent fixed a file that was already correct, then reported success for a change it had not made.
+**How to handle it:** Before reporting or fixing any suspected credential or header defect, verify the raw bytes by base64-encoding the line, checking its length, or otherwise transforming the content so it does not match the redaction pattern. Treat a string of asterisks in tool output as unknown, not as literal content.
+
+### 2026-09-28: Split keyless auth scopes by hop
+**By:** security
+**What:** The keyless-auth spike uses `SPARKY_RELAY_DEVICE_SCOPE` for Pi-to-relay device-code auth and `SPARKY_FOUNDRY_SCOPE` / `SPARKY_SPEECH_SCOPE` for relay managed-identity calls. `AZURE_COGNITIVE_SCOPE` is retained only as a compatibility alias for downstream relay scopes and must never drive the device-code request.
+**Why:** A single scope can accidentally hand the Pi an Azure AI bearer token. Separate env vars make the token boundary explicit and let tests reject Azure AI audiences on the device hop.
