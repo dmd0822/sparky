@@ -102,10 +102,15 @@ class KeylessAuthSpikeTests(unittest.TestCase):
 
         self.assertIn("https://login.microsoftonline.com/tenant-123/oauth2/v2.0/devicecode", payload["device_code_url"])
         self.assertEqual(payload["relay_url"], "https://relay.example.test")
+        self.assertEqual(
+            payload["relay_headers"]["Authorization"],
+            "Bearer <relay-audience-access-token>",
+        )
         self.assertEqual(payload["hop_tokens"]["pi_to_relay"]["audience"], "api://relay-app-id")
         self.assertIn("foundry_chat", payload["relay_payloads"])
         self.assertIn("speech_synthesis", payload["relay_payloads"])
         joined_commands = "\n".join(payload["curl_example"])
+        self.assertIn("Authorization: Bearer <relay-audience-access-token>", joined_commands)
         self.assertIn("/ai/chat", joined_commands)
         self.assertIn("/speech/synthesize", joined_commands)
 

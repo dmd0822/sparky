@@ -103,7 +103,7 @@ class AzureRelayConfig:
             "relay_url": self.relay_url,
             "device_code_payload": self.build_device_code_payload(),
             "relay_headers": {
-                "Authorization": "<relay-audience-access-token>",
+                "Authorization": "Bearer <relay-audience-access-token>",
                 "Content-Type": "application/json",
             },
             "hop_tokens": {
@@ -157,12 +157,12 @@ class AzureRelayConfig:
                 + "'",
                 "curl -X POST "
                 f"'{self.relay_url}/ai/chat' "
-                "-H 'Authorization: <relay-audience-access-token>' "
+                "-H 'Authorization: Bearer <relay-audience-access-token>' "
                 "-H 'Content-Type: application/json' "
                 "--data '{\"prompt\":\"health check\"}'",
                 "curl -X POST "
                 f"'{self.relay_url}/speech/synthesize' "
-                "-H 'Authorization: <relay-audience-access-token>' "
+                "-H 'Authorization: Bearer <relay-audience-access-token>' "
                 "-H 'Content-Type: application/json' "
                 "--data '{\"text\":\"Sparky keyless speech smoke test\"}'",
             ],
