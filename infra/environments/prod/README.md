@@ -29,10 +29,28 @@ The prod entry point composes shared modules to create:
 ## Outputs
 
 The entry point outputs the names/resource IDs/endpoints needed by later code CD:
-ACR login server, relay app name/resource ID/FQDN/principal ID, Container Apps
-environment details, AI Services and Speech endpoints, Foundry project details,
-and monitoring resource names/resource IDs. It does not output keys or connection
-strings.
+ACR login server, relay app name/resource ID/FQDN/principal ID, the assembled
+relay URL, the tenant ID, Container Apps environment details, AI Services and
+Speech endpoints, Foundry project details, and monitoring resource names/resource
+IDs. It does not output keys or connection strings.
+
+`relayUrl` and `tenantId` exist so the Pi's `SPARKY_RELAY_URL` and
+`AZURE_TENANT_ID` are read from the deployment rather than assembled by hand.
+`infra-cd` uploads every output as the `infra-outputs-prod` artifact.
+
+## Relay audience parameter
+
+`relayAudience` is the relay app registration identifier URI, for example
+`api://<relay-app-id>`. When set, it is passed to the relay Container App as
+`SPARKY_RELAY_AUDIENCE`, which is the audience the relay requires on inbound
+device tokens.
+
+It is deliberately **not** stored in `main.bicepparam`. Entra app registrations
+are Microsoft Graph objects that Bicep does not manage, and their IDs are
+tenant-specific, so the value is supplied at deploy time via
+`--parameters relayAudience="api://<relay-app-id>"`. Production should use a
+relay app registration separate from dev. See
+[creating the two app registrations](../../../docs/keyless-auth-testing-guide.md#creating-the-two-app-registrations).
 
 ## Validate
 

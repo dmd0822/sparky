@@ -35,6 +35,9 @@ param maxReplicas int = 1
 @description('Optional ACR login server. When set, the app uses its system identity for future private image pulls.')
 param acrLoginServer string = ''
 
+@description('Optional relay app registration identifier URI, for example api://<relay-app-id>. Supplied at deploy time because Entra app registrations are Microsoft Graph objects that Bicep does not manage.')
+param relayAudience string = ''
+
 resource relay 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
@@ -65,6 +68,14 @@ resource relay 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: 'relay'
           image: image
+          // The relay validates that inbound device tokens carry this audience.
+          // Empty on the baseline public image, which serves no relay routes.
+          env: empty(relayAudience) ? [] : [
+            {
+              name: 'SPARKY_RELAY_AUDIENCE'
+              value: relayAudience
+            }
+          ]
           resources: {
             cpu: json(cpu)
             memory: memory

@@ -162,6 +162,130 @@ These steps are the hardware-in-the-loop pass. They require a deployed relay env
 7. `Cognitive Services User` assigned to the relay managed identity on both the Foundry or AI Services account and the Speech account.
 8. Local operators should select the subscription with `az account set --subscription <subscription-id>`. GitHub Actions should read `AZURE_SUBSCRIPTION_ID` from the repository secret.
 
+### Creating the two app registrations
+
+Items 3 and 4 above are Microsoft Entra objects. Bicep does not manage them, because the `Microsoft.Graph` Bicep extension is still preview, so they are created once per tenant with the CLI and their IDs are then passed into deployments as parameters. Nothing created here is a secret: app IDs and identifier URIs are public identifiers, but they are tenant-specific, so keep the real values out of the repo.
+
+**Bash / zsh:**
+
+```bash
+# 1. Relay API app registration.
+RELAY_APP_ID=$(az ad app create \
+  --display-name "sparky-relay-api" \
+  --sign-in-audience AzureADMyOrg \
+  --query appId --output tsv)
+RELAY_OBJ_ID=$(az ad app show --id "$RELAY_APP_ID" --query id --output tsv)
+
+# identifierUris cannot be set at create time because it embeds the appId,
+# which does not exist until after creation. Patch it, and expose one scope.
+SCOPE_ID=$(python3 -c "import uuid; print(uuid.uuid4())")
+cat > /tmp/relay-patch.json <<JSON
+{
+  "identifierUris": ["api://${RELAY_APP_ID}"],
+  "api": {
+    "requestedAccessTokenVersion": 2,
+    "oauth2PermissionScopes": [{
+      "id": "${SCOPE_ID}",
+      "value": "Relay.Invoke",
+      "type": "User",
+      "isEnabled": true,
+      "adminConsentDisplayName": "Invoke the Sparky relay",
+      "adminConsentDescription": "Allows the caller to invoke Sparky relay routes.",
+      "userConsentDisplayName": "Invoke the Sparky relay",
+      "userConsentDescription": "Allows the app to invoke Sparky relay routes."
+    }]
+  }
+}
+JSON
+az rest --method PATCH \
+  --url "https://graph.microsoft.com/v1.0/applications/${RELAY_OBJ_ID}" \
+  --headers "Content-Type=application/json" \
+  --body @/tmp/relay-patch.json
+
+# 2. Pi public client, device code flow enabled, no secret.
+PI_APP_ID=$(az ad app create \
+  --display-name "sparky-pi-device" \
+  --is-fallback-public-client true \
+  --public-client-redirect-uris "https://login.microsoftonline.com/common/oauth2/nativeclient" \
+  --query appId --output tsv)
+
+# 3. Service principals for both apps.
+az ad sp create --id "$RELAY_APP_ID"
+az ad sp create --id "$PI_APP_ID"
+
+echo "SPARKY_RELAY_AUDIENCE=api://${RELAY_APP_ID}"
+echo "AZURE_CLIENT_ID=${PI_APP_ID}"
+```
+
+**PowerShell:**
+
+```powershell
+# 1. Relay API app registration.
+$RelayAppId = az ad app create `
+  --display-name "sparky-relay-api" `
+  --sign-in-audience AzureADMyOrg `
+  --query appId --output tsv
+$RelayObjId = az ad app show --id $RelayAppId --query id --output tsv
+
+$ScopeId = [guid]::NewGuid().ToString()
+$Patch = @{
+  identifierUris = @("api://$RelayAppId")
+  api = @{
+    requestedAccessTokenVersion = 2
+    oauth2PermissionScopes = @(@{
+      id = $ScopeId
+      value = "Relay.Invoke"
+      type = "User"
+      isEnabled = $true
+      adminConsentDisplayName = "Invoke the Sparky relay"
+      adminConsentDescription = "Allows the caller to invoke Sparky relay routes."
+      userConsentDisplayName = "Invoke the Sparky relay"
+      userConsentDescription = "Allows the app to invoke Sparky relay routes."
+    })
+  }
+} | ConvertTo-Json -Depth 8
+# WriteAllText avoids the BOM that Out-File adds, which Graph rejects.
+[System.IO.File]::WriteAllText("$env:TEMP\relay-patch.json", $Patch)
+az rest --method PATCH `
+  --url "https://graph.microsoft.com/v1.0/applications/$RelayObjId" `
+  --headers "Content-Type=application/json" `
+  --body "@$env:TEMP\relay-patch.json"
+
+# 2. Pi public client, device code flow enabled, no secret.
+$PiAppId = az ad app create `
+  --display-name "sparky-pi-device" `
+  --is-fallback-public-client true `
+  --public-client-redirect-uris "https://login.microsoftonline.com/common/oauth2/nativeclient" `
+  --query appId --output tsv
+
+# 3. Service principals for both apps.
+az ad sp create --id $RelayAppId
+az ad sp create --id $PiAppId
+
+Write-Host "SPARKY_RELAY_AUDIENCE=api://$RelayAppId"
+Write-Host "AZURE_CLIENT_ID=$PiAppId"
+```
+
+Then grant the Pi client consent to call the relay scope, and **verify it actually applied**:
+
+```bash
+az ad app permission grant \
+  --id "$PI_APP_ID" \
+  --api "$RELAY_APP_ID" \
+  --scope "Relay.Invoke"
+
+PI_SP_ID=$(az ad sp show --id "$PI_APP_ID" --query id --output tsv)
+az rest --method GET \
+  --url "https://graph.microsoft.com/v1.0/servicePrincipals/${PI_SP_ID}/oauth2PermissionGrants"
+```
+
+Two CLI behaviours to watch for, both of which fail silently:
+
+- `az ad app permission admin-consent` can exit `0` without creating a grant. Always re-read `oauth2PermissionGrants` as shown above. If the list is empty, POST the grant directly to `https://graph.microsoft.com/v1.0/oauth2PermissionGrants` with `clientId` set to the Pi service principal object ID, `resourceId` set to the relay service principal object ID, `consentType` set to `AllPrincipals`, and `scope` set to `Relay.Invoke`.
+- `az ad app create --required-resource-accesses @file.json` is ignored on some CLI versions; the manifest comes back `[]`. Verify with `az ad app show --id "$PI_APP_ID" --query requiredResourceAccess`, and patch `/applications/{objectId}` if it is empty.
+
+Record the two printed values. `SPARKY_RELAY_AUDIENCE` is passed to `infra-cd` as the `relayAudience` template parameter, and `AZURE_CLIENT_ID` is configured on the Pi in Step 1 below.
+
 ### Step 1: Configure only relay-facing values on the Pi
 
 Run this on the Pi in a Linux shell:
