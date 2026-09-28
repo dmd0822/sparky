@@ -30,6 +30,7 @@ from src.device.sparky_device.hardware import (
     PidogMotionAdapter,
     PidogSensorAdapter,
     RgbColor,
+    RGB_STYLES,
     RobotPorts,
     SensorPort,
     ServoRange,
@@ -351,6 +352,16 @@ class SimulatedBoardTests(unittest.TestCase):
         with self.assertRaises(HardwareError):
             self.board.set_rgb(style="breath", color=RgbColor(0, 0, 0), brightness=2.0)
 
+    def test_rejects_invalid_rgb_style(self) -> None:
+        with self.assertRaisesRegex(HardwareError, "solid.*monochromatic"):
+            self.board.set_rgb(style="solid", color=RgbColor(0, 0, 0))
+
+    def test_accepts_every_canonical_rgb_style(self) -> None:
+        for style in RGB_STYLES:
+            with self.subTest(style=style):
+                self.board.set_rgb(style=style, color=RgbColor(0, 255, 0))
+                self.assertEqual(self.board.rgb_commands[-1].style, style)
+
     def test_output_rejected_after_close(self) -> None:
         self.board.close()
         with self.assertRaises(HardwareError):
@@ -588,6 +599,17 @@ class PidogBoardAdapterTests(unittest.TestCase):
         self.assertEqual(mode["style"], "boom")
         self.assertEqual(mode["color"], "#FF0000")
         self.assertEqual(mode["brightness"], 0.8)
+
+    def test_set_rgb_rejects_invalid_style_before_vendor_call(self) -> None:
+        with self.assertRaisesRegex(HardwareError, "solid.*monochromatic"):
+            self.board.set_rgb(style="solid", color=RgbColor(0, 64, 255))
+        self.assertEqual(self.dog.rgb_strip.modes, [])
+
+    def test_set_rgb_accepts_every_canonical_style(self) -> None:
+        for style in RGB_STYLES:
+            with self.subTest(style=style):
+                self.board.set_rgb(style=style, color=RgbColor(255, 0, 0))
+                self.assertEqual(self.dog.rgb_strip.modes[-1]["style"], style)
 
     def test_clear_rgb_closes_the_strip(self) -> None:
         self.board.clear_rgb()
