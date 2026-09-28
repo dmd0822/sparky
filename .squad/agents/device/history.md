@@ -8,3 +8,5 @@
 📌 HIL fix (2026-09-28T19:40:00Z): Fixed the Vilib first-frame race with a bounded capture poll and made PiDog/simulator wait_all_done(timeout) enforce timeout failures for stuck motion. Validated 173 tests plus compileall for src/device/sparky_device/hardware.
 
 📌 HIL docs update (2026-09-28T19:55:00Z): Added a bench-ready hardware-in-the-loop procedure to docs/running-on-the-pi.md with environment setup, import/profile checks, prompted motion/sensor/board/camera validation, timeout-bounded motion waits, clean shutdown, and PR result recording. Updated the camera troubleshooting note to reflect the adapter's first-frame wait.
+
+📌 Camera degradation fix (2026-09-28T20:10:00Z): Missing or uninitialised Vilib/Picamera2 cameras now surface as HardwareUnavailableError at lazy camera start/capture time instead of blocking port construction. HIL docs now split required PiDog imports from optional Vilib camera validation and keep the bench script running through shutdown when step 11 camera validation is unavailable.

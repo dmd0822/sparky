@@ -47,10 +47,16 @@ cd pidog && sudo python3 setup.py install && cd ~
 sudo bash ~/pidog/i2samp.sh   # enables the speaker; reboots when finished
 ```
 
-Confirm the libraries import before going further:
+Confirm the PiDog libraries import before going further:
 
 ```bash
-python3 -c "import pidog, robot_hat, vilib; print('vendor libraries OK')"
+python3 -c "import pidog, robot_hat; print('PiDog vendor libraries OK')"
+```
+
+The camera library is optional for the rest of the bench. Check it separately:
+
+```bash
+python3 -c "import vilib; print('Vilib camera library OK')"
 ```
 
 ## Get the repository onto the Pi
@@ -152,11 +158,22 @@ export PYTHONPATH="$PWD/src/device"
 export SPARKY_HARDWARE=pidog
 ```
 
-Run the vendor import check first. If this fails, stop and fix the Pi
-environment before continuing.
+Run the required PiDog import check first. If this fails, stop and fix the Pi
+environment before continuing; motion, board, and sensors depend on these
+packages.
 
 ```bash
-python3 -c "import pidog, robot_hat, vilib; print('vendor imports OK')"
+python3 -c "import pidog, robot_hat; print('required PiDog imports OK')"
+```
+
+Then run the optional camera import check. A Vilib failure only costs step 11;
+continue with the rest of the checklist if the PiDog check passed. Vilib's
+Picamera2 path constructs the camera while importing the module, so a missing
+or unseated camera can raise `RuntimeError` from this import instead of a plain
+`ImportError`.
+
+```bash
+python3 -c "import vilib; print('optional camera import OK')"
 ```
 
 Then run the bench procedure. It executes checklist steps 2-12 in order and
@@ -167,7 +184,7 @@ cat > /tmp/sparky_hil_check.py <<'PY'
 import os
 import time
 
-from sparky_device.hardware import RgbColor, TouchState, create_ports
+from sparky_device.hardware import HardwareError, RgbColor, TouchState, create_ports
 
 
 def pause(message):
@@ -230,12 +247,15 @@ with create_ports() as robot:
     print("Step 10 complete: RGB cleared.")
 
     pause("Step 11: uncover the camera and capture one frame.")
-    robot.camera.start(width=640, height=480)
-    frame = robot.camera.capture()
-    print(
-        f"Step 11 frame: {frame.width}x{frame.height} {frame.format}, "
-        f"{len(frame.data)} bytes, sequence {frame.sequence}"
-    )
+    try:
+        robot.camera.start(width=640, height=480)
+        frame = robot.camera.capture()
+        print(
+            f"Step 11 PASS frame: {frame.width}x{frame.height} {frame.format}, "
+            f"{len(frame.data)} bytes, sequence {frame.sequence}"
+        )
+    except HardwareError as error:
+        print(f"Step 11 SKIP camera unavailable: {error}")
 
 print("\nStep 12 complete: exited the context manager; shutdown ran.")
 PY
@@ -249,7 +269,7 @@ request.
 
 | # | Check | Expected result |
 | --- | --- | --- |
-| 1 | `python3 -c "import pidog, robot_hat, vilib"` | Imports cleanly |
+| 1 | `python3 -c "import pidog, robot_hat"` | Required PiDog imports cleanly; optional `vilib` failure only skips step 11 |
 | 2 | `create_ports()` with `SPARKY_HARDWARE=pidog` | `robot.profile` is `pidog` |
 | 3 | `robot.motion.do_action("sit")` then `wait_all_done()` | Dog sits, motion settles |
 | 4 | `robot.motion.move_head(yaw=30)` | Head turns, no servo buzzing at the limit |
@@ -262,8 +282,9 @@ request.
 | 11 | `robot.camera.start()` then `capture()` | Returns a non-empty JPEG `Frame` |
 | 12 | Exit the `with` block | Servos safe-stopped, camera stopped, strip off |
 
-A failure in steps 1–2 is an environment problem. A failure in steps 3–12 with
-the equivalent simulator test passing points at the adapter layer in
+A failure in required step 1 or step 2 is an environment problem. A failure in
+optional camera import or step 11 means only camera validation is blocked. A
+failure in steps 3–10 or 12 with the equivalent simulator test passing points at the adapter layer in
 `sparky_device/hardware/pidog_adapters.py`.
 
 ## Running without a Pi

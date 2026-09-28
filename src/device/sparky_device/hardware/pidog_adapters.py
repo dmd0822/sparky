@@ -88,6 +88,12 @@ def load_vilib() -> Any:
             "libraries on the Raspberry Pi, or set SPARKY_HARDWARE=simulator "
             "to run against the simulators."
         ) from error
+    except Exception as error:  # pragma: no cover - requires camera hardware
+        raise HardwareUnavailableError(
+            "the 'vilib' package is installed but could not initialise the "
+            "camera. Check the camera ribbon and run "
+            "'rpicam-hello --list-cameras' on the Raspberry Pi."
+        ) from error
     return Vilib
 
 

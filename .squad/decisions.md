@@ -87,3 +87,8 @@
 **By:** Device
 **What:** Vilib camera capture now waits briefly for the first asynchronous frame before failing, and PiDog/simulator motion waits now enforce explicit timeouts.
 **Why:** The HIL checklist calls camera start then capture back-to-back and calls wait_all_done with safety expectations; the adapters must avoid spurious camera failures and must not block indefinitely around powered motion.
+
+### 2026-09-28T16:14:06-04:00: Missing peripherals skip hardware-in-the-loop benches
+**By:** Scribe
+**What:** A missing or failed peripheral must degrade to a reported SKIP, never abort the hardware-in-the-loop bench and never be silently passed. Vendor libraries may raise non-ImportError exceptions at import time (vilib constructs Picamera2 in its class body), so adapter loaders must convert any vendor failure into HardwareUnavailableError with actionable recovery steps. Lazy vendor imports in adapter constructors are load-bearing: they are what allows a robot missing one peripheral to keep using every other port.
+**Why:** The first real PiDog hardware signal showed that a camera-less robot can still exercise motion, board, and sensor ports when vendor imports remain lazy and vendor failures are normalized into recoverable hardware-unavailable errors.
