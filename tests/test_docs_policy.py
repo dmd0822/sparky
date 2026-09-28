@@ -28,14 +28,42 @@ IMMUTABLE_PREFIX = f"repo:dmd0822@{OWNER_ID}/sparky@{REPO_ID}:"
 LEGACY_SUBJECT = re.compile(r"repo:[\w.-]+/[\w.-]+:")
 
 DEPLOYMENT_SETUP = DOCS / "deployment-setup.md"
+README = ROOT / "README.md"
+WORKFLOWS = ROOT / ".github" / "workflows"
+
+# Names the workflows read from ``secrets.*``. Documentation that calls any of
+# these a repository *variable* is wrong: a variable reference resolves to an
+# empty string, and the resulting Azure login fails with an opaque error.
+WORKFLOW_SECRET = re.compile(r"\$\{\{[^}]*?\bsecrets\.(AZURE_[A-Z_]+)\b")
+WORKFLOW_VAR = re.compile(r"\$\{\{[^}]*?\bvars\.(AZURE_[A-Z_]+)\b")
 
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def flatten(text: str) -> str:
+    """Collapse hard wrapping so a phrase split across lines still matches."""
+    return re.sub(r"\s+", " ", text)
+
+
 def markdown_files() -> list[Path]:
     return sorted(path for path in DOCS.rglob("*.md") if path.is_file())
+
+
+def prose_files() -> list[Path]:
+    return markdown_files() + [README]
+
+
+def workflow_files() -> list[Path]:
+    return sorted(WORKFLOWS.glob("*.yml"))
+
+
+def workflow_names(pattern: re.Pattern[str]) -> set[str]:
+    names: set[str] = set()
+    for path in workflow_files():
+        names.update(pattern.findall(read(path)))
+    return names
 
 
 class LegacyOidcSubjectTests(unittest.TestCase):
@@ -78,6 +106,46 @@ class DeploymentSetupSubjectTests(unittest.TestCase):
 
     def test_troubleshooting_covers_immutable_subject_rejection(self) -> None:
         self.assertIn("AADSTS700213", self.text)
+
+
+class SecretsVersusVariablesTests(unittest.TestCase):
+    """Documentation must describe each Azure input with the context the
+    workflows actually read it from."""
+
+    def setUp(self) -> None:
+        self.secrets = workflow_names(WORKFLOW_SECRET)
+        self.variables = workflow_names(WORKFLOW_VAR)
+
+    def test_workflows_declare_both_kinds_of_input(self) -> None:
+        self.assertTrue(self.secrets, "expected at least one secrets.AZURE_* reference")
+        self.assertTrue(self.variables, "expected at least one vars.AZURE_* reference")
+
+    def test_no_name_is_both_a_secret_and_a_variable(self) -> None:
+        self.assertEqual(set(), self.secrets & self.variables)
+
+    def test_docs_never_call_a_workflow_secret_a_variable(self) -> None:
+        for path in prose_files():
+            text = flatten(read(path))
+            for name in sorted(self.secrets):
+                pattern = re.compile(rf"`{name}`[^.]{{0,80}}\bvariable\b")
+                with self.subTest(doc=path.relative_to(ROOT).as_posix(), name=name):
+                    self.assertIsNone(
+                        pattern.search(text),
+                        f"`{name}` is read from secrets.* by the workflows; "
+                        "documenting it as a repository variable resolves to an "
+                        "empty string at runtime",
+                    )
+
+    def test_docs_never_call_a_workflow_variable_a_secret(self) -> None:
+        for path in prose_files():
+            text = flatten(read(path))
+            for name in sorted(self.variables):
+                pattern = re.compile(rf"`{name}`[^.]{{0,80}}\bsecret\b")
+                with self.subTest(doc=path.relative_to(ROOT).as_posix(), name=name):
+                    self.assertIsNone(
+                        pattern.search(text),
+                        f"`{name}` is read from vars.* by the workflows",
+                    )
 
 
 if __name__ == "__main__":
