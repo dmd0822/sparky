@@ -263,6 +263,8 @@ How to tell it failed:
 
 ### Step 5: Call the relay Speech path
 
+This command reuses `SPARKY_RELAY_ACCESS_TOKEN` from Step 4. If you are starting here directly, set it from the Step 3 token response before running the command.
+
 Run this on the Pi in a Linux shell:
 
 ```bash
