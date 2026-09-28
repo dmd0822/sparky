@@ -9,3 +9,11 @@
 
 📌 Team update (2026-09-25T16:39:28-04:00): Container Apps environments must use the keyless Azure Monitor logs destination plus diagnosticSettings to route ContainerAppConsoleLogs and ContainerAppSystemLogs to Log Analytics by workspace resource ID; never reintroduce the shared-key-requiring log-analytics destination — decided by Security.
 
+
+## 2026-09-28T11:25:49-04:00
+
+- Corrected issue #4 keyless-auth spike so the Pi device-code flow can only request a relay-audience scope; Azure AI / Cognitive Services scopes now belong exclusively to relay managed-identity hops.
+- Added deterministic claim-validation and managed-identity token acquisition helpers plus failure-path tests for missing config, wrong audience, wrong issuer, and token acquisition failures.
+- Added a keyless-guard scanner and static tests that fail if key-based Azure AI fallback markers reappear in executable code, config, workflows, or Bicep.
+- Updated the spike doc with token-per-hop proof, Pi enrollment, ruled-out key/secret paths, Speech Entra auth SDK/REST finding, South Central US deployment target, smoke commands, and HIL validation steps.
+- Validation: `python -m unittest discover -s tests -v` passed; CLI smoke manifest with `python -m sparky_relay.keyless_auth --print-demo` passed with placeholder env values.

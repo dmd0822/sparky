@@ -48,7 +48,7 @@ flowchart LR
     Pi --> Vendor
     Vendor --> HW
     Pi -->|device-code sign-in\npublic client, no secret| Entra
-    Pi -->|JWT bearer token| Relay
+    Pi -->|relay-audience JWT bearer token| Relay
     Relay -->|managed identity + RBAC| Foundry
     Relay -->|managed identity + RBAC| Speech
     Relay --> Obs
@@ -62,11 +62,10 @@ flowchart LR
 Sparky uses an **Azure relay service** rather than direct device-to-Foundry calls.
 
 1. The Pi application signs in to a custom API using **Microsoft Entra ID device code flow** as a **public client**.
-2. The relay API validates the device/user token.
-3. The relay API uses its **system-assigned managed identity** to request tokens for:
-   - `https://ai.azure.com/.default` for Microsoft Foundry model inference
-   - the Speech resource custom-domain scope for STT/TTS calls
-4. RBAC grants the relay only the required `Cognitive Services User` access.
+2. The Pi receives only a relay-audience token such as `api://<relay-app-id>/.default`; it never receives Azure AI bearer tokens, API keys, or connection strings.
+3. The relay API validates the device/user token issuer and audience.
+4. The relay API uses its **system-assigned managed identity** to request `https://cognitiveservices.azure.com/.default` tokens for Foundry model inference and Speech STT/TTS calls.
+5. RBAC grants the relay only the required `Cognitive Services User` access on the AI Services and Speech resources.
 
 ### Why not call Foundry directly from the Pi?
 
