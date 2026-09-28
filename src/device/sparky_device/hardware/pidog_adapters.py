@@ -1,0 +1,341 @@
+"""Thin adapters that bind the hardware ports to the SunFounder libraries.
+
+Nothing here imports ``pidog``, ``robot_hat``, ``vilib`` or ``cv2`` at module
+scope, so this module is importable on a CI runner. Vendor imports happen
+inside :func:`load_pidog` and :func:`load_vilib`, which raise
+:class:`HardwareUnavailableError` with an actionable message when the packages
+are missing.
+
+Each adapter is deliberately shallow: translate arguments, call the vendor,
+normalise the return value. Behaviour belongs in application code above the
+ports, so a vendor API change is a single-file edit here.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Sequence
+
+from .ports import (
+    DEFAULT_LIMITS,
+    HEAD_JOINT_COUNT,
+    LEG_JOINT_COUNT,
+    Frame,
+    HardwareError,
+    HardwareUnavailableError,
+    ImuReading,
+    MotionLimits,
+    RgbColor,
+    RobotPorts,
+    TouchState,
+    validate_angles,
+    validate_speed,
+)
+
+__all__ = [
+    "PIDOG_PROFILE",
+    "PidogBoardAdapter",
+    "PidogMotionAdapter",
+    "PidogSensorAdapter",
+    "VilibCameraAdapter",
+    "build_pidog_ports",
+    "load_pidog",
+    "load_vilib",
+    "vendor_libraries_available",
+]
+
+PIDOG_PROFILE = "pidog"
+
+#: ``read_distance()`` reports a negative sentinel when the echo is invalid.
+_INVALID_DISTANCE = 0.0
+
+
+def load_pidog() -> Any:
+    """Import and construct ``pidog.Pidog``.
+
+    Raises:
+        HardwareUnavailableError: the package is missing or the board did not
+            initialise (no I2C, no power, wrong Pi model).
+    """
+
+    try:
+        from pidog import Pidog  # type: ignore[import-not-found]
+    except ImportError as error:  # pragma: no cover - requires a non-Pi host
+        raise HardwareUnavailableError(
+            "the 'pidog' package is not installed. Install the SunFounder "
+            "libraries on the Raspberry Pi, or set SPARKY_HARDWARE=simulator "
+            "to run against the simulators."
+        ) from error
+    try:
+        return Pidog()
+    except Exception as error:  # pragma: no cover - requires real hardware
+        raise HardwareUnavailableError(
+            f"could not initialise the PiDog board: {error}"
+        ) from error
+
+
+def load_vilib() -> Any:
+    """Import ``vilib.Vilib``."""
+
+    try:
+        from vilib import Vilib  # type: ignore[import-not-found]
+    except ImportError as error:  # pragma: no cover - requires a non-Pi host
+        raise HardwareUnavailableError(
+            "the 'vilib' package is not installed. Install the SunFounder "
+            "libraries on the Raspberry Pi, or set SPARKY_HARDWARE=simulator "
+            "to run against the simulators."
+        ) from error
+    return Vilib
+
+
+def vendor_libraries_available() -> bool:
+    """Report whether ``pidog`` and ``vilib`` can be imported.
+
+    This only checks importability; it does not touch the board, so it is safe
+    to call during start-up probing.
+    """
+
+    from importlib.util import find_spec
+
+    try:
+        return all(find_spec(name) is not None for name in ("pidog", "vilib"))
+    except (ImportError, ValueError):  # pragma: no cover - broken installs
+        return False
+
+
+class PidogMotionAdapter:
+    """Binds :class:`~sparky_device.hardware.ports.MotionPort` to ``Pidog``."""
+
+    def __init__(self, dog: Any, limits: MotionLimits = DEFAULT_LIMITS) -> None:
+        self._dog = dog
+        self.limits = limits
+        self._closed = False
+
+    def do_action(self, action: str, *, steps: int = 1, speed: int = 50) -> None:
+        if not action or not action.strip():
+            raise HardwareError("action name must not be empty")
+        if steps < 1:
+            raise HardwareError(f"steps must be at least 1, got {steps}")
+        self._dog.do_action(
+            action, step_count=steps, speed=validate_speed(speed, self.limits)
+        )
+
+    def move_legs(self, angles: Sequence[float], *, speed: int = 50) -> None:
+        checked = validate_angles(
+            angles, count=LEG_JOINT_COUNT, servo_range=self.limits.leg, group="legs"
+        )
+        self._dog.legs_move([list(checked)], speed=validate_speed(speed, self.limits))
+
+    def move_head(
+        self,
+        *,
+        yaw: float = 0.0,
+        roll: float = 0.0,
+        pitch: float = 0.0,
+        speed: int = 50,
+    ) -> None:
+        checked = validate_angles(
+            (yaw, roll, pitch),
+            count=HEAD_JOINT_COUNT,
+            servo_range=self.limits.head,
+            group="head",
+        )
+        self._dog.head_move([list(checked)], speed=validate_speed(speed, self.limits))
+
+    def move_tail(self, angle: float, *, speed: int = 50) -> None:
+        checked = validate_angles(
+            (angle,), count=1, servo_range=self.limits.tail, group="tail"
+        )
+        self._dog.tail_move([list(checked)], speed=validate_speed(speed, self.limits))
+
+    def wait_all_done(self, timeout: float | None = None) -> None:
+        self._dog.wait_all_done()
+
+    def stop(self) -> None:
+        self._dog.body_stop()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._dog.close()
+
+
+class PidogBoardAdapter:
+    """Binds the board port to ``robot_hat`` features exposed through ``Pidog``."""
+
+    def __init__(self, dog: Any) -> None:
+        self._dog = dog
+        self._volume = 100
+        self._closed = False
+
+    @staticmethod
+    def _check_volume(volume: int) -> int:
+        if not 0 <= volume <= 100:
+            raise HardwareError(f"volume must be between 0 and 100, got {volume}")
+        return int(volume)
+
+    def play_sound(self, name: str, *, volume: int = 100) -> None:
+        if not name or not name.strip():
+            raise HardwareError("sound name must not be empty")
+        self._dog.speak(name, self._check_volume(volume))
+
+    def set_volume(self, volume: int) -> None:
+        self._volume = self._check_volume(volume)
+        music = getattr(self._dog, "music", None)
+        setter = getattr(music, "music_set_volume", None)
+        if setter is not None:
+            setter(self._volume)
+
+    def set_rgb(
+        self,
+        *,
+        style: str,
+        color: RgbColor,
+        brightness: float = 1.0,
+        speed: int = 50,
+    ) -> None:
+        if not 0.0 <= brightness <= 1.0:
+            raise HardwareError(
+                f"brightness must be between 0.0 and 1.0, got {brightness}"
+            )
+        self._dog.rgb_strip.set_mode(
+            style=style,
+            color=color.as_hex(),
+            bps=max(speed, 1) / 50.0,
+            brightness=brightness,
+        )
+
+    def clear_rgb(self) -> None:
+        self._dog.rgb_strip.close()
+
+    def close(self) -> None:
+        self._closed = True
+
+
+class PidogSensorAdapter:
+    """Binds the sensor port to the PiDog ultrasonic, touch, IMU, and ears."""
+
+    def __init__(self, dog: Any) -> None:
+        self._dog = dog
+
+    def read_distance_cm(self) -> float | None:
+        raw = self._dog.read_distance()
+        if raw is None:
+            return None
+        distance = float(raw)
+        # SunFounder returns a negative sentinel for a timed-out echo.
+        return distance if distance > _INVALID_DISTANCE else None
+
+    def read_touch(self) -> TouchState:
+        return TouchState.from_vendor(self._dog.dual_touch.read())
+
+    def read_imu(self) -> ImuReading:
+        acceleration = tuple(float(v) for v in self._dog.accData)
+        gyro = tuple(float(v) for v in self._dog.gyroData)
+        if len(acceleration) != 3 or len(gyro) != 3:
+            raise HardwareError(
+                "IMU returned an unexpected shape: "
+                f"acc={acceleration!r} gyro={gyro!r}"
+            )
+        return ImuReading(acceleration=acceleration, gyro=gyro)
+
+    def read_sound_direction(self) -> float | None:
+        ears = self._dog.ears
+        if not ears.isdetected():
+            return None
+        return float(ears.read())
+
+
+class VilibCameraAdapter:
+    """Binds the camera port to ``vilib``, encoding frames as JPEG."""
+
+    def __init__(self, vilib: Any | None = None, *, vflip: bool = False, hflip: bool = False) -> None:
+        self._vilib = vilib
+        self._vflip = vflip
+        self._hflip = hflip
+        self._running = False
+        self._sequence = 0
+        self.width = 0
+        self.height = 0
+
+    def _library(self) -> Any:
+        if self._vilib is None:
+            self._vilib = load_vilib()
+        return self._vilib
+
+    def start(self, *, width: int = 640, height: int = 480) -> None:
+        if width <= 0 or height <= 0:
+            raise HardwareError(
+                f"capture dimensions must be positive, got {width}x{height}"
+            )
+        if self._running:
+            return
+        library = self._library()
+        library.camera_start(vflip=self._vflip, hflip=self._hflip)
+        self._running = True
+        self.width = width
+        self.height = height
+
+    def capture(self) -> Frame:
+        if not self._running:
+            raise HardwareError("camera port is not running; call start() first")
+        image = getattr(self._library(), "img", None)
+        if image is None:
+            raise HardwareError("vilib has not produced a frame yet")
+        data, width, height = _encode_jpeg(image)
+        self._sequence += 1
+        return Frame(
+            data=data,
+            width=width,
+            height=height,
+            format="jpeg",
+            sequence=self._sequence,
+        )
+
+    def stop(self) -> None:
+        if not self._running:
+            return
+        self._running = False
+        self._library().camera_close()
+
+    def is_running(self) -> bool:
+        return self._running
+
+
+def _encode_jpeg(image: Any) -> tuple[bytes, int, int]:
+    """Encode a ``vilib`` BGR frame to JPEG bytes."""
+
+    try:
+        import cv2  # type: ignore[import-not-found]
+    except ImportError as error:  # pragma: no cover - requires a non-Pi host
+        raise HardwareUnavailableError(
+            "OpenCV ('cv2') is required to encode camera frames; it ships with "
+            "the SunFounder vilib install."
+        ) from error
+    ok, buffer = cv2.imencode(".jpg", image)
+    if not ok:
+        raise HardwareError("failed to encode the camera frame as JPEG")
+    height, width = image.shape[0], image.shape[1]
+    return bytes(buffer), int(width), int(height)
+
+
+def build_pidog_ports(
+    *,
+    dog: Any | None = None,
+    vilib: Any | None = None,
+    limits: MotionLimits = DEFAULT_LIMITS,
+) -> RobotPorts:
+    """Assemble a :class:`RobotPorts` bundle backed by real hardware.
+
+    ``dog`` and ``vilib`` are injectable so adapter contract tests can run
+    against recording doubles without importing the vendor packages.
+    """
+
+    robot = dog if dog is not None else load_pidog()
+    return RobotPorts(
+        motion=PidogMotionAdapter(robot, limits=limits),
+        board=PidogBoardAdapter(robot),
+        camera=VilibCameraAdapter(vilib),
+        sensors=PidogSensorAdapter(robot),
+        profile=PIDOG_PROFILE,
+    )

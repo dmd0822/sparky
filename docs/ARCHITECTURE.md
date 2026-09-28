@@ -413,12 +413,24 @@ Every code issue must include tests.
 
 GitHub-hosted runners cannot exercise real PiDog hardware, so the device code must depend on **wrapper interfaces**, not vendor classes directly.
 
-Recommended seam design:
+The seam ships in `src/device/sparky_device/hardware/`:
 
-- `DogMotionPort` wraps `Pidog`
-- `BoardPort` wraps `robot_hat` features such as speaker/GPIO/PWM
+| Module | Contents |
+| --- | --- |
+| `ports.py` | `MotionPort`, `BoardPort`, `CameraPort`, `SensorPort` protocols, shared value objects, and the `RobotPorts` bundle |
+| `simulators.py` | Recording fakes used by unit tests and off-robot development |
+| `pidog_adapters.py` | The only code that touches `pidog`, `robot_hat`, `vilib`, and `cv2`, all imported lazily |
+| `factory.py` | `create_ports()` and the `SPARKY_HARDWARE` profile switch (`pidog`, `simulator`, `auto`) |
+
+Port responsibilities:
+
+- `MotionPort` wraps `Pidog` actions and leg/head/tail servo moves
+- `BoardPort` wraps `robot_hat` features such as speaker and RGB strip
 - `CameraPort` wraps `vilib`
 - `SensorPort` wraps ultrasonic/touch/IMU/sound-direction reads
+
+Adapters validate speed and servo angles *before* calling the vendor library, so
+an out-of-range command is rejected in software rather than sent to a servo.
 
 Unit tests run against fake implementations:
 
@@ -448,6 +460,9 @@ Not feasible in standard GitHub-hosted CI. Mitigation:
 - keep hardware-facing code thin and adapter-based
 - define manual or self-hosted Pi smoke tests for milestone acceptance
 - record reproducible demo scenarios for final validation
+
+The manual checklist and Pi setup steps live in
+[running-on-the-pi.md](running-on-the-pi.md).
 
 ## Non-goals for the planning baseline
 
