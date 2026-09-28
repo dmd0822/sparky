@@ -170,6 +170,26 @@ class TriggerSeparationTests(unittest.TestCase):
         triggers = load(INFRA_CD)[ON_KEY]
         self.assertEqual(set(triggers), {"workflow_dispatch"})
 
+    def test_workflows_running_python_tests_install_their_dependencies(self) -> None:
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            workflow = load(path)
+            for job_name, job in workflow.get("jobs", {}).items():
+                runs = [
+                    step["run"]
+                    for step in job.get("steps", [])
+                    if isinstance(step.get("run"), str)
+                ]
+                joined = "\n".join(runs)
+                if "unittest" not in joined:
+                    continue
+                with self.subTest(workflow=path.name, job=job_name):
+                    self.assertIn(
+                        "tests/requirements.txt",
+                        joined,
+                        f"{path.name} job '{job_name}' runs unittest but never installs "
+                        "tests/requirements.txt, so the tests fail on a clean runner",
+                    )
+
 
 class KeylessAuthTests(unittest.TestCase):
     def test_no_long_lived_azure_credentials_are_referenced(self) -> None:
