@@ -12,3 +12,5 @@
 📌 Camera degradation fix (2026-09-28T20:10:00Z): Missing or uninitialised Vilib/Picamera2 cameras now surface as HardwareUnavailableError at lazy camera start/capture time instead of blocking port construction. HIL docs now split required PiDog imports from optional Vilib camera validation and keep the bench script running through shutdown when step 11 camera validation is unavailable.
 
 📌 RGB style parity lesson (2026-09-28T16:26:51-04:00): A simulator that accepts a wider RGB style domain than the PiDog vendor masks real hardware defects. Shared value domains now belong in the hardware contract layer so adapters and simulators validate from the same source.
+
+📌 RGB monochromatic hardware fix (2026-09-28T16:45:35-04:00): PiDog vendor monochromatic RGB style multiplies channels by brightness without casting back to int, so float brightness silently kills the strip thread on real hardware. The adapter now pre-scales monochromatic colours to integer channels and passes vendor brightness=1, while simulators continue recording the caller's original RGB intent.

@@ -233,6 +233,20 @@ class PidogBoardAdapter:
             raise HardwareError(
                 f"brightness must be between 0.0 and 1.0, got {brightness}"
             )
+        if style == "monochromatic":
+            # Vendor monochromatic() omits the int cast used by other styles;
+            # pre-scale so float brightness never reaches the LED driver.
+            scaled_color = [
+                max(0, min(255, int(channel * brightness)))
+                for channel in color.as_tuple()
+            ]
+            self._dog.rgb_strip.set_mode(
+                style=style,
+                color=scaled_color,
+                bps=max(speed, 1) / 50.0,
+                brightness=1,
+            )
+            return
         self._dog.rgb_strip.set_mode(
             style=style,
             color=color.as_hex(),
