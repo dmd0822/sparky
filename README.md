@@ -15,6 +15,7 @@ Sparky is an AI-powered robot dog built on the [SunFounder PiDog](https://docs.s
 - Architecture decisions: [docs/adr/](docs/adr/)
 - Persona design: [docs/personas.md](docs/personas.md) and [ADR 0004](docs/adr/0004-persona-framework.md)
 - Delivery plan: [docs/PLAN.md](docs/PLAN.md)
+- Running device code on the robot: [docs/running-on-the-pi.md](docs/running-on-the-pi.md)
 - Azure deployment conventions: [infra/README.md](infra/README.md)
 
 ## What this project will contain
@@ -77,6 +78,26 @@ Run the scaffold validation with:
 ```powershell
 python -m unittest discover -s tests
 ```
+
+### Device hardware access
+
+Device code never imports `pidog`, `robot_hat`, or `vilib` directly. It talks to
+the ports in `sparky_device.hardware`, which are backed either by the SunFounder
+libraries on a real robot or by recording simulators everywhere else. Select the
+backing implementation with the `SPARKY_HARDWARE` environment variable
+(`pidog`, `simulator`, or `auto`):
+
+```powershell
+$env:PYTHONPATH = "src/device"
+$env:SPARKY_HARDWARE = "simulator"
+python -c "from sparky_device.hardware import create_ports; print(create_ports().profile)"
+```
+
+Because the simulators are the default off-robot, the test suite runs on any
+machine without PiDog hardware attached. See
+[docs/running-on-the-pi.md](docs/running-on-the-pi.md) for installing the vendor
+libraries, running against real hardware, and the hardware-in-the-loop
+validation checklist.
 
 For next steps:
 

@@ -17,6 +17,7 @@
 | devrel | devrel | `.squad/agents/devrel/charter.md` | ✅ Active |
 | security | security | `.squad/agents/security/charter.md` | ✅ Active |
 | docs | docs | `.squad/agents/docs/charter.md` | ✅ Active |
+| device | device | `.squad/agents/device/charter.md` | ✅ Active |
 
 
 ## Coding Agent
