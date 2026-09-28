@@ -10,6 +10,7 @@ docs/deployment-setup.md:
 * promotion boundaries are expressed with GitHub Environments.
 """
 
+from fnmatch import fnmatch
 from pathlib import Path
 import re
 import unittest
@@ -24,6 +25,7 @@ INFRA_CI = WORKFLOWS / "infra-ci.yml"
 INFRA_CD = WORKFLOWS / "infra-cd.yml"
 CODE_CI = WORKFLOWS / "code-ci.yml"
 CODE_CD = WORKFLOWS / "code-cd.yml"
+WORKFLOW_LINT = WORKFLOWS / "workflow-lint.yml"
 
 DELIVERY_WORKFLOWS = (INFRA_CI, INFRA_CD, CODE_CI, CODE_CD)
 INFRA_WORKFLOWS = (INFRA_CI, INFRA_CD)
@@ -110,6 +112,47 @@ class TriggerSeparationTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 for pattern in trigger_paths(load(path)):
                     self.assertFalse(pattern.startswith("infra/"), pattern)
+                    for infra in INFRA_WORKFLOWS:
+                        self.assertFalse(
+                            fnmatch(f".github/workflows/{infra.name}", pattern),
+                            f"{path.name} is triggered by {infra.name} via {pattern!r}",
+                        )
+
+    def test_infra_workflows_are_not_triggered_by_code_workflows(self) -> None:
+        for path in INFRA_WORKFLOWS:
+            with self.subTest(path=path.name):
+                for pattern in trigger_paths(load(path)):
+                    for code in CODE_WORKFLOWS:
+                        self.assertFalse(
+                            fnmatch(f".github/workflows/{code.name}", pattern),
+                            f"{path.name} is triggered by {code.name} via {pattern!r}",
+                        )
+
+    def test_delivery_workflows_do_not_watch_every_workflow_file(self) -> None:
+        for path in DELIVERY_WORKFLOWS:
+            with self.subTest(path=path.name):
+                for pattern in trigger_paths(load(path)):
+                    self.assertNotEqual(
+                        pattern,
+                        ".github/workflows/**",
+                        f"{path.name} watches every workflow file, which leaks "
+                        "changes across the infra/code boundary",
+                    )
+
+    def test_every_delivery_workflow_is_watched_by_a_ci_workflow(self) -> None:
+        watched = [
+            pattern
+            for ci in (INFRA_CI, CODE_CI)
+            for pattern in trigger_paths(load(ci))
+        ]
+        for path in DELIVERY_WORKFLOWS:
+            target = f".github/workflows/{path.name}"
+            with self.subTest(path=path.name):
+                self.assertTrue(
+                    any(fnmatch(target, pattern) for pattern in watched),
+                    f"{path.name} is not covered by any CI path filter, so edits "
+                    "to it would run no validation",
+                )
 
     def test_ci_workflows_run_on_pull_requests(self) -> None:
         for path in (INFRA_CI, CODE_CI):
@@ -126,6 +169,26 @@ class TriggerSeparationTests(unittest.TestCase):
     def test_infra_cd_is_manual_only(self) -> None:
         triggers = load(INFRA_CD)[ON_KEY]
         self.assertEqual(set(triggers), {"workflow_dispatch"})
+
+    def test_workflows_running_python_tests_install_their_dependencies(self) -> None:
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            workflow = load(path)
+            for job_name, job in workflow.get("jobs", {}).items():
+                runs = [
+                    step["run"]
+                    for step in job.get("steps", [])
+                    if isinstance(step.get("run"), str)
+                ]
+                joined = "\n".join(runs)
+                if "unittest" not in joined:
+                    continue
+                with self.subTest(workflow=path.name, job=job_name):
+                    self.assertIn(
+                        "tests/requirements.txt",
+                        joined,
+                        f"{path.name} job '{job_name}' runs unittest but never installs "
+                        "tests/requirements.txt, so the tests fail on a clean runner",
+                    )
 
 
 class KeylessAuthTests(unittest.TestCase):
@@ -230,6 +293,53 @@ class CodeDeliveryTests(unittest.TestCase):
         self.assertIn("validate", jobs)
         self.assertIn("validate", jobs["publish"]["needs"])
         self.assertIn("publish", jobs["deploy"]["needs"])
+
+
+class WorkflowLintTests(unittest.TestCase):
+    """Every workflow file is linted by actionlint on pull requests."""
+
+    def test_lint_workflow_exists(self) -> None:
+        self.assertTrue(
+            WORKFLOW_LINT.is_file(),
+            "workflow-lint.yml must exist so workflow YAML is linted in CI",
+        )
+
+    def test_lint_workflow_runs_actionlint(self) -> None:
+        self.assertTrue(
+            any("actionlint" in run for run in step_texts(load(WORKFLOW_LINT))),
+            "workflow-lint.yml must invoke actionlint",
+        )
+
+    def test_lint_workflow_watches_every_workflow_file(self) -> None:
+        patterns = trigger_paths(load(WORKFLOW_LINT))
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            target = f".github/workflows/{path.name}"
+            with self.subTest(path=path.name):
+                self.assertTrue(
+                    any(fnmatch(target, pattern) for pattern in patterns),
+                    f"{path.name} is not linted by workflow-lint.yml",
+                )
+
+    def test_lint_workflow_runs_on_pull_requests(self) -> None:
+        self.assertIn("pull_request", load(WORKFLOW_LINT)[ON_KEY])
+
+    def test_actionlint_download_is_pinned_and_checksummed(self) -> None:
+        body = read(WORKFLOW_LINT)
+        self.assertRegex(
+            body,
+            r"ACTIONLINT_VERSION:\s*\"\d+\.\d+\.\d+\"",
+            "actionlint must be pinned to an exact version",
+        )
+        self.assertRegex(
+            body,
+            r"ACTIONLINT_SHA256:\s*\"[0-9a-f]{64}\"",
+            "the actionlint download must be verified against a pinned SHA-256",
+        )
+        self.assertIn(
+            "sha256sum --check",
+            body,
+            "the actionlint archive checksum must actually be verified",
+        )
 
 
 if __name__ == "__main__":
