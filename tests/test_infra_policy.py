@@ -115,5 +115,50 @@ class DeploymentCorrectnessTests(unittest.TestCase):
                 self.assertRegex(body, r"acrLoginServer:\s*startsWith\(relayImage,")
 
 
+class RelayContractTests(unittest.TestCase):
+    """Guards for the values the relay and Pi need but cannot derive locally."""
+
+    def test_entrypoints_publish_relay_url_and_tenant_id(self) -> None:
+        # Both are hand-assembled today. infra-cd already uploads every template
+        # output as the deployment-outputs artifact, so publishing them here is
+        # what stops SPARKY_RELAY_URL and AZURE_TENANT_ID being copied by eye.
+        for path in ENV_ENTRYPOINTS:
+            with self.subTest(path=path.relative_to(ROOT)):
+                body = flatten(path)
+                self.assertRegex(
+                    body,
+                    r"output\s+relayUrl\s+string\s*=\s*'https://\$\{relay\.outputs\.ingressFqdn\}/api'",
+                )
+                self.assertRegex(body, r"output\s+tenantId\s+string\s*=\s*tenant\(\)\.tenantId")
+
+    def test_relay_audience_flows_from_entrypoint_to_container_app(self) -> None:
+        for path in ENV_ENTRYPOINTS:
+            with self.subTest(path=path.relative_to(ROOT)):
+                body = flatten(path)
+                self.assertRegex(body, r"param\s+relayAudience\s+string")
+                self.assertRegex(body, r"relayAudience:\s*relayAudience")
+
+        module = flatten(INFRA / "modules" / "relay-container-app.bicep")
+        self.assertRegex(module, r"param\s+relayAudience\s+string")
+        self.assertIn("SPARKY_RELAY_AUDIENCE", module)
+
+    def test_relay_audience_env_is_omitted_when_unset(self) -> None:
+        # The baseline deployment runs the public quickstart image and serves no
+        # relay routes. Emitting an empty SPARKY_RELAY_AUDIENCE there would let a
+        # relay build start up believing it had been configured.
+        self.assertRegex(
+            flatten(INFRA / "modules" / "relay-container-app.bicep"),
+            r"env:\s*empty\(relayAudience\)\s*\?\s*\[\]",
+        )
+
+    def test_relay_audience_is_not_baked_into_parameter_files(self) -> None:
+        # Entra app IDs are tenant-specific. Keeping them out of the repo is what
+        # test_no_hard_coded_subscription_guids_under_infra enforces; this asserts
+        # the audience specifically stays a deploy-time input.
+        for path in tuple(sorted(INFRA.rglob("*.bicepparam"))):
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertNotIn("relayAudience", path.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

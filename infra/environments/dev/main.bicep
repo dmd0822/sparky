@@ -19,6 +19,9 @@ param relayImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('Optional Foundry model deployment placeholders. Leave empty until South Central US model quota/version/deployment type are verified.')
 param modelDeployments array = []
 
+@description('Relay app registration identifier URI, for example api://<relay-app-id>. Entra app registrations are Microsoft Graph objects, so this value is created out of band and passed in at deploy time.')
+param relayAudience string = ''
+
 @description('Additional tags merged with required app/environment tags.')
 param additionalTags object = {}
 
@@ -99,6 +102,7 @@ module relay '../../modules/relay-container-app.bicep' = {
     // revision wait on a credential that cannot yet work, and it times out with
     // "Operation expired" roughly sixteen minutes later.
     acrLoginServer: startsWith(relayImage, '${acr.outputs.loginServer}/') ? acr.outputs.loginServer : ''
+    relayAudience: relayAudience
   }
 }
 
@@ -121,6 +125,8 @@ output relayContainerAppName string = relay.outputs.appName
 output relayContainerAppResourceId string = relay.outputs.appResourceId
 output relayContainerAppIngressFqdn string = relay.outputs.ingressFqdn
 output relayManagedIdentityPrincipalId string = relay.outputs.principalId
+output relayUrl string = 'https://${relay.outputs.ingressFqdn}/api'
+output tenantId string = tenant().tenantId
 output containerAppsEnvironmentName string = containerAppsEnvironment.outputs.environmentName
 output containerAppsEnvironmentResourceId string = containerAppsEnvironment.outputs.environmentResourceId
 output aiServicesAccountName string = aiServices.outputs.accountName
