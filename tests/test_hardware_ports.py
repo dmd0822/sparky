@@ -8,6 +8,8 @@ assertions run on a GitHub-hosted runner and on the robot.
 
 from __future__ import annotations
 
+import threading
+import time
 import unittest
 
 from src.device.sparky_device.hardware import (
@@ -303,6 +305,23 @@ class SimulatedMotionTests(unittest.TestCase):
         self.motion.close()
         self.assertTrue(self.motion.closed)
 
+    def test_wait_all_done_times_out_when_simulated_motion_never_settles(self) -> None:
+        motion = SimulatedMotion(settle_after=None)
+        motion.do_action("forward")
+
+        with self.assertRaises(HardwareError) as ctx:
+            motion.wait_all_done(timeout=0.001)
+
+        self.assertIn("0.001 seconds", str(ctx.exception))
+
+    def test_wait_all_done_returns_when_simulated_motion_settles(self) -> None:
+        motion = SimulatedMotion(settle_after=0.001)
+        motion.do_action("forward")
+
+        motion.wait_all_done(timeout=0.1)
+
+        self.assertEqual(motion.wait_count, 1)
+
 
 class SimulatedBoardTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -504,6 +523,35 @@ class PidogMotionAdapterTests(unittest.TestCase):
             self.dog.calls, [("wait_all_done",), ("body_stop",)]
         )
 
+    def test_wait_all_done_timeout_stops_and_raises(self) -> None:
+        release = threading.Event()
+
+        def blocking_wait() -> None:
+            self.dog.calls.append(("wait_all_done",))
+            release.wait()
+
+        self.dog.wait_all_done = blocking_wait
+
+        with self.assertRaises(HardwareError) as ctx:
+            self.motion.wait_all_done(timeout=0.01)
+
+        self.assertIn("0.01 seconds", str(ctx.exception))
+        self.assertEqual(
+            self.dog.calls, [("wait_all_done",), ("body_stop",)]
+        )
+        release.set()
+
+    def test_wait_all_done_returns_when_motion_settles_in_time(self) -> None:
+        def settling_wait() -> None:
+            self.dog.calls.append(("wait_all_done",))
+            time.sleep(0.001)
+
+        self.dog.wait_all_done = settling_wait
+
+        self.motion.wait_all_done(timeout=0.1)
+
+        self.assertEqual(self.dog.calls, [("wait_all_done",)])
+
     def test_close_is_idempotent(self) -> None:
         self.motion.close()
         self.motion.close()
@@ -582,10 +630,24 @@ class PidogSensorAdapterTests(unittest.TestCase):
 
 
 class FakeVilib:
-    def __init__(self, img=None) -> None:
-        self.img = img
+    def __init__(self, img=None, frames=None) -> None:
+        self._img = img
+        self._frames = list(frames) if frames is not None else None
         self.started = 0
         self.closed = 0
+
+    @property
+    def img(self):
+        if self._frames:
+            value = self._frames.pop(0)
+            if value is not None:
+                self._img = value
+            return value
+        return self._img
+
+    @img.setter
+    def img(self, value):
+        self._img = value
 
     def camera_start(self, vflip=False, hflip=False):
         self.started += 1
@@ -611,8 +673,32 @@ class VilibCameraAdapterTests(unittest.TestCase):
         with self.assertRaises(HardwareError):
             VilibCameraAdapter(FakeVilib()).capture()
 
+    def test_capture_waits_for_delayed_first_frame(self) -> None:
+        from src.device.sparky_device.hardware import pidog_adapters
+
+        frame = object()
+        camera = VilibCameraAdapter(
+            FakeVilib(frames=[None, None, frame]),
+            first_frame_timeout=0.1,
+            frame_poll_interval=0.001,
+        )
+        camera.start()
+        original_encode = pidog_adapters._encode_jpeg
+        pidog_adapters._encode_jpeg = lambda image: (b"jpeg", 2, 1)
+        try:
+            captured = camera.capture()
+        finally:
+            pidog_adapters._encode_jpeg = original_encode
+
+        self.assertEqual(captured.data, b"jpeg")
+        self.assertEqual(captured.sequence, 1)
+
     def test_capture_without_a_frame_fails(self) -> None:
-        camera = VilibCameraAdapter(FakeVilib(img=None))
+        camera = VilibCameraAdapter(
+            FakeVilib(img=None),
+            first_frame_timeout=0.001,
+            frame_poll_interval=0.001,
+        )
         camera.start()
         with self.assertRaises(HardwareError):
             camera.capture()

@@ -13,6 +13,8 @@ ports, so a vendor API change is a single-file edit here.
 
 from __future__ import annotations
 
+import threading
+import time
 from typing import Any, Sequence
 
 from .ports import (
@@ -47,6 +49,8 @@ PIDOG_PROFILE = "pidog"
 
 #: ``read_distance()`` reports a negative sentinel when the echo is invalid.
 _INVALID_DISTANCE = 0.0
+_CAMERA_FIRST_FRAME_TIMEOUT_SECONDS = 2.0
+_CAMERA_FRAME_POLL_INTERVAL_SECONDS = 0.05
 
 
 def load_pidog() -> Any:
@@ -148,7 +152,30 @@ class PidogMotionAdapter:
         self._dog.tail_move([list(checked)], speed=validate_speed(speed, self.limits))
 
     def wait_all_done(self, timeout: float | None = None) -> None:
-        self._dog.wait_all_done()
+        if timeout is None:
+            self._dog.wait_all_done()
+            return
+        if timeout < 0:
+            raise HardwareError(f"timeout must be non-negative, got {timeout}")
+
+        errors: list[BaseException] = []
+
+        def wait_for_vendor() -> None:
+            try:
+                self._dog.wait_all_done()
+            except BaseException as error:  # pragma: no cover - defensive handoff
+                errors.append(error)
+
+        worker = threading.Thread(target=wait_for_vendor, daemon=True)
+        worker.start()
+        worker.join(timeout)
+        if worker.is_alive():
+            self._dog.body_stop()
+            raise HardwareError(
+                f"timed out waiting for motion to finish after {timeout:g} seconds"
+            )
+        if errors:
+            raise errors[0]
 
     def stop(self) -> None:
         self._dog.body_stop()
@@ -249,10 +276,20 @@ class PidogSensorAdapter:
 class VilibCameraAdapter:
     """Binds the camera port to ``vilib``, encoding frames as JPEG."""
 
-    def __init__(self, vilib: Any | None = None, *, vflip: bool = False, hflip: bool = False) -> None:
+    def __init__(
+        self,
+        vilib: Any | None = None,
+        *,
+        vflip: bool = False,
+        hflip: bool = False,
+        first_frame_timeout: float = _CAMERA_FIRST_FRAME_TIMEOUT_SECONDS,
+        frame_poll_interval: float = _CAMERA_FRAME_POLL_INTERVAL_SECONDS,
+    ) -> None:
         self._vilib = vilib
         self._vflip = vflip
         self._hflip = hflip
+        self._first_frame_timeout = first_frame_timeout
+        self._frame_poll_interval = frame_poll_interval
         self._running = False
         self._sequence = 0
         self.width = 0
@@ -279,9 +316,7 @@ class VilibCameraAdapter:
     def capture(self) -> Frame:
         if not self._running:
             raise HardwareError("camera port is not running; call start() first")
-        image = getattr(self._library(), "img", None)
-        if image is None:
-            raise HardwareError("vilib has not produced a frame yet")
+        image = self._wait_for_frame()
         data, width, height = _encode_jpeg(image)
         self._sequence += 1
         return Frame(
@@ -291,6 +326,16 @@ class VilibCameraAdapter:
             format="jpeg",
             sequence=self._sequence,
         )
+
+    def _wait_for_frame(self) -> Any:
+        deadline = time.monotonic() + self._first_frame_timeout
+        while True:
+            image = getattr(self._library(), "img", None)
+            if image is not None:
+                return image
+            if time.monotonic() >= deadline:
+                raise HardwareError("vilib has not produced a frame yet")
+            time.sleep(self._frame_poll_interval)
 
     def stop(self) -> None:
         if not self._running:

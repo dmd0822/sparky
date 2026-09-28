@@ -10,6 +10,7 @@ simulator rejects would also be rejected on the robot.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from itertools import cycle
 from typing import Iterable, Iterator, Sequence
 
@@ -75,17 +76,29 @@ class RgbCommand:
 class SimulatedMotion:
     """Records motion requests and enforces :class:`MotionLimits`."""
 
-    def __init__(self, limits: MotionLimits = DEFAULT_LIMITS) -> None:
+    def __init__(
+        self,
+        limits: MotionLimits = DEFAULT_LIMITS,
+        *,
+        settle_after: float | None = 0.0,
+    ) -> None:
         self.limits = limits
         self.commands: list[MotionCommand] = []
         self.stop_count = 0
         self.wait_count = 0
         self.closed = False
+        self.settle_after = settle_after
+        self._busy_until: float | None = 0.0
 
     def _record(self, command: MotionCommand) -> None:
         if self.closed:
             raise HardwareError("motion port is closed")
         self.commands.append(command)
+        self._busy_until = (
+            None
+            if self.settle_after is None
+            else time.monotonic() + self.settle_after
+        )
 
     def do_action(self, action: str, *, steps: int = 1, speed: int = 50) -> None:
         if not action or not action.strip():
@@ -158,11 +171,21 @@ class SimulatedMotion:
         )
 
     def wait_all_done(self, timeout: float | None = None) -> None:
+        if timeout is not None and timeout < 0:
+            raise HardwareError(f"timeout must be non-negative, got {timeout}")
         self.wait_count += 1
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while self._busy_until is None or time.monotonic() < self._busy_until:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise HardwareError(
+                    f"timed out waiting for motion to finish after {timeout:g} seconds"
+                )
+            time.sleep(0.001)
 
     def stop(self) -> None:
         self.stop_count += 1
         self.commands.clear()
+        self._busy_until = 0.0
 
     def close(self) -> None:
         self.closed = True
