@@ -330,50 +330,26 @@ commands reject conflicts instead of queueing behind active motion, `stop()`
 pre-empts immediately and is safe when repeated, and locomotion from `sit` or
 `lie` is rejected until an explicit `stand` request succeeds.
 
+The runnable script lives in `scripts/motion_service_hil.py` so operators do
+not need to copy Python out of this document. Rehearse it off-robot first:
+
 ```bash
-cat > sparky_motion_service_check.py <<'PY'
-from sparky_device.hardware import HardwareError, create_ports
-from sparky_device.services import MotionService
-
-
-with create_ports() as robot:
-    motion = MotionService(robot.motion)
-
-    print("Step 13: service sit.")
-    motion.sit(speed=50)
-    motion.wait_until_idle(timeout=10)
-
-    print("Step 14: service rejects trot while sitting.")
-    try:
-        motion.trot(steps=1, speed=40)
-    except HardwareError as error:
-        print(f"Step 14 PASS rejected: {error}")
-    else:
-        raise SystemExit("Step 14 FAIL: trot from sit was accepted")
-
-    print("Step 15: service stand, then slow forward gait.")
-    motion.stand(speed=50)
-    motion.wait_until_idle(timeout=10)
-    motion.forward(steps=5, speed=30)
-
-    print("Step 16: service rejects a conflicting turn while forward is in flight.")
-    try:
-        motion.turn_left(steps=1, speed=30)
-    except HardwareError as error:
-        print(f"Step 16 PASS rejected: {error}")
-    else:
-        raise SystemExit("Step 16 FAIL: conflicting turn was accepted")
-
-    print("Step 17: service stop pre-empts and is idempotent.")
-    motion.stop()
-    motion.stop()
-    motion.wait_until_idle(timeout=3)
-
-print("Motion service smoke check complete; shutdown ran.")
-PY
-
-python3 sparky_motion_service_check.py
+python scripts/motion_service_hil.py --simulate --yes
 ```
+
+Then run the same script against the PiDog from the repository root on the Pi:
+
+```bash
+export PYTHONPATH="$PWD/src/device"
+export SPARKY_HARDWARE=pidog
+python scripts/motion_service_hil.py
+```
+
+The real-hardware run pauses before standing and gait steps so the operator can
+clear the area, support the dog with legs clear, and abort with Ctrl+C. Use
+`--yes` only when the bench is already safe and unattended prompts would get in
+the way. Any normal exit, failure, or Ctrl+C attempts to safe-stop motion and
+close the ports before the script reports PASS or FAIL.
 
 | # | Check | Expected result |
 | --- | --- | --- |
