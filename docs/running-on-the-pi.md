@@ -189,114 +189,28 @@ export PYTHONPATH="$PWD/src/device"
 export SPARKY_HARDWARE=pidog
 ```
 
-Run the required PiDog import check first. If this fails, stop and fix the Pi
-environment before continuing; motion, board, and sensors depend on these
-packages.
+Rehearse the complete checklist off-robot first. The simulator run exercises the
+same script without importing PiDog, Robot HAT, Vilib, or OpenCV:
 
 ```bash
-python3 -c "import pidog, robot_hat; print('required PiDog imports OK')"
+python scripts/motion_service_hil.py --simulate --yes
 ```
 
-Then run the optional camera import check. A Vilib failure only costs step 11;
-continue with the rest of the checklist if the PiDog check passed. Vilib's
-Picamera2 path constructs the camera while importing the module, so a missing
-or unseated camera can raise `RuntimeError` from this import instead of a plain
-`ImportError`.
+Then run the same script against the PiDog from the repository root on the Pi:
 
 ```bash
-python3 -c "import vilib; print('optional camera import OK')"
+python scripts/motion_service_hil.py
 ```
 
-Then run the bench procedure. It executes checklist steps 2-12 in order and
-prints the values you need to compare with the table.
-
-```bash
-cat > sparky_hil_check.py <<'PY'
-import os
-import time
-
-from sparky_device.hardware import HardwareError, RgbColor, TouchState, create_ports
-
-
-def pause(message):
-    input(f"\n{message}\nPress Enter when ready...")
-
-
-def require_touch(label, expected, actual):
-    print(f"{label}: {actual.name}")
-    if actual is not expected:
-        print(f"  Expected {expected.name}; repeat this step before passing it.")
-
-
-with create_ports() as robot:
-    print(f"Step 2 profile: {robot.profile}")
-    if os.environ.get("SPARKY_HARDWARE") == "pidog" and robot.profile != "pidog":
-        raise SystemExit("SPARKY_HARDWARE=pidog did not create the pidog profile")
-
-    pause("Step 3: confirm the dog is supported with legs clear, then sit.")
-    robot.motion.do_action("sit", steps=1, speed=50)
-    robot.motion.wait_all_done(timeout=10)
-    print("Step 3 complete: sit command settled.")
-
-    pause("Step 4: watch the head turn right about 30 degrees.")
-    robot.motion.move_head(yaw=30, speed=50)
-    robot.motion.wait_all_done(timeout=5)
-    print("Step 4 complete: head command settled.")
-
-    pause("Step 5: the dog will start a slow forward gait; press Enter, then be ready for stop.")
-    robot.motion.do_action("forward", steps=5, speed=30)
-    time.sleep(0.5)
-    robot.motion.stop()
-    robot.motion.wait_all_done(timeout=3)
-    print("Step 5 complete: stop requested and motion drained.")
-
-    pause("Step 6: place your hand about 20 cm in front of the ultrasonic sensor.")
-    print(f"Step 6 distance_cm: {robot.sensors.read_distance_cm()}")
-
-    pause("Step 7a: touch only the left touch pad.")
-    require_touch("Step 7a left pad", TouchState.LEFT, robot.sensors.read_touch())
-    pause("Step 7b: touch only the right touch pad.")
-    require_touch("Step 7b right pad", TouchState.RIGHT, robot.sensors.read_touch())
-    pause("Step 7c: touch both pads at the same time.")
-    require_touch("Step 7c both pads", TouchState.BOTH, robot.sensors.read_touch())
-
-    pause("Step 8: hold the dog level for the baseline IMU sample.")
-    level = robot.sensors.read_imu()
-    print(f"Step 8 level acceleration: {level.acceleration}")
-    pause("Step 8: tilt the dog gently for the second IMU sample.")
-    tilted = robot.sensors.read_imu()
-    print(f"Step 8 tilted acceleration: {tilted.acceleration}")
-
-    pause("Step 9: listen for the bark sound.")
-    robot.board.play_sound("single_bark_1", volume=80)
-    print("Step 9 complete: sound command sent.")
-
-    pause("Step 10: watch the RGB strip turn blue.")
-    # Valid RGB styles are: monochromatic, breath, boom, bark, speak, listen.
-    robot.board.set_rgb(style="monochromatic", color=RgbColor(0, 64, 255), brightness=0.5, speed=50)
-    time.sleep(1)
-    robot.board.clear_rgb()
-    print("Step 10 complete: RGB cleared.")
-
-    pause("Step 11: uncover the camera and capture one frame.")
-    try:
-        if robot.camera.camera_available():
-            robot.camera.start(width=640, height=480)
-            frame = robot.camera.capture()
-            print(
-                f"Step 11 PASS frame: {frame.width}x{frame.height} {frame.format}, "
-                f"{len(frame.data)} bytes, sequence {frame.sequence}"
-            )
-        else:
-            print("Step 11 SKIP camera unavailable: no camera reported by rpicam-hello")
-    except HardwareError as error:
-        print(f"Step 11 SKIP camera unavailable: {error}")
-
-print("\nStep 12 complete: exited the context manager; shutdown ran.")
-PY
-
-python3 sparky_hil_check.py
-```
+The script covers checklist steps 1-17 in one run: required PiDog imports,
+optional Vilib camera availability, raw port checks, clean shutdown, and the
+motion-service API smoke checks. It pauses before physical motion and manual
+sensor actions. Use `--yes` only when the bench is already safe and unattended
+prompts would get in the way. Use `--steps`/`--only` to rerun a subset after a
+fix, for example `--steps 11` for camera only or `--steps 13-17` for the
+motion-service checks. Any normal exit, failure, or Ctrl+C attempts to stop
+motion, stop the camera, clear RGB, and close the ports before reporting PASS or
+FAIL.
 
 Use the table below as the pass/fail contract while the script runs. Record the
 overall result, any failed step numbers, and the observed values in the pull
@@ -322,34 +236,14 @@ optional camera import or step 11 means only camera validation is blocked. A
 failure in steps 3–10 or 12 with the equivalent simulator test passing points at the adapter layer in
 `sparky_device/hardware/pidog_adapters.py`.
 
-### Motion service smoke check
+### Motion service checks
 
-Run this service-layer extension after the port checklist when motion-service
-code changes. It validates the planner-facing API above the raw motion port:
-commands reject conflicts instead of queueing behind active motion, `stop()`
-pre-empts immediately and is safe when repeated, and locomotion from `sit` or
-`lie` is rejected until an explicit `stand` request succeeds.
-
-The runnable script lives in `scripts/motion_service_hil.py` so operators do
-not need to copy Python out of this document. Rehearse it off-robot first:
-
-```bash
-python scripts/motion_service_hil.py --simulate --yes
-```
-
-Then run the same script against the PiDog from the repository root on the Pi:
-
-```bash
-export PYTHONPATH="$PWD/src/device"
-export SPARKY_HARDWARE=pidog
-python scripts/motion_service_hil.py
-```
-
-The real-hardware run pauses before standing and gait steps so the operator can
-clear the area, support the dog with legs clear, and abort with Ctrl+C. Use
-`--yes` only when the bench is already safe and unattended prompts would get in
-the way. Any normal exit, failure, or Ctrl+C attempts to safe-stop motion and
-close the ports before the script reports PASS or FAIL.
+Steps 13-17 in the same `scripts/motion_service_hil.py` run validate the
+planner-facing API above the raw motion port: commands reject conflicts instead
+of queueing behind active motion, `stop()` pre-empts immediately and is safe
+when repeated, and locomotion from `sit` or `lie` is rejected until an explicit
+`stand` request succeeds. The real-hardware run uses the same safety prompts and
+cleanup path as the port-level checks above.
 
 | # | Check | Expected result |
 | --- | --- | --- |

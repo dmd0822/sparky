@@ -24,3 +24,5 @@
 📌 Test path portability lesson (2026-09-29T10:13:04.815-04:00): Repo tests must use `ROOT = Path(__file__).parents[1]` and `/` path joins, never OS-specific separators or CWD-relative paths — CI is ubuntu-latest.
 
 📌 Motion HIL script lesson (2026-09-29T11:39:32.316-04:00): Operator-facing HIL checks should ship as runnable scripts under `scripts/`, not copy-paste Markdown snippets, and every hardware-moving script needs a simulator mode plus a cleanup path that safe-stops and closes ports on success, failure, or Ctrl+C.
+
+📌 Full HIL script consolidation (2026-09-29T13:19:17.701-04:00): Folded port-level checklist steps 1-12 into `scripts/motion_service_hil.py` alongside motion-service steps 13-17, preserving lazy vendor imports, camera SKIP semantics, safe cleanup, simulator rehearsal, and adding `--steps`/`--only` for targeted reruns.
