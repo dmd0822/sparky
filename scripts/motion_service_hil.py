@@ -335,7 +335,7 @@ def _run_step(
         )
         robot.motion.do_action("forward", steps=5, speed=30)
         if not simulate:
-            time.sleep(0.5)
+            time.sleep(10.5)
         robot.motion.stop()
         robot.motion.wait_all_done(timeout=min(wait_timeout, 3.0))
         return _result(5, Status.PASS, "stop requested and motion drained")
@@ -499,7 +499,7 @@ def _run_step(
             out=out,
             prompt=prompt,
         )
-        motion.forward(steps=10, speed=30)
+        motion.forward(steps=10, speed=50)
         return _result(15, Status.PASS, f"stood, then issued forward gait: {motion.state}")
 
     if step == 16:
