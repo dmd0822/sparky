@@ -116,6 +116,26 @@ with create_ports() as robot:
 `board`, `camera`, and `sensors`. Using it as a context manager guarantees the
 servos are safe-stopped and every port released, even if your code raises.
 
+The camera is optional. Code that can use images should ask the port first and
+skip camera work when no module is attached:
+
+```python
+from sparky_device.hardware import create_ports
+
+with create_ports("pidog") as robot:
+    if robot.camera.camera_available():
+        robot.camera.start(width=640, height=480)
+        frame = robot.camera.capture()
+        print(f"captured {frame.width}x{frame.height}")
+        robot.camera.stop()
+    else:
+        print("camera unavailable; continuing without vision")
+```
+
+SunFounder Vilib fixes capture at 640x480. The Sparky camera port rejects any
+other requested resolution before touching the vendor library so simulator runs
+cannot accept a shape that the real PiDog cannot deliver.
+
 ### Choosing a hardware profile
 
 `SPARKY_HARDWARE` selects the implementation behind the ports.
@@ -180,7 +200,7 @@ Then run the bench procedure. It executes checklist steps 2-12 in order and
 prints the values you need to compare with the table.
 
 ```bash
-cat > /tmp/sparky_hil_check.py <<'PY'
+cat > sparky_hil_check.py <<'PY'
 import os
 import time
 
@@ -249,19 +269,22 @@ with create_ports() as robot:
 
     pause("Step 11: uncover the camera and capture one frame.")
     try:
-        robot.camera.start(width=640, height=480)
-        frame = robot.camera.capture()
-        print(
-            f"Step 11 PASS frame: {frame.width}x{frame.height} {frame.format}, "
-            f"{len(frame.data)} bytes, sequence {frame.sequence}"
-        )
+        if robot.camera.camera_available():
+            robot.camera.start(width=640, height=480)
+            frame = robot.camera.capture()
+            print(
+                f"Step 11 PASS frame: {frame.width}x{frame.height} {frame.format}, "
+                f"{len(frame.data)} bytes, sequence {frame.sequence}"
+            )
+        else:
+            print("Step 11 SKIP camera unavailable: no camera reported by rpicam-hello")
     except HardwareError as error:
         print(f"Step 11 SKIP camera unavailable: {error}")
 
 print("\nStep 12 complete: exited the context manager; shutdown ran.")
 PY
 
-python3 /tmp/sparky_hil_check.py
+python3 sparky_hil_check.py
 ```
 
 Use the table below as the pass/fail contract while the script runs. Record the
@@ -280,7 +303,7 @@ request.
 | 8 | `robot.sensors.read_imu()` while tilting the dog | Acceleration axes change |
 | 9 | `robot.board.play_sound("single_bark_1")` | Audible through the speaker |
 | 10 | `robot.board.set_rgb(...)` then `clear_rgb()` | Strip lights, then goes dark |
-| 11 | `robot.camera.start()` then `capture()` | Returns a non-empty JPEG `Frame` |
+| 11 | `camera_available()`, then `robot.camera.start(width=640, height=480)` and `capture()` when present | Returns a non-empty JPEG `Frame`, or reports SKIP when no camera is attached |
 | 12 | Exit the `with` block | Servos safe-stopped, camera stopped, strip off |
 
 A failure in required step 1 or step 2 is an environment problem. A failure in
@@ -322,7 +345,9 @@ rejected on the robot.
 | `robot.sensors.read_distance_cm()` always returns `None` | Ultrasonic cable unseated; the adapter maps the vendor's negative error sentinel to `None` |
 | No audio | `i2samp.sh` was not run, or the Pi was not rebooted afterwards |
 | `_rgb_strip_thread Exception: Third argument must be a list of at least one, but not more than 32 integers` | Float RGB values reached the LED driver; current adapters pre-scale monochromatic brightness to integer channels before calling the vendor strip |
-| Camera `capture()` raises "vilib has not produced a frame yet" | The camera pipeline never produced a usable frame within the adapter's startup wait; check the camera ribbon, enablement, and Vilib/Picamera2 installation |
+| Camera `capture()` raises "vilib has not produced a frame yet" | Vilib starts asynchronously and no frame arrived; this usually means no camera is attached or the ribbon cable is loose. Run `rpicam-hello --list-cameras` on the Raspberry Pi to confirm |
+| `camera_available()` returns `False` or `rpicam-hello --list-cameras` says `No cameras available!` | No camera module is attached or detected. Continue without vision, or attach/seat the camera module and reboot before rerunning step 11 |
+| `robot.camera.start(width=..., height=...)` rejects a non-640x480 resolution | Vilib fixes capture at 640x480; request that native size and resize frames in application code if needed |
 
 ## Related documents
 

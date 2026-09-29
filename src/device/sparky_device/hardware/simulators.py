@@ -20,12 +20,15 @@ from .ports import (
     LEG_JOINT_COUNT,
     Frame,
     HardwareError,
+    HardwareUnavailableError,
     ImuReading,
     MotionLimits,
     RgbColor,
     RobotPorts,
     TouchState,
+    VILIB_CAPTURE_SIZE,
     validate_angles,
+    validate_camera_resolution,
     validate_rgb_style,
     validate_speed,
 )
@@ -270,10 +273,18 @@ def solid_frame(
 class SimulatedCamera:
     """Replays a fixed set of frames instead of driving ``vilib``."""
 
-    def __init__(self, frames: Iterable[Frame] | None = None) -> None:
-        self._source: list[Frame] = list(frames) if frames is not None else [solid_frame()]
+    def __init__(
+        self, frames: Iterable[Frame] | None = None, *, available: bool = True
+    ) -> None:
+        native_width, native_height = VILIB_CAPTURE_SIZE
+        self._source: list[Frame] = (
+            list(frames)
+            if frames is not None
+            else [solid_frame(width=native_width, height=native_height)]
+        )
         if not self._source:
             raise ValueError("SimulatedCamera requires at least one frame")
+        self._available = available
         self._cursor: Iterator[Frame] | None = None
         self._running = False
         self.width = 0
@@ -283,10 +294,9 @@ class SimulatedCamera:
         self.captured: list[Frame] = []
 
     def start(self, *, width: int = 640, height: int = 480) -> None:
-        if width <= 0 or height <= 0:
-            raise HardwareError(
-                f"capture dimensions must be positive, got {width}x{height}"
-            )
+        width, height = validate_camera_resolution(width, height)
+        if not self._available:
+            raise HardwareUnavailableError("simulated camera is not available")
         if self._running:
             return
         self._running = True
@@ -311,6 +321,9 @@ class SimulatedCamera:
 
     def is_running(self) -> bool:
         return self._running
+
+    def camera_available(self) -> bool:
+        return self._available
 
 
 class SimulatedSensors:

@@ -41,7 +41,9 @@ __all__ = [
     "SensorPort",
     "ServoRange",
     "TouchState",
+    "VILIB_CAPTURE_SIZE",
     "validate_angles",
+    "validate_camera_resolution",
     "validate_rgb_style",
     "validate_speed",
 ]
@@ -108,6 +110,11 @@ RGB_STYLES: Final[tuple[str, ...]] = (
 )
 _RGB_STYLE_SET: Final[frozenset[str]] = frozenset(RGB_STYLES)
 
+VILIB_CAPTURE_SIZE: Final[tuple[int, int]] = (640, 480)
+_VILIB_CAPTURE_SIZE_SET: Final[frozenset[tuple[int, int]]] = frozenset(
+    (VILIB_CAPTURE_SIZE,)
+)
+
 
 def validate_rgb_style(style: str) -> str:
     """Return ``style`` unchanged, or raise :class:`HardwareError`."""
@@ -118,6 +125,26 @@ def validate_rgb_style(style: str) -> str:
             + ", ".join(RGB_STYLES)
         )
     return style
+
+
+def validate_camera_resolution(width: int, height: int) -> tuple[int, int]:
+    """Return the native camera resolution, or raise :class:`HardwareError`."""
+
+    if width <= 0 or height <= 0:
+        raise HardwareError(
+            f"capture dimensions must be positive, got {width}x{height}"
+        )
+    resolution = (width, height)
+    if resolution not in _VILIB_CAPTURE_SIZE_SET:
+        native_width, native_height = VILIB_CAPTURE_SIZE
+        # A wrong resolution is a code defect, unlike an absent camera
+        # environment condition, so fail loudly before any side effect.
+        raise HardwareError(
+            "vilib fixes capture at "
+            f"{native_width}x{native_height}; requested {width}x{height} "
+            "cannot be honoured"
+        )
+    return (int(width), int(height))
 
 
 def validate_speed(speed: int, limits: MotionLimits = DEFAULT_LIMITS) -> int:
@@ -312,7 +339,7 @@ class CameraPort(Protocol):
     """Camera capture. Wraps ``vilib``."""
 
     def start(self, *, width: int = 640, height: int = 480) -> None:
-        """Start the capture pipeline. Must be idempotent."""
+        """Start the capture pipeline at vilib's fixed 640x480 resolution."""
 
     def capture(self) -> Frame:
         """Return the most recent frame, encoded."""
@@ -322,6 +349,9 @@ class CameraPort(Protocol):
 
     def is_running(self) -> bool:
         """Report whether capture is currently active."""
+
+    def camera_available(self) -> bool:
+        """Report whether a usable camera appears to be present."""
 
 
 @runtime_checkable
