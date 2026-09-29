@@ -26,6 +26,7 @@ from src.device.sparky_device.hardware import (
     ImuReading,
     MotionLimits,
     MotionPort,
+    MOTION_ACTIONS,
     PidogBoardAdapter,
     PidogMotionAdapter,
     PidogSensorAdapter,
@@ -46,6 +47,7 @@ from src.device.sparky_device.hardware import (
     create_ports,
     resolve_profile,
     solid_frame,
+    validate_action_name,
 )
 
 
@@ -243,6 +245,96 @@ class ProtocolConformanceTests(unittest.TestCase):
         self.assertIsInstance(PidogBoardAdapter(dog), BoardPort)
         self.assertIsInstance(VilibCameraAdapter(object()), CameraPort)
         self.assertIsInstance(PidogSensorAdapter(dog), SensorPort)
+
+
+class MotionActionValidationTests(unittest.TestCase):
+    def _adapter_and_simulator_outcome(self, action: str) -> tuple[tuple[bool, object], tuple[bool, object]]:
+        dog = FakePidog()
+        adapter = PidogMotionAdapter(dog)
+        simulator = SimulatedMotion()
+
+        try:
+            adapter.do_action(action)
+        except HardwareError as error:
+            adapter_outcome: tuple[bool, object] = (False, str(error))
+        else:
+            adapter_outcome = (True, dog.calls[-1][1])
+
+        try:
+            simulator.do_action(action)
+        except HardwareError as error:
+            simulator_outcome: tuple[bool, object] = (False, str(error))
+        else:
+            simulator_outcome = (True, simulator.commands[-1].name)
+
+        if not adapter_outcome[0]:
+            self.assertEqual(dog.calls, [])
+        if not simulator_outcome[0]:
+            self.assertEqual(simulator.commands, [])
+        return adapter_outcome, simulator_outcome
+
+    def test_validator_accepts_every_canonical_motion_action(self) -> None:
+        for action in MOTION_ACTIONS:
+            with self.subTest(action=action):
+                self.assertEqual(validate_action_name(action), action)
+
+    def test_adapter_and_simulator_accept_every_canonical_motion_action(self) -> None:
+        for action in MOTION_ACTIONS:
+            with self.subTest(action=action):
+                adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome(action)
+                self.assertEqual(adapter_outcome, (True, action))
+                self.assertEqual(simulator_outcome, (True, action))
+
+    def test_space_form_is_accepted_and_normalised(self) -> None:
+        self.assertEqual(validate_action_name("wag tail"), "wag_tail")
+        adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome("wag tail")
+        self.assertEqual(adapter_outcome, (True, "wag_tail"))
+        self.assertEqual(simulator_outcome, (True, "wag_tail"))
+
+    def test_rejects_typo_without_side_effect(self) -> None:
+        adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome("sitt")
+        self.assertFalse(adapter_outcome[0])
+        self.assertFalse(simulator_outcome[0])
+        self.assertIn("sitt", adapter_outcome[1])
+
+    def test_rejects_wrong_case_with_helpful_suggestion(self) -> None:
+        with self.assertRaisesRegex(HardwareError, "did you mean 'stand'"):
+            validate_action_name("Stand")
+        adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome("Stand")
+        self.assertFalse(adapter_outcome[0])
+        self.assertFalse(simulator_outcome[0])
+        self.assertIn("stand", adapter_outcome[1])
+
+    def test_rejects_reachable_non_action_methods_without_side_effect(self) -> None:
+        for action in ("set_height", "set_barycenter"):
+            with self.subTest(action=action):
+                adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome(action)
+                self.assertFalse(adapter_outcome[0])
+                self.assertFalse(simulator_outcome[0])
+
+    def test_rejects_injection_shaped_action_without_side_effect(self) -> None:
+        action = "__class__.__mro__"
+        adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome(action)
+        self.assertFalse(adapter_outcome[0])
+        self.assertFalse(simulator_outcome[0])
+        self.assertIn(action, adapter_outcome[1])
+
+    def test_adapter_and_simulator_action_domain_parity(self) -> None:
+        cases = (
+            *MOTION_ACTIONS,
+            "wag tail",
+            "sitt",
+            "Stand",
+            "set_height",
+            "set_barycenter",
+            "__class__.__mro__",
+        )
+        for action in cases:
+            with self.subTest(action=action):
+                adapter_outcome, simulator_outcome = self._adapter_and_simulator_outcome(action)
+                self.assertEqual(adapter_outcome[0], simulator_outcome[0])
+                if adapter_outcome[0]:
+                    self.assertEqual(adapter_outcome[1], simulator_outcome[1])
 
 
 class SimulatedMotionTests(unittest.TestCase):

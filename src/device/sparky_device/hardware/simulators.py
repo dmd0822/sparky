@@ -28,6 +28,7 @@ from .ports import (
     TouchState,
     VILIB_CAPTURE_SIZE,
     validate_angles,
+    validate_action_name,
     validate_camera_resolution,
     validate_rgb_style,
     validate_speed,
@@ -105,8 +106,7 @@ class SimulatedMotion:
         )
 
     def do_action(self, action: str, *, steps: int = 1, speed: int = 50) -> None:
-        if not action or not action.strip():
-            raise HardwareError("action name must not be empty")
+        action = validate_action_name(action)
         if steps < 1:
             raise HardwareError(f"steps must be at least 1, got {steps}")
         self._record(
