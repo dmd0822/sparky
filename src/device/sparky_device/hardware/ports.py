@@ -33,6 +33,7 @@ __all__ = [
     "HEAD_JOINT_COUNT",
     "ImuReading",
     "LEG_JOINT_COUNT",
+    "MOTION_ACTIONS",
     "MotionLimits",
     "MotionPort",
     "RgbColor",
@@ -43,6 +44,7 @@ __all__ = [
     "TouchState",
     "VILIB_CAPTURE_SIZE",
     "validate_angles",
+    "validate_action_name",
     "validate_camera_resolution",
     "validate_rgb_style",
     "validate_speed",
@@ -115,6 +117,34 @@ _VILIB_CAPTURE_SIZE_SET: Final[frozenset[tuple[int, int]]] = frozenset(
     (VILIB_CAPTURE_SIZE,)
 )
 
+MOTION_ACTIONS: Final[tuple[str, ...]] = (
+    "stand",
+    "sit",
+    "lie",
+    "lie_with_hands_out",
+    "half_sit",
+    "forward",
+    "backward",
+    "turn_left",
+    "turn_right",
+    "trot",
+    "stretch",
+    "push_up",
+    "doze_off",
+    "nod_lethargy",
+    "shake_head",
+    "tilting_head_left",
+    "tilting_head_right",
+    "tilting_head",
+    "head_bark",
+    "wag_tail",
+    "head_up_down",
+)
+_MOTION_ACTION_SET: Final[frozenset[str]] = frozenset(MOTION_ACTIONS)
+_MOTION_ACTION_CASEFOLD: Final[dict[str, str]] = {
+    action.casefold(): action for action in MOTION_ACTIONS
+}
+
 
 def validate_rgb_style(style: str) -> str:
     """Return ``style`` unchanged, or raise :class:`HardwareError`."""
@@ -125,6 +155,24 @@ def validate_rgb_style(style: str) -> str:
             + ", ".join(RGB_STYLES)
         )
     return style
+
+
+def validate_action_name(action: str) -> str:
+    """Return the normalised vendor motion action, or raise :class:`HardwareError`."""
+
+    if not action or not action.strip():
+        raise HardwareError("action name must not be empty")
+    normalised = action.replace(" ", "_")
+    if normalised not in _MOTION_ACTION_SET:
+        suggestion = _MOTION_ACTION_CASEFOLD.get(normalised.casefold())
+        message = (
+            f"motion action {action!r} is invalid; expected one of: "
+            + ", ".join(MOTION_ACTIONS)
+        )
+        if suggestion is not None:
+            message += f"; did you mean {suggestion!r}?"
+        raise HardwareError(message)
+    return normalised
 
 
 def validate_camera_resolution(width: int, height: int) -> tuple[int, int]:

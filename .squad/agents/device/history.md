@@ -16,3 +16,5 @@
 📌 RGB monochromatic hardware fix (2026-09-28T16:45:35-04:00): PiDog vendor monochromatic RGB style multiplies channels by brightness without casting back to int, so float brightness silently kills the strip thread on real hardware. The adapter now pre-scales monochromatic colours to integer channels and passes vendor brightness=1, while simulators continue recording the caller's original RGB intent.
 
 📌 Camera contract hardening (2026-09-29T09:39:43-04:00): Made the camera port honest about Vilib's fixed 640x480 capture size, shared resolution validation between the PiDog adapter and simulator, added camera_available() for optional-camera flows, improved no-frame guidance for camera-less PiDog benches, and ensured failed Vilib starts clean up with camera_close().
+
+📌 Motion action domain hardening (2026-09-29T09:50:26-04:00): Closed the fifth simulator-vs-vendor value-domain defect by moving PiDog motion action names into the hardware contract, sharing validation between adapter and simulator, preserving vendor-supported space forms via underscore normalisation, and rejecting typos/non-actions/eval-shaped input before any side effect.

@@ -46,7 +46,6 @@
 **What:** Deployment documentation that contains copyable shell commands should provide paired **Bash / zsh** and **PowerShell** fenced blocks instead of assuming one shell.
 **Why:** Sparky maintainers run setup from both Unix-like shells and Windows PowerShell. Bash assignments, `$VAR` expansion, trailing `\` continuations, heredocs, and Unix utilities do not execute in PowerShell, so future deployment docs need explicit shell-specific variants while preserving the Bash experience.
 
-
 ### 2026-09-25: GitHub Actions Azure IDs are secrets, deployment settings are variables
 **By:** Docs
 **What:** Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` as GitHub repository secrets. Store `AZURE_RESOURCE_GROUP` and `AZURE_LOCATION` as GitHub repository variables. Workflow YAML must read the three IDs from `secrets.*` and the resource settings from `vars.*`.
@@ -71,7 +70,6 @@
 **What:** The baseline keeps the relay Container App on a public placeholder image and documents that future private ACR images need pre-granted AcrPull or a two-phase identity/RBAC deployment. No `dependsOn` was added because the current role assignment needs the app's system-assigned principal ID, so making the app depend on that assignment would create a cycle.
 **Why:** The current baseline is safe for the public image, but private-image cutover must avoid an identity/RBAC propagation race without broadening permissions or adding key fallback.
 
-
 ### 2026-09-28T12:26:41-04:00: Treat redacted Authorization output as unknown
 **By:** Scribe
 **What:** The agent harness redacts values that appear after the `Authorization:` header name, and likely other credential-shaped patterns, in tool output such as file views and grep results.
@@ -93,17 +91,21 @@
 **What:** A missing or failed peripheral must degrade to a reported SKIP, never abort the hardware-in-the-loop bench and never be silently passed. Vendor libraries may raise non-ImportError exceptions at import time (vilib constructs Picamera2 in its class body), so adapter loaders must convert any vendor failure into HardwareUnavailableError with actionable recovery steps. Lazy vendor imports in adapter constructors are load-bearing: they are what allows a robot missing one peripheral to keep using every other port.
 **Why:** The first real PiDog hardware signal showed that a camera-less robot can still exercise motion, board, and sensor ports when vendor imports remain lazy and vendor failures are normalized into recoverable hardware-unavailable errors.
 
-### 2026-09-28T16:26:51-04:00: Keep simulator value domains identical to hardware
-**By:** Scribe
-**What:** A simulator must never accept a value the real hardware rejects. Any constrained value domain belongs in the contract layer (`ports.py`), shared by the adapter and the simulator, so the two cannot drift. Validate before any side effect, and raise `HardwareError` naming the invalid value and listing the valid ones.
-**Why:** A permissive simulator does not merely miss bugs; it actively manufactures false confidence and invalidates the triage rule that a hardware-only failure implicates the adapter layer.
 ### 2026-09-28T16:45:35-04:00: Treat vendor background-thread calls and per-style RGB quirks as adapter contracts
 **By:** Scribe
 **What:** PiDog RGB adapter code must treat vendor calls that dispatch work to background threads as having no reliable synchronous failure signal. Bench steps that print "complete" are not proof that hardware acted. Adapter workarounds must encode per-call vendor quirks instead of assuming uniform behavior across a vendor API, and each workaround needs an inline comment explaining why it exists.
 **Why:** The third consecutive real-hardware defect missed by simulator-based tests was silent: `pidog` swallowed a ws2812/SPI type error inside `_rgb_strip_thread`, so the HIL bench reported step 10 complete while the strip stayed dark. The vendor library was also internally inconsistent: five of six RGB styles cast scaled channel values to `int`, but `monochromatic()` did not, causing any float brightness — including the default `1.0` — to send float RGB values that the driver rejects.
 **References:** PR #60, commit `0152ecc`, `src/device/sparky_device/pidog_adapters.py`, `tests/test_hardware_ports.py`, `docs/running-on-the-pi.md`
 
-### 2026-09-29T09:39:43-04:00: Keep camera resolution constraints in the port contract
+### 2026-09-29T09:50:26-04:00: Constrained vendor value domains belong in hardware contracts (consolidated)
+**By:** Scribe, Device
+**What:** Constrained PiDog vendor value domains belong in the hardware contract layer (`ports.py`), shared by both hardware adapters and simulators, and must be validated before any hardware or simulator side effect. This pattern now covers five confirmed parity failures: RGB style handling, RGB brightness/channel coercion, camera resolution, camera import/peripheral availability, and motion action names. Motion action names are now enforced through the shared `MOTION_ACTIONS` allow-list and `validate_action_name`, with space-separated caller input normalized to underscores and invalid names rejected loudly.
+**Why:** A simulator with a wider value domain than the vendor does not merely miss bugs; it manufactures false confidence and invalidates the runbook triage rule that `simulator passes + hardware fails` implicates only the adapter. The vendor `do_action` implementation catches bare `Exception`, so bad action names can never raise to callers and instead fail silently. The vendor also resolves action names through `eval()`, so the contract-layer allow-list closes an injection hole before user input reaches the vendor call.
+**References:** PR #62, commit `e8bef6a`, `src/device/sparky_device/hardware/ports.py`, `src/device/sparky_device/hardware/pidog_adapters.py`, `src/device/sparky_device/hardware/simulators.py`, `tests/test_hardware_ports.py`, `docs/running-on-the-pi.md`
+
+#### Source inbox entries
+
+#### 2026-09-29: Motion action names are a shared contract domain
 **By:** Device
-**What:** Vilib camera capture is fixed at 640x480, so `CameraPort.start()` now validates requested dimensions in `ports.py` before either the hardware adapter or simulator performs side effects. Unsupported resolutions fail loudly in both layers.
-**Why:** This is the fourth hardware-only failure caused by the simulator accepting a wider value domain than the vendor can honour. The systemic fix is the same every time: put vendor value-domain constraints in `ports.py`, share the validator across adapter and simulator, and validate before side effects so simulator success cannot manufacture false confidence.
+**What:** PiDog motion action names now live in the hardware contract layer as a fixed allow-list, with one shared validator used by both the PiDog adapter and the simulator. Space-separated caller input is normalised to underscores, but typos, wrong case, non-action helper methods, and eval-shaped strings are rejected before any side effect.
+**Why:** This is the fifth instance of the same defect class: the simulator accepted a value domain that the vendor could not honour. The shared-validator pattern keeps simulator and hardware parity, makes failures loud, and closes the vendor `eval()` injection surface by never forwarding unchecked action names.

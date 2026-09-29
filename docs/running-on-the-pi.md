@@ -136,6 +136,17 @@ SunFounder Vilib fixes capture at 640x480. The Sparky camera port rejects any
 other requested resolution before touching the vendor library so simulator runs
 cannot accept a shape that the real PiDog cannot deliver.
 
+Valid motion action names are constrained to the SunFounder PiDog actions the
+vendor library can actually honour. Use the canonical underscore form when
+possible; space-separated forms such as `wag tail` are accepted and normalised
+to `wag_tail` before the adapter touches the vendor object.
+
+`stand`, `sit`, `lie`, `lie_with_hands_out`, `half_sit`, `forward`,
+`backward`, `turn_left`, `turn_right`, `trot`, `stretch`, `push_up`,
+`doze_off`, `nod_lethargy`, `shake_head`, `tilting_head_left`,
+`tilting_head_right`, `tilting_head`, `head_bark`, `wag_tail`,
+`head_up_down`
+
 ### Choosing a hardware profile
 
 `SPARKY_HARDWARE` selects the implementation behind the ports.
@@ -344,6 +355,7 @@ rejected on the robot.
 | Servos twitch but the dog does not move | Battery low or powered through USB only |
 | `robot.sensors.read_distance_cm()` always returns `None` | Ultrasonic cable unseated; the adapter maps the vendor's negative error sentinel to `None` |
 | No audio | `i2samp.sh` was not run, or the Pi was not rebooted afterwards |
+| `robot.motion.do_action(...)` raises `HardwareError`, or an older script silently ignored an action | The action name is not one of the supported PiDog actions, has the wrong case, or names a non-action helper such as `set_height`; use one of the documented valid action names |
 | `_rgb_strip_thread Exception: Third argument must be a list of at least one, but not more than 32 integers` | Float RGB values reached the LED driver; current adapters pre-scale monochromatic brightness to integer channels before calling the vendor strip |
 | Camera `capture()` raises "vilib has not produced a frame yet" | Vilib starts asynchronously and no frame arrived; this usually means no camera is attached or the ribbon cable is loose. Run `rpicam-hello --list-cameras` on the Raspberry Pi to confirm |
 | `camera_available()` returns `False` or `rpicam-hello --list-cameras` says `No cameras available!` | No camera module is attached or detected. Continue without vision, or attach/seat the camera module and reboot before rerunning step 11 |
