@@ -322,6 +322,67 @@ optional camera import or step 11 means only camera validation is blocked. A
 failure in steps 3–10 or 12 with the equivalent simulator test passing points at the adapter layer in
 `sparky_device/hardware/pidog_adapters.py`.
 
+### Motion service smoke check
+
+Run this service-layer extension after the port checklist when motion-service
+code changes. It validates the planner-facing API above the raw motion port:
+commands reject conflicts instead of queueing behind active motion, `stop()`
+pre-empts immediately and is safe when repeated, and locomotion from `sit` or
+`lie` is rejected until an explicit `stand` request succeeds.
+
+```bash
+cat > sparky_motion_service_check.py <<'PY'
+from sparky_device.hardware import HardwareError, create_ports
+from sparky_device.services import MotionService
+
+
+with create_ports() as robot:
+    motion = MotionService(robot.motion)
+
+    print("Step 13: service sit.")
+    motion.sit(speed=50)
+    motion.wait_until_idle(timeout=10)
+
+    print("Step 14: service rejects trot while sitting.")
+    try:
+        motion.trot(steps=1, speed=40)
+    except HardwareError as error:
+        print(f"Step 14 PASS rejected: {error}")
+    else:
+        raise SystemExit("Step 14 FAIL: trot from sit was accepted")
+
+    print("Step 15: service stand, then slow forward gait.")
+    motion.stand(speed=50)
+    motion.wait_until_idle(timeout=10)
+    motion.forward(steps=5, speed=30)
+
+    print("Step 16: service rejects a conflicting turn while forward is in flight.")
+    try:
+        motion.turn_left(steps=1, speed=30)
+    except HardwareError as error:
+        print(f"Step 16 PASS rejected: {error}")
+    else:
+        raise SystemExit("Step 16 FAIL: conflicting turn was accepted")
+
+    print("Step 17: service stop pre-empts and is idempotent.")
+    motion.stop()
+    motion.stop()
+    motion.wait_until_idle(timeout=3)
+
+print("Motion service smoke check complete; shutdown ran.")
+PY
+
+python3 sparky_motion_service_check.py
+```
+
+| # | Check | Expected result |
+| --- | --- | --- |
+| 13 | `MotionService.sit()` then `wait_until_idle()` | Dog sits, service state settles |
+| 14 | `MotionService.trot()` while posture is sitting | Raises `HardwareError`; no new motion starts |
+| 15 | `MotionService.stand()` then `forward()` | Dog stands, then starts a slow forward gait |
+| 16 | `MotionService.turn_left()` while forward is in flight | Raises `HardwareError`; the service does not queue the turn |
+| 17 | `MotionService.stop()` twice | Motion halts immediately; the second stop is a safe no-op |
+
 ## Running without a Pi
 
 Every port has a simulator, so the full test suite runs on any machine:
