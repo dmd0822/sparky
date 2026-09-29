@@ -72,7 +72,7 @@ package and docs instead:
 ```bash
 git clone --filter=blob:none --sparse https://github.com/dmd0822/sparky.git
 cd sparky
-git sparse-checkout set src/device docs
+git sparse-checkout set src/device docs scripts
 ```
 
 This sparse checkout is about 0.3 MB versus the full repo, and `src/device/` is
