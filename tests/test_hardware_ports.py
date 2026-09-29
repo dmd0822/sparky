@@ -39,6 +39,7 @@ from src.device.sparky_device.hardware import (
     SimulatedMotion,
     SimulatedSensors,
     TouchState,
+    VILIB_CAPTURE_SIZE,
     VilibCameraAdapter,
     build_pidog_ports,
     build_simulated_ports,
@@ -401,6 +402,28 @@ class SimulatedCameraTests(unittest.TestCase):
         with self.assertRaises(HardwareError):
             SimulatedCamera().start(width=0, height=480)
 
+    def test_accepts_only_native_resolution(self) -> None:
+        native_width, native_height = VILIB_CAPTURE_SIZE
+        camera = SimulatedCamera()
+        camera.start(width=native_width, height=native_height)
+        self.assertTrue(camera.is_running())
+        self.assertEqual((camera.width, camera.height), VILIB_CAPTURE_SIZE)
+
+        for width, height in ((native_width * 2, native_height), (native_width, native_height * 2)):
+            with self.subTest(width=width, height=height):
+                rejected = SimulatedCamera()
+                with self.assertRaisesRegex(HardwareError, "vilib fixes capture at 640x480"):
+                    rejected.start(width=width, height=height)
+                self.assertFalse(rejected.is_running())
+                self.assertEqual(rejected.start_count, 0)
+
+    def test_camera_available_reports_simulated_absence(self) -> None:
+        self.assertTrue(SimulatedCamera().camera_available())
+        unavailable = SimulatedCamera(available=False)
+        self.assertFalse(unavailable.camera_available())
+        with self.assertRaises(HardwareUnavailableError):
+            unavailable.start()
+
     def test_requires_at_least_one_frame(self) -> None:
         with self.assertRaises(ValueError):
             SimulatedCamera([])
@@ -727,6 +750,12 @@ class FakeVilib:
         self.closed += 1
 
 
+class FailingCameraStartVilib(FakeVilib):
+    def camera_start(self, vflip=False, hflip=False):
+        self.started += 1
+        raise RuntimeError("camera thread failed")
+
+
 class VilibCameraAdapterTests(unittest.TestCase):
     def test_start_stop_lifecycle_is_idempotent(self) -> None:
         vilib = FakeVilib()
@@ -771,12 +800,53 @@ class VilibCameraAdapterTests(unittest.TestCase):
             frame_poll_interval=0.001,
         )
         camera.start()
-        with self.assertRaises(HardwareError):
+        with self.assertRaisesRegex(HardwareError, "rpicam-hello --list-cameras"):
             camera.capture()
 
     def test_rejects_non_positive_dimensions(self) -> None:
         with self.assertRaises(HardwareError):
             VilibCameraAdapter(FakeVilib()).start(width=640, height=-1)
+
+    def test_accepts_only_native_resolution(self) -> None:
+        native_width, native_height = VILIB_CAPTURE_SIZE
+        vilib = FakeVilib()
+        camera = VilibCameraAdapter(vilib)
+        camera.start(width=native_width, height=native_height)
+        self.assertTrue(camera.is_running())
+        self.assertEqual((camera.width, camera.height), VILIB_CAPTURE_SIZE)
+        self.assertEqual(vilib.started, 1)
+
+        for width, height in ((native_width * 2, native_height), (native_width, native_height * 2)):
+            with self.subTest(width=width, height=height):
+                rejected_vilib = FakeVilib()
+                rejected = VilibCameraAdapter(rejected_vilib)
+                with self.assertRaisesRegex(HardwareError, "vilib fixes capture at 640x480"):
+                    rejected.start(width=width, height=height)
+                self.assertEqual(rejected_vilib.started, 0)
+                self.assertFalse(rejected.is_running())
+
+    def test_camera_start_failure_closes_vendor_and_keeps_state_consistent(self) -> None:
+        vilib = FailingCameraStartVilib()
+        camera = VilibCameraAdapter(vilib)
+        with self.assertRaisesRegex(RuntimeError, "camera thread failed"):
+            camera.start()
+        self.assertEqual(vilib.started, 1)
+        self.assertEqual(vilib.closed, 1)
+        self.assertFalse(camera.is_running())
+
+    def test_camera_available_uses_probe_and_loader(self) -> None:
+        from src.device.sparky_device.hardware import pidog_adapters
+
+        original_probe = pidog_adapters._rpicam_detects_camera
+        try:
+            pidog_adapters._rpicam_detects_camera = lambda: False
+            self.assertFalse(VilibCameraAdapter(FakeVilib()).camera_available())
+            pidog_adapters._rpicam_detects_camera = lambda: True
+            self.assertTrue(VilibCameraAdapter(FakeVilib()).camera_available())
+            pidog_adapters._rpicam_detects_camera = lambda: None
+            self.assertTrue(VilibCameraAdapter(FakeVilib()).camera_available())
+        finally:
+            pidog_adapters._rpicam_detects_camera = original_probe
 
 
 class VendorLoaderTests(unittest.TestCase):

@@ -48,6 +48,9 @@ from .ports import (
     SensorPort,
     ServoRange,
     TouchState,
+    VILIB_CAPTURE_SIZE,
+    validate_camera_resolution,
+    validate_rgb_style,
 )
 from .simulators import (
     MotionCommand,
@@ -94,11 +97,14 @@ __all__ = [
     "SimulatedSensors",
     "SoundCommand",
     "TouchState",
+    "VILIB_CAPTURE_SIZE",
     "VilibCameraAdapter",
     "build_pidog_ports",
     "build_simulated_ports",
     "create_ports",
     "resolve_profile",
     "solid_frame",
+    "validate_camera_resolution",
+    "validate_rgb_style",
     "vendor_libraries_available",
 ]

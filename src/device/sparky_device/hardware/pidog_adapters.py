@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import threading
 import time
+import subprocess
 from typing import Any, Sequence
 
 from .ports import (
@@ -28,6 +29,7 @@ from .ports import (
     MotionLimits,
     RgbColor,
     RobotPorts,
+    validate_camera_resolution,
     validate_rgb_style,
     TouchState,
     validate_angles,
@@ -308,6 +310,7 @@ class VilibCameraAdapter:
         frame_poll_interval: float = _CAMERA_FRAME_POLL_INTERVAL_SECONDS,
     ) -> None:
         self._vilib = vilib
+        self._vilib_injected = vilib is not None
         self._vflip = vflip
         self._hflip = hflip
         self._first_frame_timeout = first_frame_timeout
@@ -323,14 +326,20 @@ class VilibCameraAdapter:
         return self._vilib
 
     def start(self, *, width: int = 640, height: int = 480) -> None:
-        if width <= 0 or height <= 0:
-            raise HardwareError(
-                f"capture dimensions must be positive, got {width}x{height}"
-            )
+        width, height = validate_camera_resolution(width, height)
         if self._running:
             return
         library = self._library()
-        library.camera_start(vflip=self._vflip, hflip=self._hflip)
+        try:
+            library.camera_start(vflip=self._vflip, hflip=self._hflip)
+        except Exception:
+            # camera_start may spawn vendor work before surfacing an error, so
+            # always ask vilib to tear down even though this adapter is not running.
+            try:
+                library.camera_close()
+            except Exception:
+                pass
+            raise
         self._running = True
         self.width = width
         self.height = height
@@ -356,7 +365,12 @@ class VilibCameraAdapter:
             if image is not None:
                 return image
             if time.monotonic() >= deadline:
-                raise HardwareError("vilib has not produced a frame yet")
+                raise HardwareError(
+                    "vilib has not produced a frame yet. Vilib starts the camera "
+                    "asynchronously; this usually means no camera is attached or "
+                    "the ribbon cable is loose. Run "
+                    "'rpicam-hello --list-cameras' on the Raspberry Pi to confirm."
+                )
             time.sleep(self._frame_poll_interval)
 
     def stop(self) -> None:
@@ -367,6 +381,39 @@ class VilibCameraAdapter:
 
     def is_running(self) -> bool:
         return self._running
+
+    def camera_available(self) -> bool:
+        probe = _rpicam_detects_camera()
+        if probe is not None:
+            return probe
+        try:
+            self._library()
+        except HardwareUnavailableError:
+            return False
+        # camera_start() fails asynchronously, so a clean import alone cannot
+        # prove physical availability unless a test double was injected.
+        return self._vilib_injected
+
+
+def _rpicam_detects_camera() -> bool | None:
+    """Probe camera presence without starting vilib's asynchronous pipeline."""
+
+    try:
+        completed = subprocess.run(
+            ["rpicam-hello", "--list-cameras"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return None
+    output = f"{completed.stdout}\n{completed.stderr}".lower()
+    if "no cameras available" in output:
+        return False
+    if completed.returncode == 0 and output.strip():
+        return True
+    return None
 
 
 def _encode_jpeg(image: Any) -> tuple[bytes, int, int]:
