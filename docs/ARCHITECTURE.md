@@ -10,6 +10,11 @@ Sparky is an AI-powered robot dog built on the SunFounder PiDog platform. The ph
 
 The device runtime also applies a local persona framework that shapes prompts, voice, movement, reactions, and sound effects without weakening global safety constraints.
 
+Device application code is layered above a hardware seam: planners call
+service-level APIs such as `sparky_device.services.MotionService`, services
+depend only on `sparky_device.hardware.ports` protocols, and only
+`sparky_device.hardware.pidog_adapters` imports SunFounder packages.
+
 Azure provides the cloud intelligence layer:
 
 - chat/reasoning via Microsoft Foundry model deployments
@@ -194,7 +199,8 @@ The single-region target is viable for the planned baseline:
 ├── src/
 │   ├── device/
 │   │   ├── sparky_device/      # Pi runtime and hardware adapters
-│   │   │   └── personas/       # Declarative persona manifests and local assets
+│   │   │   ├── personas/       # Declarative persona manifests and local assets
+│   │   │   └── services/       # Planner-facing device services above hardware ports
 │   │   └── tests/
 │   ├── cloud/
 │   │   ├── sparky_relay/       # Entra-protected relay API

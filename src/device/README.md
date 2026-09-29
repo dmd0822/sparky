@@ -26,6 +26,32 @@ with create_ports() as robot:
 | `pidog_adapters.py` | Vendor adapters; the only module that imports SunFounder packages |
 | `factory.py` | `create_ports()` and the `SPARKY_HARDWARE` profile switch |
 
+## Motion service
+
+`sparky_device.services.MotionService` is the planner-facing layer above
+`MotionPort`. It exposes explicit operations instead of raw action strings,
+rejects conflicting non-stop commands while motion is in flight, always lets
+`stop()` pre-empt immediately, and requires an explicit `stand()` before
+locomotion from `sit` or `lie`.
+
+```python
+from sparky_device.hardware import create_ports
+from sparky_device.services import MotionService
+
+with create_ports() as robot:
+    motion = MotionService(robot.motion)
+    motion.sit()
+    motion.wait_until_idle(timeout=10)
+    motion.stand()
+    motion.wait_until_idle(timeout=10)
+    motion.forward(steps=3, speed=35)
+    motion.stop()
+```
+
+| Module | Purpose |
+| --- | --- |
+| `services/motion.py` | Service-level posture and locomotion commands with conflict handling |
+
 Set `SPARKY_HARDWARE` to `pidog`, `simulator`, or `auto` (the default) to choose
 the implementation. Vendor imports are lazy, so this package imports cleanly on
 a machine with no robot attached.

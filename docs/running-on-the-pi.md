@@ -322,6 +322,43 @@ optional camera import or step 11 means only camera validation is blocked. A
 failure in steps 3–10 or 12 with the equivalent simulator test passing points at the adapter layer in
 `sparky_device/hardware/pidog_adapters.py`.
 
+### Motion service smoke check
+
+Run this service-layer extension after the port checklist when motion-service
+code changes. It validates the planner-facing API above the raw motion port:
+commands reject conflicts instead of queueing behind active motion, `stop()`
+pre-empts immediately and is safe when repeated, and locomotion from `sit` or
+`lie` is rejected until an explicit `stand` request succeeds.
+
+The runnable script lives in `scripts/motion_service_hil.py` so operators do
+not need to copy Python out of this document. Rehearse it off-robot first:
+
+```bash
+python scripts/motion_service_hil.py --simulate --yes
+```
+
+Then run the same script against the PiDog from the repository root on the Pi:
+
+```bash
+export PYTHONPATH="$PWD/src/device"
+export SPARKY_HARDWARE=pidog
+python scripts/motion_service_hil.py
+```
+
+The real-hardware run pauses before standing and gait steps so the operator can
+clear the area, support the dog with legs clear, and abort with Ctrl+C. Use
+`--yes` only when the bench is already safe and unattended prompts would get in
+the way. Any normal exit, failure, or Ctrl+C attempts to safe-stop motion and
+close the ports before the script reports PASS or FAIL.
+
+| # | Check | Expected result |
+| --- | --- | --- |
+| 13 | `MotionService.sit()` then `wait_until_idle()` | Dog sits, service state settles |
+| 14 | `MotionService.trot()` while posture is sitting | Raises `HardwareError`; no new motion starts |
+| 15 | `MotionService.stand()` then `forward()` | Dog stands, then starts a slow forward gait |
+| 16 | `MotionService.turn_left()` while forward is in flight | Raises `HardwareError`; the service does not queue the turn |
+| 17 | `MotionService.stop()` twice | Motion halts immediately; the second stop is a safe no-op |
+
 ## Running without a Pi
 
 Every port has a simulator, so the full test suite runs on any machine:
