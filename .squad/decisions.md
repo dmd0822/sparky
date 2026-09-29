@@ -102,3 +102,8 @@
 **What:** PiDog RGB adapter code must treat vendor calls that dispatch work to background threads as having no reliable synchronous failure signal. Bench steps that print "complete" are not proof that hardware acted. Adapter workarounds must encode per-call vendor quirks instead of assuming uniform behavior across a vendor API, and each workaround needs an inline comment explaining why it exists.
 **Why:** The third consecutive real-hardware defect missed by simulator-based tests was silent: `pidog` swallowed a ws2812/SPI type error inside `_rgb_strip_thread`, so the HIL bench reported step 10 complete while the strip stayed dark. The vendor library was also internally inconsistent: five of six RGB styles cast scaled channel values to `int`, but `monochromatic()` did not, causing any float brightness — including the default `1.0` — to send float RGB values that the driver rejects.
 **References:** PR #60, commit `0152ecc`, `src/device/sparky_device/pidog_adapters.py`, `tests/test_hardware_ports.py`, `docs/running-on-the-pi.md`
+
+### 2026-09-29T09:39:43-04:00: Keep camera resolution constraints in the port contract
+**By:** Device
+**What:** Vilib camera capture is fixed at 640x480, so `CameraPort.start()` now validates requested dimensions in `ports.py` before either the hardware adapter or simulator performs side effects. Unsupported resolutions fail loudly in both layers.
+**Why:** This is the fourth hardware-only failure caused by the simulator accepting a wider value domain than the vendor can honour. The systemic fix is the same every time: put vendor value-domain constraints in `ports.py`, share the validator across adapter and simulator, and validate before side effects so simulator success cannot manufacture false confidence.
