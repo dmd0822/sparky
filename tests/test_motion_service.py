@@ -10,6 +10,9 @@ from src.device.sparky_device.hardware import HardwareError, SimulatedMotion
 from src.device.sparky_device.services import MotionService, Posture
 
 
+ROOT = Path(__file__).parents[1]
+
+
 class MotionServiceTranslationTests(unittest.TestCase):
     def test_service_operations_translate_to_expected_motion_actions(self) -> None:
         cases = (
@@ -130,7 +133,7 @@ class MotionServiceSafetyTests(unittest.TestCase):
 
 class MotionServiceImportTests(unittest.TestCase):
     def test_motion_service_does_not_import_vendor_libraries(self) -> None:
-        source = Path("src\\device\\sparky_device\\services\\motion.py").read_text()
+        source = (ROOT / "src" / "device" / "sparky_device" / "services" / "motion.py").read_text()
         tree = ast.parse(source)
         imported_roots: set[str] = set()
         for node in ast.walk(tree):

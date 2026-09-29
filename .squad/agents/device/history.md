@@ -20,3 +20,5 @@
 📌 Motion action domain hardening (2026-09-29T09:50:26-04:00): Closed the fifth simulator-vs-vendor value-domain defect by moving PiDog motion action names into the hardware contract, sharing validation between adapter and simulator, preserving vendor-supported space forms via underscore normalisation, and rejecting typos/non-actions/eval-shaped input before any side effect.
 
 📌 Motion service implementation (2026-09-29T10:13:04.815-04:00): Added `sparky_device.services.MotionService` for explicit stand/sit/lie/trot/forward/backward/turn/stop operations above `MotionPort`. The service rejects conflicting in-flight commands, honours stop immediately and idempotently, requires explicit stand before locomotion from seated/lying postures, and documents HIL smoke validation for issue #6.
+
+📌 Test path portability lesson (2026-09-29T10:13:04.815-04:00): Repo tests must use `ROOT = Path(__file__).parents[1]` and `/` path joins, never OS-specific separators or CWD-relative paths — CI is ubuntu-latest.
