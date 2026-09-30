@@ -13,6 +13,9 @@ from typing import Any, Mapping
 COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
 DEFAULT_RELAY_AUDIENCE = "api://AzureADTokenExchange"
 DEFAULT_DEVICE_SCOPE = f"{DEFAULT_RELAY_AUDIENCE}/.default"
+DEFAULT_FOUNDRY_ENDPOINT = ""
+DEFAULT_VISION_DEPLOYMENT = ""
+DEFAULT_VISION_API_VERSION = "2024-10-21"
 
 _FORBIDDEN_DEVICE_SCOPE_AUDIENCES = (
     "https://cognitiveservices.azure.com",
@@ -32,6 +35,9 @@ class AzureRelayConfig:
     device_scope: str = DEFAULT_DEVICE_SCOPE
     foundry_scope: str = COGNITIVE_SERVICES_SCOPE
     speech_scope: str = COGNITIVE_SERVICES_SCOPE
+    foundry_endpoint: str = DEFAULT_FOUNDRY_ENDPOINT
+    vision_deployment: str = DEFAULT_VISION_DEPLOYMENT
+    vision_api_version: str = DEFAULT_VISION_API_VERSION
 
     def __post_init__(self) -> None:
         assert_device_scope_is_relay_audience(self.device_scope)
@@ -64,6 +70,9 @@ class AzureRelayConfig:
                 "SPARKY_SPEECH_SCOPE",
                 values.get("AZURE_COGNITIVE_SCOPE", COGNITIVE_SERVICES_SCOPE),
             ),
+            foundry_endpoint=values.get("SPARKY_FOUNDRY_ENDPOINT", DEFAULT_FOUNDRY_ENDPOINT),
+            vision_deployment=values.get("SPARKY_VISION_DEPLOYMENT", DEFAULT_VISION_DEPLOYMENT),
+            vision_api_version=values.get("SPARKY_VISION_API_VERSION", DEFAULT_VISION_API_VERSION),
         )
 
     def build_device_code_payload(self) -> dict[str, str]:
@@ -141,6 +150,14 @@ class AzureRelayConfig:
                         "REST or legacy authorization-token paths construct "
                         "aad#<speech-resource-id>#<aad-access-token>."
                     ),
+                },
+                "foundry_vision": {
+                    "operation": "POST /ai/vision",
+                    "managed_identity_scope": self.foundry_scope,
+                    "resource": "foundry",
+                    "endpoint_configured": bool(self.foundry_endpoint),
+                    "deployment_configured": bool(self.vision_deployment),
+                    "api_version": self.vision_api_version,
                 },
             },
             "curl_example": [

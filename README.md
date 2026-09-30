@@ -114,6 +114,13 @@ or enrolled-device claim. Tokens minted for Microsoft Graph or any other API
 are rejected. Foundry and Speech calls use the relay's managed identity; the
 caller bearer token is never forwarded.
 
+The `/ai/vision` downstream adapter translates the relay image request into a
+Foundry chat-completions vision request using the configured deployment. Vision
+responses are normalized for the device as `caption`, `labels`, `status`, and
+`metadata`, where metadata includes latency, token counts, model/deployment, and
+failure details for timeout, downstream status, invalid body, empty result, or
+safety-filtered result paths.
+
 Required runtime configuration:
 
 - `AZURE_TENANT_ID`
@@ -123,6 +130,9 @@ Required runtime configuration:
 - `SPARKY_RELAY_DEVICE_SCOPE`
 - `SPARKY_FOUNDRY_SCOPE`
 - `SPARKY_SPEECH_SCOPE`
+- `SPARKY_FOUNDRY_ENDPOINT`
+- `SPARKY_VISION_DEPLOYMENT`
+- `SPARKY_VISION_API_VERSION`
 
 Deployment adapters should additionally configure the relay-required app role,
 scope, or enrolled-device claim used by `RelayAuthConfig`.
