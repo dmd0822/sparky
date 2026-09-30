@@ -22,6 +22,15 @@ param modelDeployments array = []
 @description('Relay app registration identifier URI, for example api://<relay-app-id>. Entra app registrations are Microsoft Graph objects, so this value is created out of band and passed in at deploy time.')
 param relayAudience string = ''
 
+@description('Optional Pi-to-relay device-code scope. Defaults to <relayAudience>/.default when relayAudience is set.')
+param relayDeviceScope string = ''
+
+@description('Managed-identity scope used by the relay when calling Foundry.')
+param foundryScope string = 'https://cognitiveservices.azure.com/.default'
+
+@description('Managed-identity scope used by the relay when calling Speech.')
+param speechScope string = 'https://cognitiveservices.azure.com/.default'
+
 @description('Additional tags merged with required app/environment tags.')
 param additionalTags object = {}
 
@@ -102,7 +111,11 @@ module relay '../../modules/relay-container-app.bicep' = {
     // revision wait on a credential that cannot yet work, and it times out with
     // "Operation expired" roughly sixteen minutes later.
     acrLoginServer: startsWith(relayImage, '${acr.outputs.loginServer}/') ? acr.outputs.loginServer : ''
+    azureTenantId: tenant().tenantId
     relayAudience: relayAudience
+    relayDeviceScope: relayDeviceScope
+    foundryScope: foundryScope
+    speechScope: speechScope
   }
 }
 

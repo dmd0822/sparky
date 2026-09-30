@@ -9,3 +9,5 @@
 
 📌 Team update (2026-09-30T11:10:46-04:00): Relay API surface now enforces injected Entra token validation and managed-identity downstream calls; PR #69 closes #9 — decided by Security
 
+
+📌 2026-09-30T12:45:22-04:00: Added a FastAPI/uvicorn hosting adapter and container image for the relay while keeping the stdlib relay core framework-neutral. Kept Container Apps target port at 80 and enabled non-root binding in the image so code-cd can update only the image without an infra targetPort rollout.

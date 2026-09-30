@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "Sparky Azure relay and cloud service package."
 requires-python = ">=3.11"
 dependencies = [
+  "fastapi>=0.115",
   "PyJWT[crypto]>=2.8",
+  "uvicorn[standard]>=0.30",
 ]
 
 [tool.setuptools.packages.find]

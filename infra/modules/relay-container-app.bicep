@@ -38,6 +38,42 @@ param acrLoginServer string = ''
 @description('Optional relay app registration identifier URI, for example api://<relay-app-id>. Supplied at deploy time because Entra app registrations are Microsoft Graph objects that Bicep does not manage.')
 param relayAudience string = ''
 
+@description('Microsoft Entra tenant ID accepted by the relay.')
+param azureTenantId string
+
+@description('Optional Pi-to-relay device-code scope. Defaults to <relayAudience>/.default when relayAudience is set.')
+param relayDeviceScope string = ''
+
+@description('Managed-identity scope used by the relay when calling Foundry.')
+param foundryScope string = 'https://cognitiveservices.azure.com/.default'
+
+@description('Managed-identity scope used by the relay when calling Speech.')
+param speechScope string = 'https://cognitiveservices.azure.com/.default'
+
+var effectiveRelayDeviceScope = empty(relayDeviceScope) && !empty(relayAudience) ? '${relayAudience}/.default' : relayDeviceScope
+var relayEnv = [
+  {
+    name: 'AZURE_TENANT_ID'
+    value: azureTenantId
+  }
+  {
+    name: 'SPARKY_RELAY_AUDIENCE'
+    value: relayAudience
+  }
+  {
+    name: 'SPARKY_RELAY_DEVICE_SCOPE'
+    value: effectiveRelayDeviceScope
+  }
+  {
+    name: 'SPARKY_FOUNDRY_SCOPE'
+    value: foundryScope
+  }
+  {
+    name: 'SPARKY_SPEECH_SCOPE'
+    value: speechScope
+  }
+]
+
 resource relay 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
@@ -70,12 +106,7 @@ resource relay 'Microsoft.App/containerApps@2024-03-01' = {
           image: image
           // The relay validates that inbound device tokens carry this audience.
           // Empty on the baseline public image, which serves no relay routes.
-          env: empty(relayAudience) ? [] : [
-            {
-              name: 'SPARKY_RELAY_AUDIENCE'
-              value: relayAudience
-            }
-          ]
+          env: empty(relayAudience) ? [] : relayEnv
           resources: {
             cpu: json(cpu)
             memory: memory

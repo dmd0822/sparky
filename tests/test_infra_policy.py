@@ -137,18 +137,30 @@ class RelayContractTests(unittest.TestCase):
                 body = flatten(path)
                 self.assertRegex(body, r"param\s+relayAudience\s+string")
                 self.assertRegex(body, r"relayAudience:\s*relayAudience")
+                self.assertRegex(body, r"azureTenantId:\s*tenant\(\)\.tenantId")
+                self.assertRegex(body, r"relayDeviceScope:\s*relayDeviceScope")
+                self.assertRegex(body, r"foundryScope:\s*foundryScope")
+                self.assertRegex(body, r"speechScope:\s*speechScope")
 
         module = flatten(INFRA / "modules" / "relay-container-app.bicep")
         self.assertRegex(module, r"param\s+relayAudience\s+string")
+        self.assertRegex(module, r"param\s+azureTenantId\s+string")
+        self.assertRegex(module, r"param\s+relayDeviceScope\s+string")
+        self.assertRegex(module, r"param\s+foundryScope\s+string")
+        self.assertRegex(module, r"param\s+speechScope\s+string")
+        self.assertIn("AZURE_TENANT_ID", module)
         self.assertIn("SPARKY_RELAY_AUDIENCE", module)
+        self.assertIn("SPARKY_RELAY_DEVICE_SCOPE", module)
+        self.assertIn("SPARKY_FOUNDRY_SCOPE", module)
+        self.assertIn("SPARKY_SPEECH_SCOPE", module)
 
     def test_relay_audience_env_is_omitted_when_unset(self) -> None:
         # The baseline deployment runs the public quickstart image and serves no
-        # relay routes. Emitting an empty SPARKY_RELAY_AUDIENCE there would let a
-        # relay build start up believing it had been configured.
+        # relay routes. Emitting empty relay config there would let a relay build
+        # start up believing it had been configured.
         self.assertRegex(
             flatten(INFRA / "modules" / "relay-container-app.bicep"),
-            r"env:\s*empty\(relayAudience\)\s*\?\s*\[\]",
+            r"env:\s*empty\(relayAudience\)\s*\?\s*\[\]\s*:\s*relayEnv",
         )
 
     def test_relay_audience_is_not_baked_into_parameter_files(self) -> None:
