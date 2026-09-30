@@ -63,6 +63,7 @@ from .simulators import (
     SimulatedSensors,
     SoundCommand,
     build_simulated_ports,
+    load_frame_fixtures,
     solid_frame,
 )
 
@@ -105,6 +106,7 @@ __all__ = [
     "build_pidog_ports",
     "build_simulated_ports",
     "create_ports",
+    "load_frame_fixtures",
     "resolve_profile",
     "solid_frame",
     "validate_action_name",

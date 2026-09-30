@@ -12,7 +12,8 @@ The device runtime also applies a local persona framework that shapes prompts, v
 
 Device application code is layered above a hardware seam: planners call
 service-level APIs such as `sparky_device.services.MotionService` and
-`sparky_device.services.SensorService`, services depend only on
+`sparky_device.services.SensorService` and
+`sparky_device.services.CameraService`, services depend only on
 `sparky_device.hardware.ports` protocols, and only
 `sparky_device.hardware.pidog_adapters` imports SunFounder packages.
 
@@ -471,13 +472,26 @@ an out-of-range command is rejected in software rather than sent to a servo.
 The service layer then gives planners stable application contracts: motion
 intents reject ambiguous queues, while sensor reads become timestamped snapshots
 with explicit `ok`, `unavailable`, or `malformed` statuses instead of overloaded
-`None` values or escaping hardware exceptions.
+`None` values or escaping hardware exceptions. Camera capture follows the same
+pattern: `CameraService` owns start/capture/stop, converts camera absence and
+malformed frames into status-bearing results, and packages successful captures
+into JSON-friendly `PackagedFrame` values for the relay.
+
+Camera packaging is deliberately above the port. `vilib` captures at its native
+640x480 only, so the port rejects every other requested resolution before
+touching the vendor stack. If a caller asks for smaller upload dimensions,
+`CameraService` lazily tries optional Pillow-based resizing; when Pillow is not
+installed or fixture bytes cannot be decoded, it sends the original bytes and
+records the actual packaged dimensions and detail in metadata. The relay-facing
+dictionary includes base64 image bytes, source dimensions, packaged dimensions,
+format, sequence, monotonic capture timestamp, and source ID.
 
 Unit tests run against fake implementations:
 
 - persona fixture registry validates starter and sample third personas
 - fake motion adapter captures target poses and actions
-- fake camera adapter replays stored test images
+- fake camera adapter replays stored test images, including disk-backed fixture
+  files loaded through the simulator camera
 - fake audio adapter replays WAV fixtures and captures synthesized output requests
 - fake sensor adapter emits scripted events
 
