@@ -1,4 +1,0 @@
-### 2026-09-29: Motion service rejects conflicting in-flight commands
-**By:** device
-**What:** `MotionService` accepts one non-stop motion intent at a time. While a command is in flight, later non-stop commands raise `HardwareError` instead of being queued. Callers must either `wait_until_idle()` before the next intent or call `stop()`, which pre-empts immediately and is idempotent. Locomotion also requires the tracked posture to be standing; planners must explicitly request `stand()` after `sit()` or `lie()` before walking, trotting, or turning.
-**Why:** The PiDog motion adapter queues work asynchronously, so accepting multiple planner intents without a settled state would make posture and command ownership ambiguous. Rejecting conflicts keeps behavior planners deterministic, makes unsafe overlaps observable, and preserves `stop()` as the one always-honoured emergency command.

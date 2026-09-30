@@ -109,3 +109,14 @@
 **By:** Device
 **What:** PiDog motion action names now live in the hardware contract layer as a fixed allow-list, with one shared validator used by both the PiDog adapter and the simulator. Space-separated caller input is normalised to underscores, but typos, wrong case, non-action helper methods, and eval-shaped strings are rejected before any side effect.
 **Why:** This is the fifth instance of the same defect class: the simulator accepted a value domain that the vendor could not honour. The shared-validator pattern keeps simulator and hardware parity, makes failures loud, and closes the vendor `eval()` injection surface by never forwarding unchecked action names.
+
+### 2026-09-29: Motion service rejects conflicting in-flight commands
+**By:** device
+**What:** `MotionService` accepts one non-stop motion intent at a time. While a command is in flight, later non-stop commands raise `HardwareError` instead of being queued. Callers must either `wait_until_idle()` before the next intent or call `stop()`, which pre-empts immediately and is idempotent. Locomotion also requires the tracked posture to be standing; planners must explicitly request `stand()` after `sit()` or `lie()` before walking, trotting, or turning.
+**Why:** The PiDog motion adapter queues work asynchronously, so accepting multiple planner intents without a settled state would make posture and command ownership ambiguous. Rejecting conflicts keeps behavior planners deterministic, makes unsafe overlaps observable, and preserves `stop()` as the one always-honoured emergency command.
+
+### 2026-09-30: Sensor readings use explicit status semantics instead of ambiguous None
+**By:** device
+**What:** `SensorService` wraps `SensorPort` and returns timestamped, typed, frozen reading value objects carrying an explicit status: `OK` with a value for a valid reading, `OK` with `None` for a valid "no echo / no sound this tick" condition (not a fault), `UNAVAILABLE` for missing or unhealthy hardware, and `MALFORMED` for invalid data shape from the port. The service catches every port exception (`HardwareError`, `HardwareUnavailableError`, and arbitrary vendor errors) and maps it to a status so nothing escapes into the device loop.
+**Why:** The pre-existing `SensorPort` had inconsistent failure semantics: `read_distance_cm()` and `read_sound_direction()` returned `None`, ambiguously representing either "no reading" or "hardware dead", while `read_imu()` raised `HardwareError`. Behavior loops consuming that surface would either crash or be unable to distinguish valid empty readings from faults. Vision and behavior work depend on a normalized sensor surface.
+

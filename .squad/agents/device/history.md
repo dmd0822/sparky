@@ -26,3 +26,6 @@
 📌 Motion HIL script lesson (2026-09-29T11:39:32.316-04:00): Operator-facing HIL checks should ship as runnable scripts under `scripts/`, not copy-paste Markdown snippets, and every hardware-moving script needs a simulator mode plus a cleanup path that safe-stops and closes ports on success, failure, or Ctrl+C.
 
 📌 Full HIL script consolidation (2026-09-29T13:19:17.701-04:00): Folded port-level checklist steps 1-12 into `scripts/motion_service_hil.py` alongside motion-service steps 13-17, preserving lazy vendor imports, camera SKIP semantics, safe cleanup, simulator rehearsal, and adding `--steps`/`--only` for targeted reruns.
+
+📌 Team update (2026-09-30T09:22:33.507-04:00): Sensor adapter work added a new SensorService with typed status-based readings; decisions.md now records explicit OK/UNAVAILABLE/MALFORMED semantics instead of ambiguous None, and real Pi HIL sensor smoke testing remains a follow-up risk. — decided by device
+
