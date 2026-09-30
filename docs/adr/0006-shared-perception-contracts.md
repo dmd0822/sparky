@@ -130,3 +130,25 @@ normal development and CI.
   failed perception outcomes.
 - Breaking contract changes now need explicit versioning and coordinated
   migration instead of silent dictionary drift.
+
+## Open questions and follow-up risks
+
+- `PackagedFrame` remains device-local per ADR 0005. Revisit whether a
+  frame-packaging shape belongs in `sparky_contracts` only after a relay-side
+  consumer needs the exact packaged-frame object rather than the narrower
+  `PerceptionRequest`.
+- `PERCEPTION_CONTRACT_VERSION` is a manually maintained string. The current
+  tests prove DTO round trips, fixture parsing, and relay schema key coverage,
+  but they do not automatically detect version drift between DTO changes,
+  fixtures, and `relay_api.py` wire schemas.
+- The dual import path used by `foundry_vision.py` and
+  `services/perception.py` keeps both installed-package imports and repo-root
+  tests working, but it is a packaging workaround rather than the long-term
+  import story.
+- `docs/running-on-the-pi.md` now covers camera capture and relay vision
+  milestone checks, but it does not yet mirror this ADR's full HIL procedure as
+  a step-by-step contract validation that explicitly builds
+  `PerceptionRequest` and parses `PerceptionResult.from_dict()`.
+- Sample prompts are shared constants. There is not yet a mechanism for
+  persona-driven or per-deployment prompt overrides without changing the shared
+  package.

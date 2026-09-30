@@ -24,3 +24,7 @@
 - Added ADR 0006 for issue #12 covering shared perception boundaries, ADR 0005 alignment, ownership, versioning, fixtures, and HIL validation.
 - Updated `docs/ARCHITECTURE.md` so `sparky_contracts/` reflects perception DTOs, statuses, prompts, and contract versioning.
 - Validated with `python -m unittest discover -s tests -p "test_docs_policy.py"` and `python -m unittest discover -s tests -p "test_repository_structure.py"`.
+
+### 2026-09-30T15:51:42-04:00: Closed shared perception documentation gaps
+- Added an explicit open-questions and follow-up-risks register to ADR 0006 for the shipped perception contract surface.
+- Expanded `src/shared/README.md` with the perception DTOs, prompts, version constant, fixture location, and ADR ownership/versioning pointer.
