@@ -355,6 +355,14 @@ and `source_id` identifies the Pi camera. Fail criteria: a required camera
 milestone returns `unavailable` or `malformed`, the snippet crashes, dimensions
 are inconsistent with the frame, or cleanup cannot stop the camera.
 
+For vision relay milestones, use the captured `frame.image` value from the
+packaged result as the body for `POST /ai/vision` after the relay-auth smoke
+harness has proven sign-in. The response should keep the same correlation ID and
+include top-level `caption`, `labels`, `status`, and `metadata`. Treat
+`timeout`, `downstream_error`, `invalid_response`, `empty_response`, or
+`unsafe_response` statuses as explicit relay/perception failures to record in
+the milestone notes rather than as camera packaging failures.
+
 ## Running without a Pi
 
 Every port has a simulator, so the full test suite runs on any machine:

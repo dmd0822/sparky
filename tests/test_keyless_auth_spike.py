@@ -81,6 +81,9 @@ class KeylessAuthSpikeTests(unittest.TestCase):
                 "SPARKY_RELAY_DEVICE_SCOPE": "api://relay-app-id/user_impersonation",
                 "SPARKY_FOUNDRY_SCOPE": COGNITIVE_SERVICES_SCOPE,
                 "SPARKY_SPEECH_SCOPE": COGNITIVE_SERVICES_SCOPE,
+                "SPARKY_FOUNDRY_ENDPOINT": "https://sparky-foundry.openai.azure.com",
+                "SPARKY_VISION_DEPLOYMENT": "sparky-vision",
+                "SPARKY_VISION_API_VERSION": "2024-10-21",
             }
         )
 
@@ -88,6 +91,9 @@ class KeylessAuthSpikeTests(unittest.TestCase):
         self.assertEqual(config.device_scope, "api://relay-app-id/user_impersonation")
         self.assertEqual(config.foundry_scope, COGNITIVE_SERVICES_SCOPE)
         self.assertEqual(config.speech_scope, COGNITIVE_SERVICES_SCOPE)
+        self.assertEqual(config.foundry_endpoint, "https://sparky-foundry.openai.azure.com")
+        self.assertEqual(config.vision_deployment, "sparky-vision")
+        self.assertEqual(config.vision_api_version, "2024-10-21")
 
     def test_demo_sequence_uses_relay_and_contains_foundry_and_speech_calls(self) -> None:
         payload = build_demo_sequence(

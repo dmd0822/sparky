@@ -11,7 +11,14 @@ from urllib.request import Request as UrlRequest, urlopen
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .keyless_auth import AzureRelayConfig, COGNITIVE_SERVICES_SCOPE
+from .foundry_vision import FoundryVisionAdapter
+from .keyless_auth import (
+    AzureRelayConfig,
+    COGNITIVE_SERVICES_SCOPE,
+    DEFAULT_FOUNDRY_ENDPOINT,
+    DEFAULT_VISION_API_VERSION,
+    DEFAULT_VISION_DEPLOYMENT,
+)
 from .relay_api import DownstreamRelayClient, RelayApp, RelayRequest, RelayResponse
 from .relay_auth import PyJwtEntraTokenVerifier, RelayAuthConfig
 
@@ -40,11 +47,17 @@ class ImdsManagedIdentityCredential:
 class ManagedIdentityDownstreamRelayClient(DownstreamRelayClient):
     """Default downstream port; service-specific calls are added behind this boundary."""
 
+    def __init__(self, relay_config: AzureRelayConfig | None = None) -> None:
+        self.relay_config = relay_config
+        self._vision = FoundryVisionAdapter(relay_config) if relay_config is not None else None
+
     def chat(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
         return {"reply": ""}
 
     def vision(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
-        return {"caption": "", "labels": []}
+        if self._vision is None:
+            return {"caption": "", "labels": []}
+        return self._vision.vision(payload, headers)
 
     def speech(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
         return {"audio": "", "audio_format": "wav"}
@@ -127,7 +140,7 @@ def _get_default_relay_app() -> RelayApp:
             auth_config=auth_config,
             verifier=PyJwtEntraTokenVerifier(relay_config.tenant_id),
             credential=ImdsManagedIdentityCredential(),
-            downstream=ManagedIdentityDownstreamRelayClient(),
+            downstream=ManagedIdentityDownstreamRelayClient(relay_config),
         )
     return _DEFAULT_RELAY_APP
 
@@ -152,6 +165,9 @@ def _build_relay_config_from_env(env: Mapping[str, str]) -> AzureRelayConfig:
         device_scope=env["SPARKY_RELAY_DEVICE_SCOPE"],
         foundry_scope=env.get("SPARKY_FOUNDRY_SCOPE", COGNITIVE_SERVICES_SCOPE),
         speech_scope=env.get("SPARKY_SPEECH_SCOPE", COGNITIVE_SERVICES_SCOPE),
+        foundry_endpoint=env.get("SPARKY_FOUNDRY_ENDPOINT", DEFAULT_FOUNDRY_ENDPOINT),
+        vision_deployment=env.get("SPARKY_VISION_DEPLOYMENT", DEFAULT_VISION_DEPLOYMENT),
+        vision_api_version=env.get("SPARKY_VISION_API_VERSION", DEFAULT_VISION_API_VERSION),
     )
 
 

@@ -92,6 +92,22 @@ Authenticated endpoints:
 | `POST` | `/ai/vision` | Relay-shaped image analysis request to Foundry using the relay managed identity. |
 | `POST` | `/speech/synthesize` | Relay-shaped text-to-speech request to Speech using the relay managed identity. |
 
+The vision path is implemented as a downstream perception adapter rather than
+inside the dispatcher. The relay validates the device token, acquires a
+managed-identity bearer credential for the Foundry scope, and passes only that
+relay-owned credential into the adapter. The adapter builds a chat-completions
+vision request with the caller's base64 image as a data URI plus an optional
+prompt, posts it to the configured Foundry endpoint/deployment, and normalizes
+the model response into the stable device contract: top-level `caption`,
+`labels`, `status`, `correlation_id`, and a `metadata` block with latency,
+token usage, model/deployment, and any failure details.
+
+Adapter failures remain device-consumable responses. Timeouts, transport
+failures, non-success downstream statuses, malformed responses, empty model
+results, and safety-filtered results return an explicit failure `status` with
+empty `caption` and `labels`, rather than leaking service exceptions through
+the relay boundary.
+
 Authentication failures return structured `401` responses with a generic reason
 and the request correlation ID. Authorization failures, such as a valid token
 missing the required app role/scope or enrolled-device claim, return `403`.
@@ -511,14 +527,15 @@ non-zero on any failed required step.
 ### Cloud-side testing
 
 - unit tests for relay authentication, policy, persona-aware TTS request shaping,
-  and other relay request shaping; token validation tests cover missing,
-  malformed, bad-signature, wrong issuer, wrong tenant, wrong audience
-  (including Microsoft Graph), expired, future-`nbf`, and missing-grant paths
+  Foundry vision request translation, and other relay request shaping; token
+  validation tests cover missing, malformed, bad-signature, wrong issuer, wrong
+  tenant, wrong audience (including Microsoft Graph), expired, future-`nbf`,
+  and missing-grant paths
 - contract tests for request/response schemas on `/health`, `/ai/chat`,
   `/ai/vision`, and `/speech/synthesize`
 - mocked Foundry and Speech relay clients; tests assert the caller's bearer
   token is never forwarded downstream and managed identity is used for the
-  relay-to-service hop
+  relay-to-service hop, including the concrete vision adapter
 
 ### Hardware-in-the-loop testing
 
@@ -540,7 +557,9 @@ Manual relay-auth HIL validation for this issue:
 2. Call `GET /health`, `POST /ai/chat`, `POST /ai/vision`, and
    `POST /speech/synthesize` with the relay-audience bearer token and an
    `x-correlation-id`; confirm all successful responses return the same
-   correlation ID and no configuration details.
+   correlation ID and no configuration details. For `/ai/vision`, submit a
+   captured camera frame and confirm the response has top-level `caption`,
+   `labels`, `status`, `correlation_id`, and observability metadata.
 3. Repeat one call with no token, a malformed token, an expired token, a token
    for Microsoft Graph, and a validly signed token missing the required
    role/scope or enrolled-device claim; confirm only structured `401`/`403`
@@ -563,8 +582,12 @@ Relay follow-up risks:
 - The first enrolled-device grant convention (app role, delegated scope, or
   custom enrolled-device claim) must be finalized in the relay app registration
   before Pi enrollment runbooks are declared complete.
-- Foundry and Speech request shaping remains mocked until the service-specific
-  integration issues wire concrete SDK/REST clients behind the downstream port.
+- Speech request shaping remains mocked until the service-specific integration
+  issue wires a concrete SDK/REST client behind the downstream port.
+- The Foundry vision adapter now has mocked transport coverage, but live
+  deployment selection, regional model quota, and safety-filter policy should
+  be validated against the target Foundry resource before declaring HIL
+  acceptance complete.
 
 ## Non-goals for the planning baseline
 
