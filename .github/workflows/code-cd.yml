@@ -141,13 +141,42 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # The app is provisioned with registries: [] on the public baseline image
+      # (documented in the dev environment template), so attach the registry
+      # credential at the private image-flip time.
+      - name: Configure relay registry credential
+        run: |
+          if [ -z "$RELAY_IMAGE" ]; then
+            echo "::notice::No image was published; leaving the relay container app unchanged."
+            exit 0
+          fi
+          ACR_LOGIN_SERVER="${RELAY_IMAGE%%/*}"
+          az containerapp registry set \
+            --name "sparky-relay-${ENVIRONMENT_NAME}" \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$ACR_LOGIN_SERVER" \
+            --identity system
+
       - name: Update relay container app
         run: |
           if [ -z "$RELAY_IMAGE" ]; then
             echo "::notice::No image was published; leaving the relay container app unchanged."
             exit 0
           fi
-          az containerapp update \
-            --name "sparky-relay-${ENVIRONMENT_NAME}" \
-            --resource-group "$RESOURCE_GROUP" \
-            --image "$RELAY_IMAGE"
+          for attempt in 1 2 3 4 5; do
+            if az containerapp update \
+              --name "sparky-relay-${ENVIRONMENT_NAME}" \
+              --resource-group "$RESOURCE_GROUP" \
+              --image "$RELAY_IMAGE"; then
+              exit 0
+            else
+              status=$?
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              exit "$status"
+            fi
+            echo "::warning::Relay image update failed on attempt ${attempt}; retrying in 20 seconds."
+            sleep 20
+          done
+          echo "::error::Relay image update failed after retry loop exited unexpectedly."
+          exit 1
