@@ -204,13 +204,15 @@ python scripts/motion_service_hil.py
 
 The script covers checklist steps 1-17 in one run: required PiDog imports,
 optional Vilib camera availability, raw port checks, clean shutdown, and the
-motion-service API smoke checks. It pauses before physical motion and manual
-sensor actions. Use `--yes` only when the bench is already safe and unattended
-prompts would get in the way. Use `--steps`/`--only` to rerun a subset after a
-fix, for example `--steps 11` for camera only or `--steps 13-17` for the
-motion-service checks. Any normal exit, failure, or Ctrl+C attempts to stop
-motion, stop the camera, clear RGB, and close the ports before reporting PASS or
-FAIL.
+motion-service API smoke checks. The raw sensor checks in steps 6-8 are also
+the physical setup for the `SensorService` checks below: the service wraps the
+same `SensorPort` reads and normalises them into timestamped status objects. It
+pauses before physical motion and manual sensor actions. Use `--yes` only when
+the bench is already safe and unattended prompts would get in the way. Use
+`--steps`/`--only` to rerun a subset after a fix, for example `--steps 11` for
+camera only or `--steps 13-17` for the motion-service checks. Any normal exit,
+failure, or Ctrl+C attempts to stop motion, stop the camera, clear RGB, and
+close the ports before reporting PASS or FAIL.
 
 Use the table below as the pass/fail contract while the script runs. Record the
 overall result, any failed step numbers, and the observed values in the pull
@@ -252,6 +254,41 @@ cleanup path as the port-level checks above.
 | 15 | `MotionService.stand()` then `forward()` | Dog stands, then starts a slow forward gait |
 | 16 | `MotionService.turn_left()` while forward is in flight | Raises `HardwareError`; the service does not queue the turn |
 | 17 | `MotionService.stop()` twice | Motion halts immediately; the second stop is a safe no-op |
+
+### Sensor service checks
+
+After the script's raw sensor steps pass, run this service-level smoke check on
+the Pi to verify the planner-facing normalization layer sees the same hardware
+without letting sensor faults escape the device loop:
+
+```bash
+python - <<'PY'
+from sparky_device.hardware import create_ports
+from sparky_device.services import SensorService
+
+with create_ports("pidog") as robot:
+    service = SensorService(robot.sensors)
+    input("Place a hand near the ultrasonic sensor, then press Enter.")
+    print(service.read_distance().as_dict())
+    for label in ("left pad", "right pad", "both pads"):
+        input(f"Touch {label}, then press Enter.")
+        print(service.read_touch().as_dict())
+    input("Hold the dog level, then press Enter.")
+    print(service.read_imu().as_dict())
+    input("Make a sound near the microphone array, then press Enter.")
+    print(service.read_sound_direction().as_dict())
+PY
+```
+
+Use the same physical actions from steps 6-8 while running the snippet.
+
+| Check | Expected result |
+| --- | --- |
+| Ultrasonic timeout or hand distance | `distance.status` is `ok`; `distance_cm` is a number when an echo lands, or `None` with a detail message when this tick has no echo |
+| Touch pad state | `touch.status` is `ok`; `touch` is one of `none`, `left`, `right`, or `both` |
+| IMU sample | `imu.status` is `ok`; `acceleration` and `gyro` each contain three numeric axes |
+| Sound direction | `sound_direction.status` is `ok`; `direction_degrees` is numeric when sound is detected, or `None` with a detail message when no sound is detected |
+| Missing or unhealthy hardware | A status of `unavailable` or `malformed` appears in the printed dictionary; the snippet does not crash |
 
 ## Running without a Pi
 
