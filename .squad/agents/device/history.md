@@ -32,3 +32,8 @@
 
 📌 Team update (2026-09-30T10:00:58.0877268-04:00): Reviewer rejection found malformed IMU data could be reported as OK; Lead owned the locked-out fix and added IMU validation in commit d87e61d with 223 tests passing.
 📌 Team update (2026-09-30T09:14:16.352-04:00): PR #63 and PR #64 merged the issue #6 motion-service and HIL-script work to `main`. Durable lessons: cross-platform CI requires repo-root `/` path joins instead of Windows/CWD-relative literals, and the HIL script's SKIP-vs-FAIL distinction is load-bearing because optional camera absence must not hide required PiDog/profile failures.
+
+📌 Team update (2026-09-30T11:10:46-04:00): Relay API surface now enforces injected Entra token validation and managed-identity downstream calls; PR #69 closes #9 — decided by Security
+
+
+📌 Relay auth smoke harness (2026-09-30T11:20:01-04:00): Added `scripts/relay_auth_smoke.py` as a stdlib-only Pi harness for device-code relay sign-in, relay-audience claim inspection, authenticated `/health`, `/ai/chat`, `/ai/vision`, and `/speech/synthesize` smoke calls, structured negative-auth replay, credential-shaped env-name reporting, and CI fake mode. Added unittest coverage and updated keyless/Pi/README docs.

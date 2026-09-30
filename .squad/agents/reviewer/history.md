@@ -13,3 +13,6 @@
 📌 Team update (2026-09-29T09:50:26-04:00): Motion action names are now validated in the hardware contract layer before adapter or simulator side effects; docs/running-on-the-pi.md gained a valid-action list and a troubleshooting row. — decided by Device
 
 📌 Team update (2026-09-30T10:00:58.0877268-04:00): Reviewer rejection found malformed IMU data could be reported as OK; Lead owned the locked-out fix and added IMU validation in commit d87e61d with 223 tests passing.
+
+📌 Team update (2026-09-30T11:10:46-04:00): Relay API surface now enforces injected Entra token validation and managed-identity downstream calls; PR #69 closes #9 — decided by Security
+

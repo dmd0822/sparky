@@ -142,3 +142,8 @@
 **Why:** The issue explicitly requires malformed sensor data paths. Distance, touch, and sound malformed values are detected directly by SensorService, but IMU malformed value-object content can still be logged/planned as an OK reading. Add service-side IMU axis validation and a representative malformed-IMU fixture before closing the issue.
 
 
+
+### 2026-09-30: Use stdlib relay core with injected auth and downstream ports
+**By:** Security
+**What:** The relay API surface is implemented as a framework-agnostic, stdlib-only core with dataclass request/response types, an injected Entra token-verifier port, and an injected managed-identity credential/downstream-client port. Optional web framework adapters must stay thin and separate from the core.
+**Why:** CI installs only test-only dependencies, so the relay cannot require FastAPI, PyJWT, or Azure SDK imports during unittest discovery or compileall. The injected-port design also makes the security boundary testable: signature verification is isolated, issuer/tenant/audience/lifetime/grant checks are deterministic, and downstream calls can prove they use relay-managed credentials instead of forwarding caller bearer tokens.

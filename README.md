@@ -120,6 +120,16 @@ Required runtime configuration:
 Deployment adapters should additionally configure the relay-required app role,
 scope, or enrolled-device claim used by `RelayAuthConfig`.
 
+Relay-auth smoke validation for the Pi is automated by the stdlib harness:
+
+```powershell
+python scripts\relay_auth_smoke.py --ci
+python scripts\relay_auth_smoke.py
+```
+
+Use `--ci` for the no-network fake run; omit it on the Raspberry Pi after
+exporting the Entra public-client and relay settings.
+
 ### Device hardware access
 
 Device code never imports `pidog`, `robot_hat`, or `vilib` directly. It talks to
