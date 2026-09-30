@@ -109,3 +109,18 @@
 **By:** Device
 **What:** PiDog motion action names now live in the hardware contract layer as a fixed allow-list, with one shared validator used by both the PiDog adapter and the simulator. Space-separated caller input is normalised to underscores, but typos, wrong case, non-action helper methods, and eval-shaped strings are rejected before any side effect.
 **Why:** This is the fifth instance of the same defect class: the simulator accepted a value domain that the vendor could not honour. The shared-validator pattern keeps simulator and hardware parity, makes failures loud, and closes the vendor `eval()` injection surface by never forwarding unchecked action names.
+
+### 2026-09-29: Full HIL checklist belongs in one runnable script
+**By:** Device
+**What:** `scripts/motion_service_hil.py` now owns checklist steps 1-17, with `--steps`/`--only` for targeted reruns. Required PiDog import/profile failures are FAIL, optional Vilib/camera unavailability is SKIP, and cleanup always safe-stops motion, stops the camera, clears RGB, and closes ports.
+**Why:** Operators should not copy Python heredocs from docs, and camera-less benches must still validate motion, sensors, board, and service behavior without losing the triage signal for adapter vs environment failures.
+
+### 2026-09-29: Ship motion-service HIL as a root scripts helper
+**By:** Device
+**What:** The motion-service hardware-in-the-loop smoke check now ships as `scripts/motion_service_hil.py`, outside `tests/`, with `--simulate` for laptop rehearsal and a `try/finally`-style cleanup path that safe-stops and closes ports on success, failure, or Ctrl+C.
+**Why:** The repo had no existing script/tool convention, and a root `scripts/` directory is the clearest operator-facing location. Keeping it out of `tests/` prevents unittest discovery from trying to run hardware moves, while the simulate mode keeps the script itself verifiable in CI and development.
+
+### 2026-09-29: Motion service rejects conflicting in-flight commands
+**By:** device
+**What:** `MotionService` accepts one non-stop motion intent at a time. While a command is in flight, later non-stop commands raise `HardwareError` instead of being queued. Callers must either `wait_until_idle()` before the next intent or call `stop()`, which pre-empts immediately and is idempotent. Locomotion also requires the tracked posture to be standing; planners must explicitly request `stand()` after `sit()` or `lie()` before walking, trotting, or turning.
+**Why:** The PiDog motion adapter queues work asynchronously, so accepting multiple planner intents without a settled state would make posture and command ownership ambiguous. Rejecting conflicts keeps behavior planners deterministic, makes unsafe overlaps observable, and preserves `stop()` as the one always-honoured emergency command.
