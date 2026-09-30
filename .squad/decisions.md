@@ -147,3 +147,9 @@
 **By:** Security
 **What:** The relay API surface is implemented as a framework-agnostic, stdlib-only core with dataclass request/response types, an injected Entra token-verifier port, and an injected managed-identity credential/downstream-client port. Optional web framework adapters must stay thin and separate from the core.
 **Why:** CI installs only test-only dependencies, so the relay cannot require FastAPI, PyJWT, or Azure SDK imports during unittest discovery or compileall. The injected-port design also makes the security boundary testable: signature verification is isolated, issuer/tenant/audience/lifetime/grant checks are deterministic, and downstream calls can prove they use relay-managed credentials instead of forwarding caller bearer tokens.
+
+### 2026-09-30T11:20:01-04:00: Relay-auth smoke uses unsigned diagnostic negative tokens for local matrix coverage
+**By:** Device
+**What:** The Pi relay-auth smoke harness replays no-token and malformed-token cases directly, and uses unsigned diagnostic JWTs for expired, Microsoft Graph-audience, and missing-grant negative cases. The harness asserts only sanitized structured 401/403 responses with correlation IDs and no bearer material in the body.
+**Why:** The Pi must request only the relay scope during device-code sign-in. Minting live Graph or intentionally under-granted Entra tokens from the Pi would weaken the ADR-0003 boundary and require extra tenant setup. Unsigned diagnostics still exercise the deployed relay's fail-closed auth surface without giving the device non-relay tokens.
+

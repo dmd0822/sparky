@@ -23,3 +23,5 @@
 - Added explicit validation for issuer, tenant, relay audience (including Graph rejection), expiry/nbf, and required role/scope/enrolled-device claim.
 - Added unit, integration, and contract tests for endpoint and auth success/failure paths, including no credential-material leakage and no caller-token forwarding downstream.
 - Updated README and architecture docs with endpoints, validation chain, HIL relay-auth steps, and follow-up risks.
+
+📌 Team update (2026-09-30T11:20:01-04:00): Relay auth surface from #9 now has an automated device-side smoke harness at `scripts/relay_auth_smoke.py`; live negative Microsoft Graph / missing-grant cases use unsigned diagnostic JWTs rather than granting the Pi non-relay tokens.
