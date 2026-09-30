@@ -162,6 +162,37 @@ These steps are the hardware-in-the-loop pass. They require a deployed relay env
 7. `Cognitive Services User` assigned to the relay managed identity on both the Foundry or AI Services account and the Speech account.
 8. Local operators should select the subscription with `az account set --subscription <subscription-id>`. GitHub Actions should read `AZURE_SUBSCRIPTION_ID` from the repository secret.
 
+### Primary path: run the relay-auth smoke harness
+
+The preferred Pi validation path is the runnable harness, which automates Steps
+1-5 below plus the negative-auth matrix from the architecture checklist:
+
+```bash
+export AZURE_TENANT_ID="<tenant-id>"
+export AZURE_CLIENT_ID="<pi-public-client-id>"
+export SPARKY_RELAY_URL="https://<relay-host>/api"
+export SPARKY_RELAY_AUDIENCE="api://<relay-app-id>"
+export SPARKY_RELAY_DEVICE_SCOPE="api://<relay-app-id>/.default"
+python scripts/relay_auth_smoke.py
+```
+
+The script prints the device-code `user_code` and `verification_uri`, polls for
+the relay-audience access token without logging it, checks the token audience,
+calls `GET /health`, `POST /ai/chat`, `POST /ai/vision`, and
+`POST /speech/synthesize`, then replays each endpoint with missing, malformed,
+expired, Microsoft Graph-audience, and missing-grant tokens. It exits non-zero
+on any failed smoke step and prints a checklist mapped back to the verification
+items below.
+
+For CI or laptop rehearsal with no Pi, no Azure, and no network calls, run:
+
+```bash
+python scripts/relay_auth_smoke.py --ci
+```
+
+The manual curl steps remain below as the fallback and as an explanation of what
+the harness automates.
+
 ### Creating the two app registrations
 
 Items 3 and 4 above are Microsoft Entra objects. Bicep does not manage them, because the `Microsoft.Graph` Bicep extension is still preview, so they are created once per tenant with the CLI and their IDs are then passed into deployments as parameters. Nothing created here is a secret: app IDs and identifier URIs are public identifiers, but they are tenant-specific, so keep the real values out of the repo.
@@ -288,6 +319,9 @@ Record the two printed values. `SPARKY_RELAY_AUDIENCE` is passed to `infra-cd` a
 
 ### Step 1: Configure only relay-facing values on the Pi
 
+The smoke harness performs this preflight automatically. If running the manual
+fallback, configure the same relay-facing values yourself.
+
 Run this on the Pi in a Linux shell:
 
 ```bash
@@ -311,6 +345,9 @@ How to tell it failed:
 
 ### Step 2: Request a device code for the relay audience
 
+The smoke harness performs this request automatically and prints the user code
+and verification URI. The curl command below is the manual fallback.
+
 Run this on the Pi in a Linux shell:
 
 ```bash
@@ -333,6 +370,9 @@ How to tell it failed:
 - Any instruction to request a Cognitive Services scope means the test is no longer validating the intended boundary.
 
 ### Step 3: Exchange the device code for a relay-audience token
+
+The smoke harness polls this endpoint automatically and never prints the access
+token. The curl command below is the manual fallback.
 
 Use the `device_code` value returned by Step 2. Do not paste the resulting access token into logs, documentation, issue comments, or chat.
 
@@ -361,6 +401,9 @@ How to tell it failed:
 
 ### Step 4: Call the relay Foundry path
 
+The smoke harness calls this path and also checks correlation-ID echo and
+response-body leakage. The curl command below is the manual fallback.
+
 Set `SPARKY_RELAY_ACCESS_TOKEN` from the Step 3 response without writing it to disk.
 
 Run this on the Pi in a Linux shell:
@@ -386,6 +429,9 @@ How to tell it failed:
 - A model-not-found or quota error is a live South Central US Foundry availability issue, not a reason to add key auth.
 
 ### Step 5: Call the relay Speech path
+
+The smoke harness calls this path and also checks correlation-ID echo and
+response-body leakage. The curl command below is the manual fallback.
 
 This command reuses `SPARKY_RELAY_ACCESS_TOKEN` from Step 4. If you are starting here directly, set it from the Step 3 token response before running the command.
 

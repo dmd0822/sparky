@@ -17,3 +17,11 @@
 - Added a keyless-guard scanner and static tests that fail if key-based Azure AI fallback markers reappear in executable code, config, workflows, or Bicep.
 - Updated the spike doc with token-per-hop proof, Pi enrollment, ruled-out key/secret paths, Speech Entra auth SDK/REST finding, South Central US deployment target, smoke commands, and HIL validation steps.
 - Validation: `python -m unittest discover -s tests -v` passed; CLI smoke manifest with `python -m sparky_relay.keyless_auth --print-demo` passed with placeholder env values.
+
+### 2026-09-30T11:02:33-04:00 — Relay API Entra validation implementation
+- Implemented issue #9 relay auth/API surface as a stdlib-only core with injected token-verifier, managed-identity credential, downstream client, rate-limiter, and policy ports.
+- Added explicit validation for issuer, tenant, relay audience (including Graph rejection), expiry/nbf, and required role/scope/enrolled-device claim.
+- Added unit, integration, and contract tests for endpoint and auth success/failure paths, including no credential-material leakage and no caller-token forwarding downstream.
+- Updated README and architecture docs with endpoints, validation chain, HIL relay-auth steps, and follow-up risks.
+
+📌 Team update (2026-09-30T11:20:01-04:00): Relay auth surface from #9 now has an automated device-side smoke harness at `scripts/relay_auth_smoke.py`; live negative Microsoft Graph / missing-grant cases use unsigned diagnostic JWTs rather than granting the Pi non-relay tokens.

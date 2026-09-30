@@ -128,3 +128,17 @@ def assert_no_key_fallbacks(root: Path) -> None:
     raise KeyFallbackPolicyError(
         "Key-based Azure AI auth fallback detected in code/config/infra:\n" + details
     )
+
+
+def _main() -> int:
+    try:
+        assert_no_key_fallbacks(Path.cwd())
+    except KeyFallbackPolicyError as exc:
+        print(str(exc))
+        return 1
+    print("No key-based Azure AI auth fallback detected.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

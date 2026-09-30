@@ -177,6 +177,8 @@ must include one of these acceptance records before it is closed:
 
 - the simulator harness output from `python scripts/motion_service_hil.py --ci`;
 - a real PiDog run of `python scripts/motion_service_hil.py`; and
+- for relay-auth milestones, `python scripts/relay_auth_smoke.py --ci` plus a
+  Pi run of `python scripts/relay_auth_smoke.py` against the deployed relay; and
 - notes for any SKIP/FAIL result, including whether the milestone accepts the
   risk or needs follow-up work.
 
@@ -225,6 +227,25 @@ for camera only, `--steps 6-8,18` for sensors, or `--steps 13-17` for the
 motion-service checks. Any normal exit, failure, or Ctrl+C attempts to stop
 motion, stop the camera, clear RGB, and close the ports before reporting PASS or
 FAIL.
+
+For relay-auth validation on the Pi, use the separate smoke harness after
+exporting the Entra public-client and relay values documented in
+[keyless-auth-testing-guide.md](keyless-auth-testing-guide.md):
+
+```bash
+python scripts/relay_auth_smoke.py
+```
+
+For CI or laptop rehearsal, the same harness has a no-network fake mode:
+
+```bash
+python scripts/relay_auth_smoke.py --ci
+```
+
+That harness performs device-code sign-in, proves the Pi token audience is the
+relay app registration, checks correlation-ID echo on `/health`, `/ai/chat`,
+`/ai/vision`, and `/speech/synthesize`, and runs the negative authentication
+matrix before printing the keyless-auth verification checklist.
 
 ### Port, sensor, and audio smoke contract
 
