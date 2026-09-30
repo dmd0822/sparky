@@ -376,6 +376,7 @@ class SensorService:
             value = self._sensors.read_imu()
             if not isinstance(value, HardwareImuReading):
                 raise ValueError(f"imu must be ImuReading, got {value!r}")
+            _validate_imu(value)
             return ImuSensorReading(timestamp, ReadingStatus.OK, value)
         except HardwareUnavailableError as error:
             return ImuSensorReading(
@@ -433,6 +434,15 @@ def _validate_distance(value: Any) -> float:
     if distance < 0:
         raise ValueError(f"distance_cm must be non-negative, got {distance}")
     return distance
+
+
+def _validate_imu(reading: HardwareImuReading) -> None:
+    for group in ("acceleration", "gyro"):
+        values = getattr(reading, group)
+        if len(values) != 3:
+            raise ValueError(f"{group} must have three axes, got {len(values)}")
+        for index, value in enumerate(values):
+            _validate_float(value, f"{group}[{index}]")
 
 
 def _validate_float(value: Any, label: str) -> float:

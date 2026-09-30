@@ -61,6 +61,23 @@ class MalformedSensors:
         return object()
 
 
+class MalformedImuValueSensors:
+    def __init__(self, reading: ImuReading) -> None:
+        self.reading = reading
+
+    def read_distance_cm(self) -> float | None:
+        return 12.0
+
+    def read_touch(self) -> TouchState:
+        return TouchState.NONE
+
+    def read_imu(self) -> ImuReading:
+        return self.reading
+
+    def read_sound_direction(self) -> float | None:
+        return None
+
+
 class VendorFaultSensors:
     def read_distance_cm(self) -> float | None:
         raise RuntimeError("ultrasonic driver crashed")
@@ -169,6 +186,39 @@ class SensorServiceErrorPathTests(unittest.TestCase):
         self.assertIn("TouchState", snapshot.touch.detail or "")
         self.assertIn("IMU", snapshot.imu.detail or "")
         self.assertIn("direction_degrees", snapshot.sound_direction.detail or "")
+
+    def test_malformed_imu_axis_values_are_returned_as_status(self) -> None:
+        cases = {
+            "nan": ImuReading(
+                acceleration=(float("nan"), 0.0, 1.0),
+                gyro=(0.0, 0.0, 0.0),
+            ),
+            "infinity": ImuReading(
+                acceleration=(0.0, 0.0, 1.0),
+                gyro=(0.0, float("inf"), 0.0),
+            ),
+            "none": ImuReading(
+                acceleration=(0.0, None, 1.0),
+                gyro=(0.0, 0.0, 0.0),
+            ),
+            "string": ImuReading(
+                acceleration=(0.0, 0.0, 1.0),
+                gyro=(0.0, "fast", 0.0),
+            ),
+        }
+
+        for label, reading in cases.items():
+            with self.subTest(label=label):
+                service = SensorService(
+                    MalformedImuValueSensors(reading),
+                    time_source=IncrementingClock(),
+                )
+
+                snapshot = service.read_snapshot()
+
+                self.assertIs(snapshot.imu.status, ReadingStatus.MALFORMED)
+                self.assertIsNone(snapshot.imu.imu)
+                self.assertIn("must", snapshot.imu.detail or "")
 
     def test_arbitrary_vendor_exceptions_do_not_escape(self) -> None:
         service = SensorService(VendorFaultSensors(), time_source=IncrementingClock())
