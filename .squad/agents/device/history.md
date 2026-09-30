@@ -29,3 +29,5 @@
 
 📌 Team update (2026-09-30T09:22:33.507-04:00): Sensor adapter work added a new SensorService with typed status-based readings; decisions.md now records explicit OK/UNAVAILABLE/MALFORMED semantics instead of ambiguous None, and real Pi HIL sensor smoke testing remains a follow-up risk. — decided by device
 
+
+📌 Team update (2026-09-30T10:00:58.0877268-04:00): Reviewer rejection found malformed IMU data could be reported as OK; Lead owned the locked-out fix and added IMU validation in commit d87e61d with 223 tests passing.
