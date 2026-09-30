@@ -41,15 +41,18 @@ IDs. It does not output keys or connection strings.
 ## Relay audience parameter
 
 `relayAudience` is the relay app registration identifier URI, for example
-`api://<relay-app-id>`. When set, it is passed to the relay Container App as
-`SPARKY_RELAY_AUDIENCE`, which is the audience the relay requires on inbound
-device tokens.
+`api://<relay-app-id>`. When set, the relay Container App receives the full
+ADR 0003 runtime contract: `AZURE_TENANT_ID`, `SPARKY_RELAY_AUDIENCE`,
+`SPARKY_RELAY_DEVICE_SCOPE`, `SPARKY_FOUNDRY_SCOPE`, and `SPARKY_SPEECH_SCOPE`.
+If `relayDeviceScope` is left empty, the template derives it as
+`<relayAudience>/.default`.
 
 It is deliberately **not** stored in `main.bicepparam`. Entra app registrations
 are Microsoft Graph objects that Bicep does not manage, and their IDs are
 tenant-specific, so the value is supplied at deploy time via
-`--parameters relayAudience="api://<relay-app-id>"`. Production should use a
-relay app registration separate from dev. See
+`--parameters relayAudience="api://<relay-app-id>"`. Provide
+`relayDeviceScope` too when the app registration exposes a non-default scope.
+Production should use a relay app registration separate from dev. See
 [creating the two app registrations](../../../docs/keyless-auth-testing-guide.md#creating-the-two-app-registrations).
 
 ## Validate

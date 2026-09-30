@@ -37,3 +37,8 @@
 
 
 📌 Relay auth smoke harness (2026-09-30T11:20:01-04:00): Added `scripts/relay_auth_smoke.py` as a stdlib-only Pi harness for device-code relay sign-in, relay-audience claim inspection, authenticated `/health`, `/ai/chat`, `/ai/vision`, and `/speech/synthesize` smoke calls, structured negative-auth replay, credential-shaped env-name reporting, and CI fake mode. Added unittest coverage and updated keyless/Pi/README docs.
+📌 Team update (2026-09-30T12:45:22-04:00): The relay now has a real ASGI entry point and Dockerfile, so device smoke/HIL harnesses can target the packaged relay image instead of a placeholder path — decided by lead.
+
+
+📌 Team update (2026-09-30T12:45:22-04:00): Relay now returns 503 `relay_unavailable` on AI routes and an anonymous 200 on `/health` until `relayAudience` is supplied at deploy time — device-side smoke runs should expect this.
+

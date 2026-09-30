@@ -40,17 +40,21 @@ IDs. It does not output keys or connection strings.
 ## Relay audience parameter
 
 `relayAudience` is the relay app registration identifier URI, for example
-`api://<relay-app-id>`. When set, it is passed to the relay Container App as
-`SPARKY_RELAY_AUDIENCE`, which is the audience the relay requires on inbound
-device tokens.
+`api://<relay-app-id>`. When set, the relay Container App receives the full
+ADR 0003 runtime contract: `AZURE_TENANT_ID`, `SPARKY_RELAY_AUDIENCE`,
+`SPARKY_RELAY_DEVICE_SCOPE`, `SPARKY_FOUNDRY_SCOPE`, and `SPARKY_SPEECH_SCOPE`.
+If `relayDeviceScope` is left empty, the template derives it as
+`<relayAudience>/.default`.
 
 It is deliberately **not** stored in `main.bicepparam`. Entra app registrations
 are Microsoft Graph objects that Bicep does not manage, and their IDs are
 tenant-specific, so the value is supplied at deploy time. See
 [creating the two app registrations](../../../docs/keyless-auth-testing-guide.md#creating-the-two-app-registrations).
 
-Leaving it empty is valid and is the correct state for the baseline deployment,
-which runs the public quickstart image and serves no relay routes.
+Leaving `relayAudience` empty is valid only for the baseline public quickstart
+image, where no relay runtime configuration is emitted. Once code CD publishes
+the FastAPI relay image, provide `relayAudience` so the container starts with
+the Entra validation and managed-identity downstream scopes it needs.
 
 ## Validate
 
@@ -85,6 +89,7 @@ az deployment group create `
   --resource-group rg-sparky `
   --parameters infra/environments/dev/main.bicepparam `
   --parameters relayAudience="api://<relay-app-id>" `
+  --parameters relayDeviceScope="api://<relay-app-id>/.default" `
   --mode Incremental
 ```
 
