@@ -164,3 +164,8 @@
 **By:** Lead
 **What:** The relay HTTP surface treats missing deploy-time auth configuration as a service-unavailable state for AI routes while keeping `/health` independent of relay configuration.
 **Why:** `relayAudience` is intentionally supplied at deployment time, so code-side startup must avoid turning an otherwise healthy container into 500s before those settings are present.
+
+### 2026-09-30: Keep PackagedFrame device-local while sharing perception request contracts
+**By:** Lead
+**What:** The shared package now defines `PerceptionRequest` as the relay-facing image analysis request contract, while `PackagedFrame` remains owned by the device camera service. Device code bridges from `PackagedFrame` into `PerceptionRequest`; cloud code consumes `PerceptionRequest` semantics when building Foundry vision calls.
+**Why:** ADR 0005 defers promoting `PackagedFrame` until the relay consumes that exact shape. The relay wire contract still requires only `image` plus optional prompt/media metadata, so a narrower request DTO satisfies issue #12 without violating the camera-packaging boundary.

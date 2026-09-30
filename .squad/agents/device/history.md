@@ -42,3 +42,5 @@
 
 📌 Team update (2026-09-30T12:45:22-04:00): Relay now returns 503 `relay_unavailable` on AI routes and an anonymous 200 on `/health` until `relayAudience` is supplied at deploy time — device-side smoke runs should expect this.
 
+
+📌 Team update (2026-09-30T15:33:55-04:00): New device-side module services/perception.py bridges PackagedFrame into shared PerceptionRequest for relay-facing perception while PackagedFrame remains device-local — decided by Lead

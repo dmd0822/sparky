@@ -18,3 +18,5 @@
 
 📌 Team update (2026-09-30T12:45:22-04:00): Relay now returns 503 `relay_unavailable` on AI routes and an anonymous 200 on `/health` until `relayAudience` is supplied at deploy time — device-side smoke runs should expect this.
 
+
+📌 2026-09-30T15:33:55-04:00: Implemented issue #12 code-side shared perception contracts without promoting `PackagedFrame`: added the shared `PerceptionRequest`, round-trip DTO parsing, perception fixtures, cloud adapter aliasing to shared prompts, and device bridge helpers that build requests from packaged frames and parse relay responses.

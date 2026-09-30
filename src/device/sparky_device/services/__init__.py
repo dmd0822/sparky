@@ -10,6 +10,7 @@ from .camera import (
     PackagedFrame,
 )
 from .motion import Gait, MotionService, MotionState, Posture, Turn
+from .perception import request_from_packaged_frame, result_from_relay_response
 from .sensors import (
     DistanceReading,
     ImuSensorReading,
@@ -34,6 +35,8 @@ __all__ = [
     "PackagedFrame",
     "Posture",
     "ReadingStatus",
+    "request_from_packaged_frame",
+    "result_from_relay_response",
     "SensorService",
     "SensorServiceState",
     "SensorSnapshot",

@@ -253,7 +253,7 @@ The single-region target is viable for the planned baseline:
 │   │   ├── sparky_relay/       # Entra-protected relay API
 │   │   └── tests/
 │   └── shared/
-│       ├── sparky_contracts/   # DTOs, schemas, persona validation, prompts, config helpers
+│       ├── sparky_contracts/   # Perception DTOs/statuses/prompts/versioning
 │       └── tests/
 ├── infra/
 │   ├── modules/
@@ -491,7 +491,7 @@ with explicit `ok`, `unavailable`, or `malformed` statuses instead of overloaded
 `None` values or escaping hardware exceptions. Camera capture follows the same
 pattern: `CameraService` owns start/capture/stop, converts camera absence and
 malformed frames into status-bearing results, and packages successful captures
-into JSON-friendly `PackagedFrame` values for the relay.
+into JSON-friendly device-local `PackagedFrame` values.
 
 Camera packaging is deliberately above the port. `vilib` captures at its native
 640x480 only, so the port rejects every other requested resolution before
@@ -499,8 +499,11 @@ touching the vendor stack. If a caller asks for smaller upload dimensions,
 `CameraService` lazily tries optional Pillow-based resizing; when Pillow is not
 installed or fixture bytes cannot be decoded, it sends the original bytes and
 records the actual packaged dimensions and detail in metadata. The relay-facing
-dictionary includes base64 image bytes, source dimensions, packaged dimensions,
-format, sequence, monotonic capture timestamp, and source ID.
+perception helper converts a `PackagedFrame` into `PerceptionRequest`, whose
+wire dictionary includes base64 image bytes under `image`, prompt, media type,
+optional correlation ID, and source metadata; packaged dimensions remain
+device-local camera metadata rather than part of the shared perception
+contract.
 
 Unit tests run against fake implementations:
 

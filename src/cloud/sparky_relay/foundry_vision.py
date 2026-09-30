@@ -14,6 +14,8 @@ from .keyless_auth import AzureRelayConfig
 
 try:  # pragma: no cover - installed package path.
     from sparky_contracts import (
+        DEFAULT_PERCEPTION_IMAGE_MEDIA_TYPE,
+        DEFAULT_PERCEPTION_PROMPT,
         PERCEPTION_STATUS_CONFIG_ERROR,
         PERCEPTION_STATUS_DOWNSTREAM_ERROR,
         PERCEPTION_STATUS_EMPTY_RESPONSE,
@@ -21,10 +23,13 @@ try:  # pragma: no cover - installed package path.
         PERCEPTION_STATUS_TIMEOUT,
         PERCEPTION_STATUS_TRANSPORT_ERROR,
         PERCEPTION_STATUS_UNSAFE,
+        PerceptionRequest,
         PerceptionResult,
     )
 except ImportError:  # pragma: no cover - repo-root test path.
     from src.shared.sparky_contracts import (
+        DEFAULT_PERCEPTION_IMAGE_MEDIA_TYPE,
+        DEFAULT_PERCEPTION_PROMPT,
         PERCEPTION_STATUS_CONFIG_ERROR,
         PERCEPTION_STATUS_DOWNSTREAM_ERROR,
         PERCEPTION_STATUS_EMPTY_RESPONSE,
@@ -32,15 +37,13 @@ except ImportError:  # pragma: no cover - repo-root test path.
         PERCEPTION_STATUS_TIMEOUT,
         PERCEPTION_STATUS_TRANSPORT_ERROR,
         PERCEPTION_STATUS_UNSAFE,
+        PerceptionRequest,
         PerceptionResult,
     )
 
 
-DEFAULT_VISION_PROMPT = (
-    "Analyze this Sparky camera frame. Return compact JSON with a string "
-    "caption and an array of short label strings."
-)
-DEFAULT_IMAGE_MEDIA_TYPE = "image/jpeg"
+DEFAULT_VISION_PROMPT = DEFAULT_PERCEPTION_PROMPT
+DEFAULT_IMAGE_MEDIA_TYPE = DEFAULT_PERCEPTION_IMAGE_MEDIA_TYPE
 DEFAULT_TIMEOUT_SECONDS = 20.0
 
 
@@ -221,15 +224,12 @@ class FoundryVisionAdapter:
         ).as_dict()
 
     def _build_request_body(self, payload: Mapping[str, Any]) -> dict[str, Any]:
-        image = payload.get("image")
-        if not isinstance(image, str) or not image.strip():
+        try:
+            request = PerceptionRequest.from_dict(payload)
+        except ValueError:
             raise ValueError("Vision payload requires base64 image text.")
-        prompt = payload.get("prompt")
-        if not isinstance(prompt, str) or not prompt.strip():
-            prompt = DEFAULT_VISION_PROMPT
-        media_type = payload.get("media_type") or payload.get("image_media_type") or DEFAULT_IMAGE_MEDIA_TYPE
-        if not isinstance(media_type, str) or not media_type.strip():
-            media_type = DEFAULT_IMAGE_MEDIA_TYPE
+        prompt = request.prompt or DEFAULT_VISION_PROMPT
+        media_type = request.media_type or DEFAULT_IMAGE_MEDIA_TYPE
         return {
             "messages": [
                 {
@@ -239,7 +239,10 @@ class FoundryVisionAdapter:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:{media_type.strip()};base64,{image.strip()}"
+                                "url": (
+                                    f"data:{media_type.strip()};base64,"
+                                    f"{request.image_base64.strip()}"
+                                )
                             },
                         },
                     ],

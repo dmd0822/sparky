@@ -1,0 +1,33 @@
+{
+  "scene": "ambiguous",
+  "sample_prompt": "ambiguous_scene",
+  "request": {
+    "image": "YW1iaWd1b3VzLXNjZW5lLWZyYW1l",
+    "prompt": "Describe only what can be seen with confidence. If the frame is blurry, dark, or ambiguous, say so and use sparse labels.",
+    "media_type": "image/jpeg",
+    "correlation_id": "perception-ambiguous-001",
+    "source": {
+      "source_id": "front-camera",
+      "sequence": 43,
+      "timestamp": 1800000001.5,
+      "source_width": 640,
+      "source_height": 480
+    }
+  },
+  "response": {
+    "caption": "The frame is dim and partially blurred; there may be a person-shaped figure near a doorway, but details are uncertain.",
+    "labels": ["dim room", "possible person"],
+    "status": "ok",
+    "metadata": {
+      "latency_ms": 141,
+      "token_usage": {
+        "prompt": 51,
+        "completion": 24,
+        "total": 75
+      },
+      "model": "gpt-4.1-mini",
+      "deployment": "sparky-vision"
+    },
+    "correlation_id": "perception-ambiguous-001"
+  }
+}
