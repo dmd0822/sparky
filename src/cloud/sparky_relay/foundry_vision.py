@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import socket
+import sys
 import time
 from typing import Any, Callable, Mapping, Protocol
 from urllib.error import HTTPError
@@ -11,6 +13,19 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request as UrlRequest, urlopen
 
 from .keyless_auth import AzureRelayConfig
+
+
+def _add_local_shared_contracts_to_path() -> None:
+    """Expose the repo-local shared package when callers run outside repo root."""
+
+    for parent in Path(__file__).resolve().parents:
+        shared_package = parent / "src" / "shared" / "sparky_contracts" / "__init__.py"
+        if shared_package.exists():
+            shared_src = str(shared_package.parent.parent)
+            if shared_src not in sys.path:
+                sys.path.insert(0, shared_src)
+            return
+
 
 try:  # pragma: no cover - installed package path.
     from sparky_contracts import (
@@ -27,19 +42,35 @@ try:  # pragma: no cover - installed package path.
         PerceptionResult,
     )
 except ImportError:  # pragma: no cover - repo-root test path.
-    from src.shared.sparky_contracts import (
-        DEFAULT_PERCEPTION_IMAGE_MEDIA_TYPE,
-        DEFAULT_PERCEPTION_PROMPT,
-        PERCEPTION_STATUS_CONFIG_ERROR,
-        PERCEPTION_STATUS_DOWNSTREAM_ERROR,
-        PERCEPTION_STATUS_EMPTY_RESPONSE,
-        PERCEPTION_STATUS_INVALID_RESPONSE,
-        PERCEPTION_STATUS_TIMEOUT,
-        PERCEPTION_STATUS_TRANSPORT_ERROR,
-        PERCEPTION_STATUS_UNSAFE,
-        PerceptionRequest,
-        PerceptionResult,
-    )
+    try:
+        from src.shared.sparky_contracts import (
+            DEFAULT_PERCEPTION_IMAGE_MEDIA_TYPE,
+            DEFAULT_PERCEPTION_PROMPT,
+            PERCEPTION_STATUS_CONFIG_ERROR,
+            PERCEPTION_STATUS_DOWNSTREAM_ERROR,
+            PERCEPTION_STATUS_EMPTY_RESPONSE,
+            PERCEPTION_STATUS_INVALID_RESPONSE,
+            PERCEPTION_STATUS_TIMEOUT,
+            PERCEPTION_STATUS_TRANSPORT_ERROR,
+            PERCEPTION_STATUS_UNSAFE,
+            PerceptionRequest,
+            PerceptionResult,
+        )
+    except ImportError:  # pragma: no cover - script path outside repo root.
+        _add_local_shared_contracts_to_path()
+        from sparky_contracts import (
+            DEFAULT_PERCEPTION_IMAGE_MEDIA_TYPE,
+            DEFAULT_PERCEPTION_PROMPT,
+            PERCEPTION_STATUS_CONFIG_ERROR,
+            PERCEPTION_STATUS_DOWNSTREAM_ERROR,
+            PERCEPTION_STATUS_EMPTY_RESPONSE,
+            PERCEPTION_STATUS_INVALID_RESPONSE,
+            PERCEPTION_STATUS_TIMEOUT,
+            PERCEPTION_STATUS_TRANSPORT_ERROR,
+            PERCEPTION_STATUS_UNSAFE,
+            PerceptionRequest,
+            PerceptionResult,
+        )
 
 
 DEFAULT_VISION_PROMPT = DEFAULT_PERCEPTION_PROMPT
