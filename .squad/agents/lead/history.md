@@ -4,3 +4,5 @@
 
 📌 Team update (2026-09-25T16:39:28-04:00): Container Apps environments must use the keyless Azure Monitor logs destination plus diagnosticSettings to route ContainerAppConsoleLogs and ContainerAppSystemLogs to Log Analytics by workspace resource ID; never reintroduce the shared-key-requiring log-analytics destination — decided by Security.
 
+
+📌 2026-09-30T09:55:45-04:00: Fixed issue #7 malformed-IMU gap in the service layer rather than `ImuReading` so invalid vendor/simulator axis values now become `ReadingStatus.MALFORMED` without broadening the shared hardware-contract blast radius.

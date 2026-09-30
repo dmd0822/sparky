@@ -11,8 +11,9 @@ Sparky is an AI-powered robot dog built on the SunFounder PiDog platform. The ph
 The device runtime also applies a local persona framework that shapes prompts, voice, movement, reactions, and sound effects without weakening global safety constraints.
 
 Device application code is layered above a hardware seam: planners call
-service-level APIs such as `sparky_device.services.MotionService`, services
-depend only on `sparky_device.hardware.ports` protocols, and only
+service-level APIs such as `sparky_device.services.MotionService` and
+`sparky_device.services.SensorService`, services depend only on
+`sparky_device.hardware.ports` protocols, and only
 `sparky_device.hardware.pidog_adapters` imports SunFounder packages.
 
 Azure provides the cloud intelligence layer:
@@ -437,6 +438,10 @@ Port responsibilities:
 
 Adapters validate speed and servo angles *before* calling the vendor library, so
 an out-of-range command is rejected in software rather than sent to a servo.
+The service layer then gives planners stable application contracts: motion
+intents reject ambiguous queues, while sensor reads become timestamped snapshots
+with explicit `ok`, `unavailable`, or `malformed` statuses instead of overloaded
+`None` values or escaping hardware exceptions.
 
 Unit tests run against fake implementations:
 

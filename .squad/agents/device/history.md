@@ -27,4 +27,8 @@
 
 📌 Full HIL script consolidation (2026-09-29T13:19:17.701-04:00): Folded port-level checklist steps 1-12 into `scripts/motion_service_hil.py` alongside motion-service steps 13-17, preserving lazy vendor imports, camera SKIP semantics, safe cleanup, simulator rehearsal, and adding `--steps`/`--only` for targeted reruns.
 
+📌 Team update (2026-09-30T09:22:33.507-04:00): Sensor adapter work added a new SensorService with typed status-based readings; decisions.md now records explicit OK/UNAVAILABLE/MALFORMED semantics instead of ambiguous None, and real Pi HIL sensor smoke testing remains a follow-up risk. — decided by device
+
+
+📌 Team update (2026-09-30T10:00:58.0877268-04:00): Reviewer rejection found malformed IMU data could be reported as OK; Lead owned the locked-out fix and added IMU validation in commit d87e61d with 223 tests passing.
 📌 Team update (2026-09-30T09:14:16.352-04:00): PR #63 and PR #64 merged the issue #6 motion-service and HIL-script work to `main`. Durable lessons: cross-platform CI requires repo-root `/` path joins instead of Windows/CWD-relative literals, and the HIL script's SKIP-vs-FAIL distinction is load-bearing because optional camera absence must not hide required PiDog/profile failures.

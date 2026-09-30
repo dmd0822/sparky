@@ -499,7 +499,7 @@ def _run_step(
             out=out,
             prompt=prompt,
         )
-        motion.forward(steps=10, speed=50)
+        motion.forward(steps=5, speed=30)
         return _result(15, Status.PASS, f"stood, then issued forward gait: {motion.state}")
 
     if step == 16:

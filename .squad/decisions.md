@@ -124,3 +124,21 @@
 **By:** device
 **What:** `MotionService` accepts one non-stop motion intent at a time. While a command is in flight, later non-stop commands raise `HardwareError` instead of being queued. Callers must either `wait_until_idle()` before the next intent or call `stop()`, which pre-empts immediately and is idempotent. Locomotion also requires the tracked posture to be standing; planners must explicitly request `stand()` after `sit()` or `lie()` before walking, trotting, or turning.
 **Why:** The PiDog motion adapter queues work asynchronously, so accepting multiple planner intents without a settled state would make posture and command ownership ambiguous. Rejecting conflicts keeps behavior planners deterministic, makes unsafe overlaps observable, and preserves `stop()` as the one always-honoured emergency command.
+
+### 2026-09-30: Sensor readings use explicit status semantics instead of ambiguous None
+**By:** device
+**What:** `SensorService` wraps `SensorPort` and returns timestamped, typed, frozen reading value objects carrying an explicit status: `OK` with a value for a valid reading, `OK` with `None` for a valid "no echo / no sound this tick" condition (not a fault), `UNAVAILABLE` for missing or unhealthy hardware, and `MALFORMED` for invalid data shape from the port. The service catches every port exception (`HardwareError`, `HardwareUnavailableError`, and arbitrary vendor errors) and maps it to a status so nothing escapes into the device loop.
+**Why:** The pre-existing `SensorPort` had inconsistent failure semantics: `read_distance_cm()` and `read_sound_direction()` returned `None`, ambiguously representing either "no reading" or "hardware dead", while `read_imu()` raised `HardwareError`. Behavior loops consuming that surface would either crash or be unable to distinguish valid empty readings from faults. Vision and behavior work depend on a normalized sensor surface.
+
+### 2026-09-30T09:55:45-04:00: Validate malformed IMU axes in SensorService
+**By:** lead
+**What:** Malformed IMU axis values are validated in `SensorService` before returning an OK reading, while `ImuReading.__post_init__` remains limited to structural axis-count validation.
+**Why:** This fixes issue #7's service-level malformed-data requirement with the smallest safe blast radius. Moving the rule into the shared hardware value object would change behavior for every adapter and simulator construction site, while the service already owns normalizing inconsistent port failures into explicit `ReadingStatus` values.
+
+
+### 2026-09-30: SensorService IMU malformed-data coverage gap
+**By:** reviewer
+**What:** Issue #7 gap analysis found SensorService treats any `ImuReading` instance as OK without validating that acceleration/gyro axes are numeric and finite. The existing malformed IMU test covers a `HardwareError` raised by the port, not an invalid `ImuReading` value object.
+**Why:** The issue explicitly requires malformed sensor data paths. Distance, touch, and sound malformed values are detected directly by SensorService, but IMU malformed value-object content can still be logged/planned as an OK reading. Add service-side IMU axis validation and a representative malformed-IMU fixture before closing the issue.
+
+

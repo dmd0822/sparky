@@ -51,6 +51,29 @@ with create_ports() as robot:
 | Module | Purpose |
 | --- | --- |
 | `services/motion.py` | Service-level posture and locomotion commands with conflict handling |
+| `services/sensors.py` | Timestamped sensor snapshots with explicit unavailable and malformed statuses |
+
+## Sensor service
+
+`sparky_device.services.SensorService` is the planner-facing layer above
+`SensorPort`. It reads ultrasonic distance, dual touch, IMU, and sound
+direction into one timestamped snapshot for each device-loop tick. Sensor
+timeouts such as an invalid ultrasonic echo or no detected sound are represented
+as `ReadingStatus.OK` with a `None` value and a detail message; missing hardware
+or malformed port output becomes an explicit status instead of an exception.
+
+```python
+from sparky_device.hardware import create_ports
+from sparky_device.services import ReadingStatus, SensorService
+
+with create_ports() as robot:
+    sensors = SensorService(robot.sensors)
+    snapshot = sensors.read_snapshot()
+    if snapshot.distance.status is ReadingStatus.OK:
+        print(snapshot.distance.distance_cm)
+    else:
+        print(snapshot.distance.as_dict())
+```
 
 Set `SPARKY_HARDWARE` to `pidog`, `simulator`, or `auto` (the default) to choose
 the implementation. Vendor imports are lazy, so this package imports cleanly on
