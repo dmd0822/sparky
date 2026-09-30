@@ -155,6 +155,14 @@ entry point in simulator mode:
 python scripts\motion_service_hil.py --ci
 ```
 
+Planner-facing device services live in `sparky_device.services`. `MotionService`
+normalizes movement intents, `SensorService` returns status-bearing sensor
+snapshots, and `CameraService` owns camera start/capture/stop while packaging
+frames for relay submission. Camera packaging records source dimensions,
+packaged dimensions, sequence, monotonic timestamp, and source ID; optional
+resizing is best-effort and falls back to the native bytes when no image stack is
+installed.
+
 For next steps:
 
 1. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

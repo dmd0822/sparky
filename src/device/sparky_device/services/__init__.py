@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from .camera import (
+    CameraCapture,
+    CameraService,
+    CameraServiceState,
+    CameraStatus,
+    PackagedFrame,
+)
 from .motion import Gait, MotionService, MotionState, Posture, Turn
 from .sensors import (
     DistanceReading,
@@ -15,11 +22,16 @@ from .sensors import (
 )
 
 __all__ = [
+    "CameraCapture",
+    "CameraService",
+    "CameraServiceState",
+    "CameraStatus",
     "DistanceReading",
     "Gait",
     "ImuSensorReading",
     "MotionService",
     "MotionState",
+    "PackagedFrame",
     "Posture",
     "ReadingStatus",
     "SensorService",

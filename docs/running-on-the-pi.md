@@ -266,7 +266,7 @@ follow-up risk.
 | 8 | Sensor | Hold dog level, then gently tilt it | Two IMU acceleration tuples with changed axes | PASS when acceleration changes after tilt | FAIL when values do not change or are malformed |
 | 9 | Audio | Speaker enabled; listen for `single_bark_1` | Audible bark from the speaker | PASS when the command returns and the operator hears the bark | FAIL when silent, distorted by setup, or raises |
 | 10 | Board | Watch RGB strip during blue monochromatic command | Strip turns blue, then clears | PASS when LEDs light and clear | FAIL when command is silent, wrong color, or not cleared |
-| 11 | Camera | Optional camera attached and uncovered | One 640x480 frame with non-empty bytes | PASS when a frame is captured; SKIP when no camera is attached for a non-vision milestone | FAIL when a required camera milestone cannot capture |
+| 11 | Camera | Optional camera attached and uncovered; for vision milestones also call `CameraService.capture_frame()` | One 640x480 frame with non-empty bytes and packaged metadata containing source and packaged dimensions, sequence, timestamp, and source ID | PASS when a frame is captured and the packaged result reports status `ok` with honest dimensions; SKIP when no camera is attached for a non-vision milestone | FAIL when a required camera milestone cannot capture or package a frame |
 | 12 | Safety | Let the script exit or interrupt it | Cleanup reports ports closed; motion stopped; camera stopped; RGB cleared | PASS when cleanup reports success | FAIL when cleanup reports any close/stop error |
 | 18 | Sensor / audio input | Make a short sound near the microphone array | Numeric `sound_direction` in degrees | PASS when a direction is printed | FAIL when no sound is detected or the sensor raises |
 
@@ -326,6 +326,34 @@ Use the same physical actions from steps 6-8 and 18 while running the snippet.
 | IMU sample | `imu.status` is `ok`; `acceleration` and `gyro` each contain three numeric axes | PASS when numeric axes print | FAIL on crash, malformed axes, or unavailable hardware without explanation |
 | Sound direction | `sound_direction.status` is `ok`; `direction_degrees` is numeric when sound is detected, or `None` with a detail message when no sound is detected | PASS when the service reports explicit ok/no-sound semantics | FAIL if the snippet crashes or returns malformed data |
 | Missing or unhealthy hardware | A status of `unavailable` or `malformed` appears in the printed dictionary; the snippet does not crash | PASS when failures are represented as statuses | FAIL when a vendor exception escapes the service |
+
+### Camera service check
+
+For camera or vision milestones, run step 11 and then validate the
+planner-facing packaging boundary. The service still starts the real `vilib`
+camera at 640x480; any smaller upload target is applied above the port and may
+fall back to original bytes when optional image dependencies are absent.
+
+```bash
+python - <<'PY'
+from sparky_device.hardware import create_ports
+from sparky_device.services import CameraService
+
+with create_ports("pidog") as robot:
+    service = CameraService(robot.camera, source_id="sparky-pi-camera")
+    print(service.start().as_dict())
+    result = service.capture_frame()
+    print(result.as_dict())
+    print(service.stop().as_dict())
+PY
+```
+
+Pass criteria: `start.status` is `ok`, `capture.status` is `ok`, the packaged
+frame has non-empty base64 image data, `source_width`/`source_height` are
+640x480, `packaged_width`/`packaged_height` match the bytes actually submitted,
+and `source_id` identifies the Pi camera. Fail criteria: a required camera
+milestone returns `unavailable` or `malformed`, the snippet crashes, dimensions
+are inconsistent with the frame, or cleanup cannot stop the camera.
 
 ## Running without a Pi
 

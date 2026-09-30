@@ -10,6 +10,7 @@ simulator rejects would also be rejected on the robot.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 import time
 from itertools import cycle
 from typing import Iterable, Iterator, Sequence
@@ -43,6 +44,7 @@ __all__ = [
     "SimulatedSensors",
     "SoundCommand",
     "build_simulated_ports",
+    "load_frame_fixtures",
     "solid_frame",
 ]
 
@@ -293,6 +295,22 @@ class SimulatedCamera:
         self.stop_count = 0
         self.captured: list[Frame] = []
 
+    @classmethod
+    def from_fixture_directory(
+        cls,
+        fixture_dir: str | Path,
+        *,
+        width: int = VILIB_CAPTURE_SIZE[0],
+        height: int = VILIB_CAPTURE_SIZE[1],
+        available: bool = True,
+    ) -> "SimulatedCamera":
+        """Build a replay camera from encoded frame files on disk."""
+
+        return cls(
+            load_frame_fixtures(fixture_dir, width=width, height=height),
+            available=available,
+        )
+
     def start(self, *, width: int = 640, height: int = 480) -> None:
         width, height = validate_camera_resolution(width, height)
         if not self._available:
@@ -384,13 +402,62 @@ def build_simulated_ports(
     *,
     limits: MotionLimits = DEFAULT_LIMITS,
     frames: Iterable[Frame] | None = None,
+    camera_fixture_dir: str | Path | None = None,
 ) -> RobotPorts:
     """Assemble a fully simulated :class:`RobotPorts` bundle."""
+
+    if frames is not None and camera_fixture_dir is not None:
+        raise ValueError("pass either frames or camera_fixture_dir, not both")
+    camera = (
+        SimulatedCamera.from_fixture_directory(camera_fixture_dir)
+        if camera_fixture_dir is not None
+        else SimulatedCamera(frames=frames)
+    )
 
     return RobotPorts(
         motion=SimulatedMotion(limits=limits),
         board=SimulatedBoard(),
-        camera=SimulatedCamera(frames=frames),
+        camera=camera,
         sensors=SimulatedSensors(),
         profile=SIMULATOR_PROFILE,
     )
+
+
+def load_frame_fixtures(
+    fixture_dir: str | Path,
+    *,
+    width: int = VILIB_CAPTURE_SIZE[0],
+    height: int = VILIB_CAPTURE_SIZE[1],
+) -> list[Frame]:
+    """Load sorted frame files from ``fixture_dir`` for replay.
+
+    The simulator does not decode fixture bytes. Tests and off-robot runs often
+    only need realistic encoded payloads to flow through capture and packaging,
+    and CI intentionally has no image stack installed. Dimensions are therefore
+    supplied by the caller and validated through the same ``Frame`` value object
+    used by the real adapter.
+    """
+
+    directory = Path(fixture_dir)
+    if not directory.is_dir():
+        raise ValueError(f"camera fixture directory does not exist: {directory}")
+    files = sorted(path for path in directory.iterdir() if path.is_file())
+    if not files:
+        raise ValueError(f"camera fixture directory has no files: {directory}")
+    return [
+        Frame(
+            data=path.read_bytes(),
+            width=width,
+            height=height,
+            format=_frame_format_from_suffix(path),
+            sequence=index,
+        )
+        for index, path in enumerate(files, start=1)
+    ]
+
+
+def _frame_format_from_suffix(path: Path) -> str:
+    suffix = path.suffix.lower().lstrip(".")
+    if suffix in {"jpg", "jpeg"}:
+        return "jpeg"
+    return suffix or "jpeg"
