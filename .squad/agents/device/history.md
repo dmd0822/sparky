@@ -44,3 +44,5 @@
 
 
 📌 Team update (2026-09-30T15:33:55-04:00): New device-side module services/perception.py bridges PackagedFrame into shared PerceptionRequest for relay-facing perception while PackagedFrame remains device-local — decided by Lead
+
+📌 Team update (2026-09-30T16:11:05-04:00): Device and cloud perception modules now use the three-tier shared-contract import cascade: installed `sparky_contracts` package, repo-root `src.shared.sparky_contracts`, then a path-discovering local `src/shared` helper. This is required because script entry points put the script directory, not the repo root, on `sys.path`. — decided by Lead

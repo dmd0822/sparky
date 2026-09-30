@@ -169,3 +169,8 @@
 **By:** Lead
 **What:** The shared package now defines `PerceptionRequest` as the relay-facing image analysis request contract, while `PackagedFrame` remains owned by the device camera service. Device code bridges from `PackagedFrame` into `PerceptionRequest`; cloud code consumes `PerceptionRequest` semantics when building Foundry vision calls.
 **Why:** ADR 0005 defers promoting `PackagedFrame` until the relay consumes that exact shape. The relay wire contract still requires only `image` plus optional prompt/media metadata, so a narrower request DTO satisfies issue #12 without violating the camera-packaging boundary.
+
+### 2026-09-30T16:01:16-04:00: Resolve shared contracts at perception package boundaries
+**By:** Lead
+**What:** Device and cloud perception modules now fall back to locating `src/shared` relative to their own files when neither an installed `sparky_contracts` package nor repo-root `src.shared.sparky_contracts` import is available.
+**Why:** Operator scripts may put only package-specific source roots on `sys.path`, where Python does not include the repo root. Fixing the package boundary keeps all current and future perception entry points consistent without patching individual scripts or weakening the approved shared contract surface.
