@@ -1,5 +1,12 @@
 # Sparky
 
+[![Code CI](https://github.com/dmd0822/sparky/actions/workflows/code-ci.yml/badge.svg)](https://github.com/dmd0822/sparky/actions/workflows/code-ci.yml)
+[![Code CD](https://github.com/dmd0822/sparky/actions/workflows/code-cd.yml/badge.svg)](https://github.com/dmd0822/sparky/actions/workflows/code-cd.yml)
+[![Infra CI](https://github.com/dmd0822/sparky/actions/workflows/infra-ci.yml/badge.svg)](https://github.com/dmd0822/sparky/actions/workflows/infra-ci.yml)
+[![Infra CD](https://github.com/dmd0822/sparky/actions/workflows/infra-cd.yml/badge.svg)](https://github.com/dmd0822/sparky/actions/workflows/infra-cd.yml)
+[![Python Validation](https://github.com/dmd0822/sparky/actions/workflows/python-validation.yml/badge.svg)](https://github.com/dmd0822/sparky/actions/workflows/python-validation.yml)
+[![Workflow Lint](https://github.com/dmd0822/sparky/actions/workflows/workflow-lint.yml/badge.svg)](https://github.com/dmd0822/sparky/actions/workflows/workflow-lint.yml)
+
 Sparky is an AI-powered robot dog built on the [SunFounder PiDog](https://docs.sunfounder.com/projects/pidog/en/latest/) platform and augmented with Azure AI services through Microsoft Foundry. Sparky is designed for multiple runtime-switchable personas so the same robot can act, sound, move, and react differently while preserving global safety rules.
 
 ## Vendor platform references
