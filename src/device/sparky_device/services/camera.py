@@ -210,7 +210,11 @@ class CameraService:
                         "camera is not available",
                     )
                 width, height = VILIB_CAPTURE_SIZE
-                self._camera.start(width=width, height=height)
+                try:
+                    self._camera.start(width=width, height=height)
+                except Exception:
+                    self._stop_after_failed_start_unlocked()
+                    raise
                 return self._state_unlocked(CameraStatus.OK, None)
             except HardwareUnavailableError as error:
                 return self._state_unlocked(
@@ -370,6 +374,12 @@ class CameraService:
         except Exception:
             return False
 
+    def _stop_after_failed_start_unlocked(self) -> None:
+        try:
+            self._camera.stop()
+        except Exception:
+            return
+
     def _timestamp(self) -> float:
         return _validate_float(self._time_source(), "timestamp")
 
@@ -387,23 +397,33 @@ class _ResizeResult:
 def _try_resize_frame(frame: Frame, target_width: int, target_height: int) -> _ResizeResult:
     try:
         from PIL import Image  # type: ignore[import-not-found]
-    except ImportError:
+    except Exception as error:  # noqa: BLE001 - optional image stack is best-effort
         return _ResizeResult(
             frame.data,
             frame.width,
             frame.height,
             frame.format,
             False,
-            "Pillow is not installed; packaged original frame without resizing",
+            f"optional resize unavailable; packaged original frame: {_detail(error)}",
         )
 
     try:
-        image = Image.open(BytesIO(frame.data))
-        image = image.resize((target_width, target_height))
-        output = BytesIO()
-        image_format = "JPEG" if frame.format.lower() in {"jpg", "jpeg"} else frame.format.upper()
-        image.save(output, format=image_format)
-        return _ResizeResult(output.getvalue(), target_width, target_height, frame.format, True)
+        with Image.open(BytesIO(frame.data)) as image:
+            image = image.resize((target_width, target_height))
+            output = BytesIO()
+            image_format = (
+                "JPEG"
+                if frame.format.lower() in {"jpg", "jpeg"}
+                else frame.format.upper()
+            )
+            image.save(output, format=image_format)
+        return _ResizeResult(
+            output.getvalue(),
+            target_width,
+            target_height,
+            frame.format,
+            True,
+        )
     except Exception as error:  # noqa: BLE001 - optional image stack may reject fixtures
         return _ResizeResult(
             frame.data,

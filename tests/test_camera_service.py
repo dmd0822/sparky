@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import builtins
 from pathlib import Path
 import unittest
 
@@ -62,6 +63,12 @@ class MalformedCaptureCamera(SimulatedCamera):
 class FaultingCaptureCamera(SimulatedCamera):
     def capture(self) -> Frame:
         raise HardwareError("encoded frame was malformed")
+
+
+class PartialStartFailureCamera(SimulatedCamera):
+    def start(self, *, width: int = 640, height: int = 480) -> None:
+        super().start(width=width, height=height)
+        raise HardwareError("camera failed after enabling capture")
 
 
 class CameraServiceHappyPathTests(unittest.TestCase):
@@ -175,6 +182,20 @@ class CameraServiceErrorPathTests(unittest.TestCase):
         self.assertIs(capture.status, CameraStatus.UNAVAILABLE)
         self.assertIsNone(capture.frame)
 
+    def test_failed_start_attempt_stops_partially_started_camera(self) -> None:
+        camera = PartialStartFailureCamera()
+        service = CameraService(camera, time_source=IncrementingClock())
+
+        start = service.start()
+        stop = service.stop()
+
+        self.assertIs(start.status, CameraStatus.MALFORMED)
+        self.assertFalse(start.running)
+        self.assertFalse(camera.is_running())
+        self.assertEqual(camera.stop_count, 1)
+        self.assertIs(stop.status, CameraStatus.OK)
+        self.assertEqual(camera.stop_count, 1)
+
     def test_malformed_non_frame_return_is_returned_as_status(self) -> None:
         camera = MalformedCaptureCamera()
         service = CameraService(camera, time_source=IncrementingClock())
@@ -208,6 +229,37 @@ class CameraServiceErrorPathTests(unittest.TestCase):
         self.assertFalse(camera.is_running())
         self.assertIs(capture.status, CameraStatus.UNAVAILABLE)
         self.assertIn("closed", capture.detail or "")
+
+    def test_resize_import_failure_preserves_original_frame_honestly(self) -> None:
+        camera = SimulatedCamera([solid_frame(width=640, height=480, sequence=9)])
+        service = CameraService(
+            camera,
+            target_width=320,
+            target_height=240,
+            time_source=IncrementingClock(),
+        )
+        original_import = builtins.__import__
+
+        def failing_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "PIL":
+                raise RuntimeError("Pillow import failed")
+            return original_import(name, globals, locals, fromlist, level)
+
+        service.start()
+        try:
+            builtins.__import__ = failing_import
+            capture = service.capture_frame()
+        finally:
+            builtins.__import__ = original_import
+
+        self.assertIs(capture.status, CameraStatus.OK)
+        self.assertIsNotNone(capture.frame)
+        assert capture.frame is not None
+        self.assertEqual(capture.frame.image_bytes, camera.captured[0].data)
+        self.assertEqual(capture.frame.packaged_width, 640)
+        self.assertEqual(capture.frame.packaged_height, 480)
+        self.assertFalse(capture.frame.resized)
+        self.assertIn("Pillow import failed", capture.frame.detail or "")
 
 
 class CameraFixtureReplayTests(unittest.TestCase):
