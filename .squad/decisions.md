@@ -158,3 +158,9 @@
 **By:** lead
 **What:** The relay image binds uvicorn to port 80 while running as a non-root user by granting the Python runtime permission to bind the low port inside the image.
 **Why:** The existing code-cd workflow only updates the Container App image. Keeping the Container Apps targetPort at 80 avoids a separate infra rollout requirement during image cutover while preserving the non-root container requirement.
+
+
+### 2026-09-30T12:45:22-04:00: Tolerant relay startup for deploy-time auth configuration
+**By:** Lead
+**What:** The relay HTTP surface treats missing deploy-time auth configuration as a service-unavailable state for AI routes while keeping `/health` independent of relay configuration.
+**Why:** `relayAudience` is intentionally supplied at deployment time, so code-side startup must avoid turning an otherwise healthy container into 500s before those settings are present.

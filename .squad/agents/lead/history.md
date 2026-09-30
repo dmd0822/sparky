@@ -15,3 +15,6 @@
 
 📌 2026-09-30T12:45:22-04:00: Made relay startup tolerant so /health responds without configuration and AI routes return structured 503 responses with correlation IDs until deploy-time Entra settings are supplied.
 📌 2026-09-30T12:45:22-04:00: Corrected the unauthenticated ASGI health bypass semantics so it now reports `authenticated: false` while the post-auth relay health handler remains authenticated.
+
+📌 Team update (2026-09-30T12:45:22-04:00): Relay now returns 503 `relay_unavailable` on AI routes and an anonymous 200 on `/health` until `relayAudience` is supplied at deploy time — device-side smoke runs should expect this.
+
