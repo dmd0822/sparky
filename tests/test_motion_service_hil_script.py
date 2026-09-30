@@ -73,13 +73,14 @@ class MotionServiceHilScriptTests(unittest.TestCase):
         module = load_script_module()
         output = StringIO()
 
-        exit_code = module.main(["--simulate", "--yes"], out=output)
+        exit_code = module.main(["--ci"], out=output)
 
         self.assertEqual(exit_code, 0, output.getvalue())
         self.assertIn("Sparky HIL checklist PASS", output.getvalue())
         self.assertIn("Step 1 SKIP", output.getvalue())
         self.assertIn("Step 12 PASS", output.getvalue())
         self.assertIn("Step 17 PASS", output.getvalue())
+        self.assertIn("Step 18 PASS", output.getvalue())
 
     def test_full_simulated_run_touches_motion_sensors_board_and_camera(self) -> None:
         module = load_script_module()
@@ -107,6 +108,7 @@ class MotionServiceHilScriptTests(unittest.TestCase):
         self.assertIn("distance", robot.sensors.reads)
         self.assertEqual(robot.sensors.reads.count("touch"), 3)
         self.assertEqual(robot.sensors.reads.count("imu"), 2)
+        self.assertEqual(robot.sensors.reads.count("sound"), 1)
         self.assertEqual(robot.board.sounds[0].name, "single_bark_1")
         self.assertEqual(robot.board.rgb_commands[0].style, "monochromatic")
         self.assertEqual(len(robot.camera.captured), 1)
@@ -170,7 +172,7 @@ class MotionServiceHilScriptTests(unittest.TestCase):
         module = load_script_module()
         output = StringIO()
 
-        exit_code = module.main(["--simulate", "--yes", "--steps", "13-17"], out=output)
+        exit_code = module.main(["--ci", "--steps", "13-17"], out=output)
 
         self.assertEqual(exit_code, 0, output.getvalue())
         self.assertNotIn("Step 1 ", output.getvalue())
@@ -181,7 +183,7 @@ class MotionServiceHilScriptTests(unittest.TestCase):
     def test_parse_steps_accepts_alias_shape(self) -> None:
         module = load_script_module()
 
-        self.assertEqual(module.parse_steps("11,13-15,15"), (11, 13, 14, 15))
+        self.assertEqual(module.parse_steps("11,13-15,15,18"), (11, 13, 14, 15, 18))
 
 
 if __name__ == "__main__":

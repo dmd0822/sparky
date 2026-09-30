@@ -171,15 +171,31 @@ nothing is harder to debug than one that raises `HardwareUnavailableError`.
 
 ## Hardware-in-the-loop validation checklist
 
-CI cannot exercise real hardware, so run this checklist on a Pi before closing
-a milestone that touches the device runtime. Record the result in the pull
-request.
+CI cannot exercise real servos, sensors, or speakers, so every milestone that
+changes `src/device/`, motion/sensor/audio behavior, or the hardware adapters
+must include one of these acceptance records before it is closed:
 
-Before energising the servos, complete the bench setup from
-[Safety while testing motion](#safety-while-testing-motion): dog supported with
-legs clear, battery switched on, and the battery switch within reach. Keep one
-hand free for the operator prompts below; the script pauses before each physical
-sensor action.
+- the simulator harness output from `python scripts/motion_service_hil.py --ci`;
+- a real PiDog run of `python scripts/motion_service_hil.py`; and
+- notes for any SKIP/FAIL result, including whether the milestone accepts the
+  risk or needs follow-up work.
+
+The same entry point serves both CI and the real-dog bench. `--ci` forces the
+`simulator` profile, answers prompts automatically, skips vendor imports, and
+exits non-zero on any failed smoke step. The real Pi run uses the `pidog`
+profile and pauses before each motion or manual sensor/audio action.
+
+### Required fixtures and safety setup
+
+| Item | Required state | Fail/stop condition |
+| --- | --- | --- |
+| PiDog posture | Dog elevated on a stand or held so all legs clear the surface before gait steps | Stop immediately if a leg can catch the bench or floor |
+| E-stop path | Battery switch reachable and operator has one hand free at every prompt | Stop if the switch is blocked or the operator must leave the bench |
+| Power | Robot HAT seated; battery charged and switched on; USB alone is not enough for servos | Stop on brownout, repeated servo resets, or audible low-power chatter |
+| Area | Clear 1 m around the dog before forward gait steps | Stop if the robot can collide with a person, cable, or fixture |
+| Sensor fixtures | Hand or flat target at about 20 cm for ultrasonic; access to left/right touch pads; dog can be held level and tilted; short clap/sound near microphone array | Mark the affected sensor step FAIL if the fixture is unavailable |
+| Audio fixture | Speaker enabled with `i2samp.sh` and rebooted; room quiet enough to hear `single_bark_1` | Mark audio FAIL if the command reports success but no sound is heard |
+| Camera fixture | Optional Pi camera attached and visible to `rpicam-hello --list-cameras` when validating vision | Camera-only SKIP is acceptable for non-vision milestones; document it |
 
 From the repository root on the Pi, set the shell up for real hardware:
 
@@ -189,54 +205,54 @@ export PYTHONPATH="$PWD/src/device"
 export SPARKY_HARDWARE=pidog
 ```
 
-Rehearse the complete checklist off-robot first. The simulator run exercises the
-same script without importing PiDog, Robot HAT, Vilib, or OpenCV:
+Rehearse the complete checklist off-robot first. This is the CI harness command
+and should pass on a laptop or GitHub-hosted runner with no PiDog libraries
+installed:
 
 ```bash
-python scripts/motion_service_hil.py --simulate --yes
+python scripts/motion_service_hil.py --ci
 ```
 
-Then run the same script against the PiDog from the repository root on the Pi:
+Then run the same checklist against the PiDog from the repository root on the
+Pi:
 
 ```bash
 python scripts/motion_service_hil.py
 ```
 
-The script covers checklist steps 1-17 in one run: required PiDog imports,
-optional Vilib camera availability, raw port checks, clean shutdown, and the
-motion-service API smoke checks. The raw sensor checks in steps 6-8 are also
-the physical setup for the `SensorService` checks below: the service wraps the
-same `SensorPort` reads and normalises them into timestamped status objects. It
-pauses before physical motion and manual sensor actions. Use `--yes` only when
-the bench is already safe and unattended prompts would get in the way. Use
-`--steps`/`--only` to rerun a subset after a fix, for example `--steps 11` for
-camera only or `--steps 13-17` for the motion-service checks. Any normal exit,
-failure, or Ctrl+C attempts to stop motion, stop the camera, clear RGB, and
-close the ports before reporting PASS or FAIL.
+Use `--steps`/`--only` to rerun a subset after a fix, for example `--steps 11`
+for camera only, `--steps 6-8,18` for sensors, or `--steps 13-17` for the
+motion-service checks. Any normal exit, failure, or Ctrl+C attempts to stop
+motion, stop the camera, clear RGB, and close the ports before reporting PASS or
+FAIL.
 
-Use the table below as the pass/fail contract while the script runs. Record the
-overall result, any failed step numbers, and the observed values in the pull
-request.
+### Port, sensor, and audio smoke contract
 
-| # | Check | Expected result |
-| --- | --- | --- |
-| 1 | `python3 -c "import pidog, robot_hat"` | Required PiDog imports cleanly; optional `vilib` failure only skips step 11 |
-| 2 | `create_ports()` with `SPARKY_HARDWARE=pidog` | `robot.profile` is `pidog` |
-| 3 | `robot.motion.do_action("sit")` then `wait_all_done()` | Dog sits, motion settles |
-| 4 | `robot.motion.move_head(yaw=30)` | Head turns, no servo buzzing at the limit |
-| 5 | `robot.motion.stop()` mid-gait | Motion halts immediately, pose is held |
-| 6 | `robot.sensors.read_distance_cm()` with a hand 20 cm ahead | Value near 20; `None` when the echo fails |
-| 7 | `robot.sensors.read_touch()` while touching each pad | `LEFT`, `RIGHT`, then `BOTH` |
-| 8 | `robot.sensors.read_imu()` while tilting the dog | Acceleration axes change |
-| 9 | `robot.board.play_sound("single_bark_1")` | Audible through the speaker |
-| 10 | `robot.board.set_rgb(...)` then `clear_rgb()` | Strip lights, then goes dark |
-| 11 | `camera_available()`, then `robot.camera.start(width=640, height=480)` and `capture()` when present | Returns a non-empty JPEG `Frame`, or reports SKIP when no camera is attached |
-| 12 | Exit the `with` block | Servos safe-stopped, camera stopped, strip off |
+Record each step's PASS/FAIL/SKIP status, observed output, and any safety notes
+in the milestone pull request. A failed required step blocks milestone
+acceptance unless the PR explicitly scopes out that hardware area and records a
+follow-up risk.
 
-A failure in required step 1 or step 2 is an environment problem. A failure in
-optional camera import or step 11 means only camera validation is blocked. A
-failure in steps 3–10 or 12 with the equivalent simulator test passing points at the adapter layer in
-`sparky_device/hardware/pidog_adapters.py`.
+| # | Domain | Fixture / action | Expected output | Pass criteria | Fail criteria |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Environment | Import `pidog` and `robot_hat`; optionally import `vilib` | Required imports load; camera import may be unavailable | PASS when required imports load; optional `vilib` failure is reported so step 11 can SKIP | FAIL when `pidog` or `robot_hat` cannot import |
+| 2 | Environment | `SPARKY_HARDWARE=pidog`; call `create_ports()` | `robot.profile` is `pidog` | PASS when the real profile is selected | FAIL when the profile is missing, `simulator`, or `auto` fallback |
+| 3 | Motion | Dog supported; run `robot.motion.do_action("sit")` then `wait_all_done()` | Dog sits and motion settles | PASS when motion settles without limit chatter | FAIL on exception, unsafe movement, or unsettled servo |
+| 4 | Motion | Dog supported; run `robot.motion.move_head(yaw=30)` | Head turns right about 30 degrees | PASS when head moves smoothly and stops | FAIL on no movement, wrong direction, or buzzing at limit |
+| 5 | Motion | Clear area; start slow `forward`, then call `stop()` | Forward gait starts, then halts and holds pose | PASS when stop pre-empts motion within the script timeout | FAIL when gait continues, robot falls, or stop raises |
+| 6 | Sensor | Hand or flat target about 20 cm in front of ultrasonic sensor | Numeric `distance_cm` near the target distance | PASS when a plausible numeric distance is printed | FAIL when the reading is `None`, implausible, or raises |
+| 7 | Sensor | Touch left pad, right pad, then both pads at prompts | `LEFT`, `RIGHT`, then `BOTH` | PASS when all three states match the prompted fixture | FAIL on wrong state, no state change, or exception |
+| 8 | Sensor | Hold dog level, then gently tilt it | Two IMU acceleration tuples with changed axes | PASS when acceleration changes after tilt | FAIL when values do not change or are malformed |
+| 9 | Audio | Speaker enabled; listen for `single_bark_1` | Audible bark from the speaker | PASS when the command returns and the operator hears the bark | FAIL when silent, distorted by setup, or raises |
+| 10 | Board | Watch RGB strip during blue monochromatic command | Strip turns blue, then clears | PASS when LEDs light and clear | FAIL when command is silent, wrong color, or not cleared |
+| 11 | Camera | Optional camera attached and uncovered | One 640x480 frame with non-empty bytes | PASS when a frame is captured; SKIP when no camera is attached for a non-vision milestone | FAIL when a required camera milestone cannot capture |
+| 12 | Safety | Let the script exit or interrupt it | Cleanup reports ports closed; motion stopped; camera stopped; RGB cleared | PASS when cleanup reports success | FAIL when cleanup reports any close/stop error |
+| 18 | Sensor / audio input | Make a short sound near the microphone array | Numeric `sound_direction` in degrees | PASS when a direction is printed | FAIL when no sound is detected or the sensor raises |
+
+Triage rule: failures in steps 1-2 are Pi environment/profile problems. Failures
+in steps 3-10, 12, or 18 with `--ci` passing point at
+`sparky_device/hardware/pidog_adapters.py` or the physical wiring. A camera-only
+SKIP blocks only vision milestones.
 
 ### Motion service checks
 
@@ -247,13 +263,13 @@ when repeated, and locomotion from `sit` or `lie` is rejected until an explicit
 `stand` request succeeds. The real-hardware run uses the same safety prompts and
 cleanup path as the port-level checks above.
 
-| # | Check | Expected result |
-| --- | --- | --- |
-| 13 | `MotionService.sit()` then `wait_until_idle()` | Dog sits, service state settles |
-| 14 | `MotionService.trot()` while posture is sitting | Raises `HardwareError`; no new motion starts |
-| 15 | `MotionService.stand()` then `forward()` | Dog stands, then starts a slow forward gait |
-| 16 | `MotionService.turn_left()` while forward is in flight | Raises `HardwareError`; the service does not queue the turn |
-| 17 | `MotionService.stop()` twice | Motion halts immediately; the second stop is a safe no-op |
+| # | Domain | Fixture / action | Expected output | Pass criteria | Fail criteria |
+| --- | --- | --- | --- | --- | --- |
+| 13 | Motion service | Dog supported; call `MotionService.sit()` then `wait_until_idle()` | Dog sits and service state settles | PASS when state is idle/sitting and no exception escapes | FAIL on unsafe motion, timeout, or exception |
+| 14 | Motion service | While posture is sitting, call `MotionService.trot()` | `HardwareError` rejecting sit-to-trot | PASS when no new motion starts and the error is reported | FAIL when trot is accepted from sitting |
+| 15 | Motion service | Clear area; call `stand()`, then `forward()` | Dog stands, then starts a slow forward gait | PASS when stand settles and forward is issued | FAIL on unsafe posture, timeout, or exception |
+| 16 | Motion service | While forward is in flight, call `turn_left()` | `HardwareError` rejecting a conflicting turn | PASS when turn is rejected and not queued | FAIL when conflicting motion is accepted |
+| 17 | Motion service | Call `MotionService.stop()` twice | Motion halts; second stop is a no-op | PASS when both stops complete and state is safe | FAIL when stop raises or motion continues |
 
 ### Sensor service checks
 
@@ -280,15 +296,15 @@ with create_ports("pidog") as robot:
 PY
 ```
 
-Use the same physical actions from steps 6-8 while running the snippet.
+Use the same physical actions from steps 6-8 and 18 while running the snippet.
 
-| Check | Expected result |
-| --- | --- |
-| Ultrasonic timeout or hand distance | `distance.status` is `ok`; `distance_cm` is a number when an echo lands, or `None` with a detail message when this tick has no echo |
-| Touch pad state | `touch.status` is `ok`; `touch` is one of `none`, `left`, `right`, or `both` |
-| IMU sample | `imu.status` is `ok`; `acceleration` and `gyro` each contain three numeric axes |
-| Sound direction | `sound_direction.status` is `ok`; `direction_degrees` is numeric when sound is detected, or `None` with a detail message when no sound is detected |
-| Missing or unhealthy hardware | A status of `unavailable` or `malformed` appears in the printed dictionary; the snippet does not crash |
+| Check | Expected result | Pass criteria | Fail criteria |
+| --- | --- | --- | --- |
+| Ultrasonic timeout or hand distance | `distance.status` is `ok`; `distance_cm` is a number when an echo lands, or `None` with a detail message when this tick has no echo | PASS when the dictionary prints and status semantics are explicit | FAIL if the snippet crashes or status/value is malformed |
+| Touch pad state | `touch.status` is `ok`; `touch` is one of `none`, `left`, `right`, or `both` | PASS when prompted touches map to expected states | FAIL on crash, malformed state, or no state change |
+| IMU sample | `imu.status` is `ok`; `acceleration` and `gyro` each contain three numeric axes | PASS when numeric axes print | FAIL on crash, malformed axes, or unavailable hardware without explanation |
+| Sound direction | `sound_direction.status` is `ok`; `direction_degrees` is numeric when sound is detected, or `None` with a detail message when no sound is detected | PASS when the service reports explicit ok/no-sound semantics | FAIL if the snippet crashes or returns malformed data |
+| Missing or unhealthy hardware | A status of `unavailable` or `malformed` appears in the printed dictionary; the snippet does not crash | PASS when failures are represented as statuses | FAIL when a vendor exception escapes the service |
 
 ## Running without a Pi
 

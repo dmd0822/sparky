@@ -97,7 +97,12 @@ Because the simulators are the default off-robot, the test suite runs on any
 machine without PiDog hardware attached. See
 [docs/running-on-the-pi.md](docs/running-on-the-pi.md) for installing the vendor
 libraries, running against real hardware, and the hardware-in-the-loop
-validation checklist.
+validation checklist. The CI-runnable device smoke harness is the same checklist
+entry point in simulator mode:
+
+```powershell
+python scripts\motion_service_hil.py --ci
+```
 
 For next steps:
 

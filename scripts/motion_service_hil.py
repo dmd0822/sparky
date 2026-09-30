@@ -97,15 +97,16 @@ _STEP_TITLES = {
     15: "MotionService stand and forward",
     16: "MotionService rejects conflicting turn",
     17: "MotionService stop idempotency",
+    18: "Sound direction sensor",
 }
-_ALL_STEPS = tuple(range(1, 18))
-_SIMULATED_SENSOR_STEPS = {6, 7, 8}
+_ALL_STEPS = tuple(range(1, 19))
+_SIMULATED_SENSOR_STEPS = {6, 7, 8, 18}
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run Sparky's full hardware-in-the-loop checklist (steps 1-17). "
+            "Run Sparky's full hardware-in-the-loop checklist (steps 1-18). "
             "By default this requires a Raspberry Pi with a PiDog attached; "
             "use --simulate to rehearse safely on a laptop."
         )
@@ -114,6 +115,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--simulate",
         action="store_true",
         help="Use simulator ports and skip real vendor imports.",
+    )
+    parser.add_argument(
+        "--ci",
+        action="store_true",
+        help=(
+            "Run the non-hardware CI harness: simulator ports, no prompts, and "
+            "no vendor imports. Equivalent to --simulate --yes."
+        ),
     )
     parser.add_argument(
         "--yes",
@@ -134,10 +143,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--steps",
         "--only",
         dest="steps",
-        default="1-17",
+        default="1-18",
         help=(
             "Comma-separated step list or ranges to run, for example '11' or "
-            "'13-17' (default: 1-17). Cleanup still runs even when step 12 is omitted."
+            "'13-18' (default: 1-18). Cleanup still runs even when step 12 is omitted."
         ),
     )
     return parser
@@ -163,7 +172,7 @@ def parse_steps(value: str) -> tuple[int, ...]:
     invalid = [step for step in selected if step not in _STEP_TITLES]
     if invalid:
         raise argparse.ArgumentTypeError(
-            f"unknown step(s) {invalid}; expected numbers 1 through 17"
+            f"unknown step(s) {invalid}; expected numbers 1 through 18"
         )
     return tuple(dict.fromkeys(selected))
 
@@ -194,6 +203,9 @@ def _prime_simulated_inputs(robot: RobotPorts) -> None:
                 ImuReading(acceleration=(0.4, 0.0, 0.8), gyro=(0.0, 0.1, 0.0)),
             ]
         )
+    feed_sound_directions = getattr(sensors, "feed_sound_directions", None)
+    if feed_sound_directions is not None:
+        feed_sound_directions([45.0])
 
 
 def _result(number: int, status: Status, message: str) -> StepResult:
@@ -464,6 +476,19 @@ def _run_step(
     if step == 12:
         return _result(12, Status.PASS, "clean shutdown is reported after safety cleanup")
 
+    if step == 18:
+        _pause(
+            "Step 18: make a short sound near the microphone array.",
+            assume_yes=assume_yes,
+            out=out,
+            prompt=prompt,
+        )
+        direction = robot.sensors.read_sound_direction()
+        if direction is None:
+            return _result(18, Status.FAIL, "sound_direction is None; microphone array did not detect the sound")
+        simulated = " (simulated reading)" if simulate else ""
+        return _result(18, Status.PASS, f"sound_direction={direction} degrees{simulated}")
+
     motion = _ensure_motion_service(ctx)
 
     if step == 13:
@@ -625,9 +650,9 @@ def print_summary(results: Iterable[StepResult], out: TextIO = sys.stdout) -> No
         print("Triage:", file=out)
         if any(step in failures for step in (1, 2)):
             print("  - Failure in step 1 or 2 is an environment/profile problem on the Pi.", file=out)
-        if any(3 <= step <= 10 or step == 12 for step in failures):
+        if any(3 <= step <= 10 or step in (12, 18) for step in failures):
             print(
-                "  - Failure in steps 3-10 or 12, with simulator tests passing, points at sparky_device/hardware/pidog_adapters.py.",
+                "  - Failure in steps 3-10, 12, or 18, with simulator tests passing, points at sparky_device/hardware/pidog_adapters.py.",
                 file=out,
             )
         if any(13 <= step <= 17 for step in failures):
@@ -640,6 +665,8 @@ def print_summary(results: Iterable[StepResult], out: TextIO = sys.stdout) -> No
 def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)
+    simulate = args.simulate or args.ci
+    assume_yes = args.yes or args.ci
     try:
         selected_steps = parse_steps(args.steps)
     except argparse.ArgumentTypeError as error:
@@ -652,8 +679,8 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     try:
         run_result = run_check(
             None,
-            simulate=args.simulate,
-            assume_yes=args.yes,
+            simulate=simulate,
+            assume_yes=assume_yes,
             wait_timeout=args.wait_timeout,
             steps=selected_steps,
             out=out,

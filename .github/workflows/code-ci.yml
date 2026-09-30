@@ -5,6 +5,9 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - 'README.md'
       - '.github/workflows/code-ci.yml'
       - '.github/workflows/code-cd.yml'
   push:
@@ -13,6 +16,9 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - 'README.md'
       - '.github/workflows/code-ci.yml'
       - '.github/workflows/code-cd.yml'
   workflow_dispatch:
@@ -40,6 +46,9 @@ jobs:
 
       - name: Run repository tests
         run: python -m unittest discover -s tests
+
+      - name: Run simulator device smoke harness
+        run: python scripts/motion_service_hil.py --ci
 
   packaging:
     name: Packaging checks

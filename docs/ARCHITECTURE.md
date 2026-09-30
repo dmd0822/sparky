@@ -282,14 +282,15 @@ Responsibilities:
 
 Trigger:
 
-- pull requests touching `src/**`, `tests/**`, or either code workflow file
-- pull requests touching `docs/**` when doctest or link-check steps are added
+- pull requests touching `src/**`, `tests/**`, `scripts/**`, `docs/**`,
+  `README.md`, or either code workflow file
 
 Responsibilities:
 
 - Python formatting/linting
 - unit tests for device, cloud, and shared packages
 - mocked hardware tests
+- simulator device smoke harness (`python scripts/motion_service_hil.py --ci`)
 - API contract tests
 - packaging/build checks
 
@@ -451,6 +452,12 @@ Unit tests run against fake implementations:
 - fake audio adapter replays WAV fixtures and captures synthesized output requests
 - fake sensor adapter emits scripted events
 
+CI also runs the non-hardware device smoke harness,
+`python scripts/motion_service_hil.py --ci`. That command forces the simulator
+profile, skips all vendor imports, exercises motion, sensor, camera, board RGB,
+and audio ports through the same checklist runner used on the Pi, and exits
+non-zero on any failed required step.
+
 ### Persona testing
 
 - schema validation tests for required fields, unknown voices, safe movement ranges, reaction names, sound assets, and attempted safety overrides
@@ -469,6 +476,7 @@ Unit tests run against fake implementations:
 Not feasible in standard GitHub-hosted CI. Mitigation:
 
 - keep hardware-facing code thin and adapter-based
+- run the simulator smoke harness in Code CI for repeatable non-hardware coverage
 - define manual or self-hosted Pi smoke tests for milestone acceptance
 - record reproducible demo scenarios for final validation
 
