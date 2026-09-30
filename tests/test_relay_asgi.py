@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from types import SimpleNamespace
 from typing import Any, Mapping
 import unittest
+from unittest.mock import patch
 
 try:
     import fastapi  # noqa: F401
@@ -60,6 +62,20 @@ class RelayAsgiTests(unittest.TestCase):
 
         self.assertTrue({"/health", "/ai/chat", "/ai/vision", "/speech/synthesize"}.issubset(route_paths))
 
+    def test_health_does_not_require_relay_configuration(self) -> None:
+        app = create_app()
+        health_endpoint = next(route.endpoint for route in app.routes if getattr(route, "path", "") == "/health")
+
+        with patch.dict(os.environ, {}, clear=True):
+            response = asyncio.run(health_endpoint(FakeRequest(method="GET", path="/health")))  # type: ignore[arg-type]
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["x-correlation-id"], "cid-1")
+        self.assertEqual(
+            json.loads(response.body),
+            {"status": "ok", "authenticated": False, "correlation_id": "cid-1"},
+        )
+
     def test_handler_preserves_relay_status_body_and_headers(self) -> None:
         relay = FakeRelay()
 
@@ -70,6 +86,28 @@ class RelayAsgiTests(unittest.TestCase):
         self.assertEqual(json.loads(response.body)["error"]["code"], "missing_grant")
         self.assertEqual(relay.requests[0].path, "/ai/chat")
         self.assertEqual(relay.requests[0].body["prompt"], "hello")
+
+    def test_ai_routes_return_503_when_relay_configuration_is_unavailable(self) -> None:
+        def unavailable_relay() -> FakeRelay:
+            raise ValueError("bad config contains super-secret-env-value")
+
+        for path in ("/ai/chat", "/ai/vision", "/speech/synthesize"):
+            with self.subTest(path=path):
+                response = asyncio.run(
+                    _handle_relay_request(
+                        FakeRequest(path=path, headers={"x-correlation-id": "cid-503"}),
+                        unavailable_relay,
+                    )
+                )
+                body = json.loads(response.body)
+
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.headers["x-correlation-id"], "cid-503")
+                self.assertEqual(body["correlation_id"], "cid-503")
+                self.assertEqual(body["error"]["code"], "relay_unavailable")
+                self.assertEqual(body["error"]["message"], "Relay is not configured.")
+                self.assertNotIn("super-secret-env-value", response.body.decode("utf-8"))
+                self.assertNotIn("Traceback", response.body.decode("utf-8"))
 
     def test_adr_0003_env_contract_builds_relay_config(self) -> None:
         config = _build_relay_config_from_env(

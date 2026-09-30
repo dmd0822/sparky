@@ -153,3 +153,8 @@
 **What:** The Pi relay-auth smoke harness replays no-token and malformed-token cases directly, and uses unsigned diagnostic JWTs for expired, Microsoft Graph-audience, and missing-grant negative cases. The harness asserts only sanitized structured 401/403 responses with correlation IDs and no bearer material in the body.
 **Why:** The Pi must request only the relay scope during device-code sign-in. Minting live Graph or intentionally under-granted Entra tokens from the Pi would weaken the ADR-0003 boundary and require extra tenant setup. Unsigned diagnostics still exercise the deployed relay's fail-closed auth surface without giving the device non-relay tokens.
 
+
+### 2026-09-30T12:45:22-04:00: Keep relay container on port 80
+**By:** lead
+**What:** The relay image binds uvicorn to port 80 while running as a non-root user by granting the Python runtime permission to bind the low port inside the image.
+**Why:** The existing code-cd workflow only updates the Container App image. Keeping the Container Apps targetPort at 80 avoids a separate infra rollout requirement during image cutover while preserving the non-root container requirement.

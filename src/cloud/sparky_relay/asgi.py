@@ -58,7 +58,7 @@ def create_app(relay_app: RelayApp | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
-        return await _handle_relay_request(request, relay_provider)
+        return _health_response(dict(request.headers))
 
     @app.post("/ai/chat")
     async def chat(request: Request) -> JSONResponse:
@@ -110,7 +110,11 @@ async def _handle_relay_request(
         headers=dict(request.headers),
         body=body,
     )
-    return _to_json_response(relay_provider().handle(relay_request))
+    try:
+        relay = relay_provider()
+    except ValueError:
+        return _relay_unavailable_response(dict(request.headers))
+    return _to_json_response(relay.handle(relay_request))
 
 
 def _get_default_relay_app() -> RelayApp:
@@ -165,6 +169,27 @@ def _to_json_response(response: RelayResponse) -> JSONResponse:
         status_code=response.status_code,
         content=response.body,
         headers=dict(response.headers),
+    )
+
+
+def _health_response(headers: Mapping[str, str]) -> JSONResponse:
+    correlation_id = _correlation_id(headers)
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "authenticated": False, "correlation_id": correlation_id},
+        headers={"x-correlation-id": correlation_id},
+    )
+
+
+def _relay_unavailable_response(headers: Mapping[str, str]) -> JSONResponse:
+    correlation_id = _correlation_id(headers)
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": {"code": "relay_unavailable", "message": "Relay is not configured."},
+            "correlation_id": correlation_id,
+        },
+        headers={"x-correlation-id": correlation_id},
     )
 
 
