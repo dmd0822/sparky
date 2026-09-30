@@ -15,3 +15,5 @@
 📌 Team update (2026-09-29T09:50:26-04:00): docs/running-on-the-pi.md now documents the camera-optional bench pattern, Vilib's 640x480 limitation, three new camera troubleshooting rows, and a working-directory bench script output path instead of /tmp so stale copies are avoided — decided by Device.
 
 📌 Team update (2026-09-29T09:50:26-04:00): Motion action names are now validated in the hardware contract layer before adapter or simulator side effects; docs/running-on-the-pi.md gained a valid-action list and a troubleshooting row. — decided by Device
+
+📌 Session update (2026-09-30T14:56:49-04:00): Added README build/status badges for Code CI, Code CD, Infra CI, Infra CD, Python Validation, and Workflow Lint; squad automation workflows remain intentionally unbadged as bot plumbing.
