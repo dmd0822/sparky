@@ -50,6 +50,9 @@ jobs:
       - name: Run simulator device smoke harness
         run: python scripts/motion_service_hil.py --ci
 
+      - name: Run relay auth smoke harness
+        run: python scripts/relay_auth_smoke.py --ci
+
   packaging:
     name: Packaging checks
     runs-on: ubuntu-latest
