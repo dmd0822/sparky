@@ -69,9 +69,38 @@ Sparky uses an **Azure relay service** rather than direct device-to-Foundry call
 
 1. The Pi application signs in to a custom API using **Microsoft Entra ID device code flow** as a **public client**.
 2. The Pi receives only a relay-audience token such as `api://<relay-app-id>/.default`; it never receives Azure AI bearer tokens, API keys, or connection strings.
-3. The relay API validates the device/user token issuer and audience.
+3. The relay API validates the device/user token signature, issuer, tenant,
+   audience, token lifetime, and required app role/scope or enrolled-device
+   claim before it dispatches any endpoint.
 4. The relay API uses its **system-assigned managed identity** to request `https://cognitiveservices.azure.com/.default` tokens for Foundry model inference and Speech STT/TTS calls.
 5. RBAC grants the relay only the required `Cognitive Services User` access on the AI Services and Speech resources.
+
+### Relay API surface
+
+The relay core is implemented as a framework-neutral Python dispatcher so unit
+and contract tests can run in CI with only the stdlib and test-only
+dependencies installed. Optional web framework adapters must stay thin and must
+not be imported by the core path.
+
+Authenticated endpoints:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Authenticated relay health. It returns only `status`, `authenticated`, and the correlation ID; it deliberately does not expose tenant, audience, model, region, or resource configuration. Platform liveness probes should use a separate adapter-level probe if they need an anonymous check. |
+| `POST` | `/ai/chat` | Relay-shaped chat request to Foundry using the relay managed identity. |
+| `POST` | `/ai/vision` | Relay-shaped image analysis request to Foundry using the relay managed identity. |
+| `POST` | `/speech/synthesize` | Relay-shaped text-to-speech request to Speech using the relay managed identity. |
+
+Authentication failures return structured `401` responses with a generic reason
+and the request correlation ID. Authorization failures, such as a valid token
+missing the required app role/scope or enrolled-device claim, return `403`.
+Neither path echoes bearer values, claim dumps, managed-identity tokens, or
+credential-shaped material.
+
+Every request accepts `x-correlation-id`; otherwise the relay generates one and
+returns it on the response. The core also exposes a process-local rate-limiter
+hook and a post-auth policy hook so fleet policy, enrollment, or persona-aware
+controls can be added without changing endpoint handlers.
 
 ### Why not call Foundry directly from the Pi?
 
@@ -467,9 +496,15 @@ non-zero on any failed required step.
 
 ### Cloud-side testing
 
-- unit tests for relay authentication, policy, persona-aware TTS request shaping, and other relay request shaping
-- contract tests for request/response schemas
-- mocked Azure SDK clients for Foundry and Speech integrations
+- unit tests for relay authentication, policy, persona-aware TTS request shaping,
+  and other relay request shaping; token validation tests cover missing,
+  malformed, bad-signature, wrong issuer, wrong tenant, wrong audience
+  (including Microsoft Graph), expired, future-`nbf`, and missing-grant paths
+- contract tests for request/response schemas on `/health`, `/ai/chat`,
+  `/ai/vision`, and `/speech/synthesize`
+- mocked Foundry and Speech relay clients; tests assert the caller's bearer
+  token is never forwarded downstream and managed identity is used for the
+  relay-to-service hop
 
 ### Hardware-in-the-loop testing
 
@@ -482,6 +517,40 @@ Not feasible in standard GitHub-hosted CI. Mitigation:
 
 The manual checklist and Pi setup steps live in
 [running-on-the-pi.md](running-on-the-pi.md).
+
+Manual relay-auth HIL validation for this issue:
+
+1. On the Pi, configure the relay app registration public-client values and
+   request the relay audience scope (`api://<relay-app-id>/.default` or the
+   project-specific delegated scope) through device-code sign-in.
+2. Call `GET /health`, `POST /ai/chat`, `POST /ai/vision`, and
+   `POST /speech/synthesize` with the relay-audience bearer token and an
+   `x-correlation-id`; confirm all successful responses return the same
+   correlation ID and no configuration details.
+3. Repeat one call with no token, a malformed token, an expired token, a token
+   for Microsoft Graph, and a validly signed token missing the required
+   role/scope or enrolled-device claim; confirm only structured `401`/`403`
+   bodies are returned and logs do not contain bearer material.
+4. In relay diagnostics, verify downstream Foundry/Speech calls are made with
+   the relay Container App managed identity and `Cognitive Services User` RBAC,
+   not with the Pi caller token.
+5. Run the device checklist in [running-on-the-pi.md](running-on-the-pi.md)
+   after relay smoke validation so motion/camera/audio behavior is validated
+   against the authenticated cloud path.
+
+Relay follow-up risks:
+
+- The stdlib core now enforces auth and request/response contracts, but a thin
+  ASGI/FastAPI adapter still needs deployment wiring and platform liveness
+  behavior.
+- Production verifier operation depends on Entra signing-key retrieval and
+  cache behavior; deployment should monitor verifier failures separately from
+  policy denials.
+- The first enrolled-device grant convention (app role, delegated scope, or
+  custom enrolled-device claim) must be finalized in the relay app registration
+  before Pi enrollment runbooks are declared complete.
+- Foundry and Speech request shaping remains mocked until the service-specific
+  integration issues wire concrete SDK/REST clients behind the downstream port.
 
 ## Non-goals for the planning baseline
 

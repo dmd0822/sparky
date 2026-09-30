@@ -68,16 +68,57 @@ Each planned Python subproject is an independent package with its own
 - `src/cloud` → `sparky-cloud` / `sparky_relay`
 - `src/shared` → `sparky-shared` / `sparky_contracts`
 
-Keep package tests in the corresponding local `tests/` directory. Deterministic
-fixtures belong under `tests/fixtures/`; do not commit credentials, hardware
-captures, or generated build output. Generated artifacts must stay in ignored
-directories such as `build/`, `dist/`, or `.coverage/`.
+Keep repository tests in the root `tests/` directory so CI can run one stdlib
+`unittest` discovery command. Deterministic fixtures belong under
+`tests/fixtures/`; do not commit credentials, hardware captures, or generated
+build output. Generated artifacts must stay in ignored directories such as
+`build/`, `dist/`, or `.coverage/`.
 
 Run the scaffold validation with:
 
 ```powershell
 python -m unittest discover -s tests
 ```
+
+Compile and keyless-auth policy checks are also CI-compatible:
+
+```powershell
+python -m compileall -q src tests
+$env:PYTHONPATH = "src/cloud"
+python -m sparky_relay.keyless_guard
+```
+
+### Relay API surface
+
+The cloud package includes a framework-agnostic relay core that can be adapted
+to FastAPI/ASGI without importing web framework dependencies in CI. The
+authenticated endpoints are:
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Minimal authenticated health response with no configuration details. |
+| `POST` | `/ai/chat` | Chat request shaped for Foundry. |
+| `POST` | `/ai/vision` | Vision request shaped for Foundry. |
+| `POST` | `/speech/synthesize` | Speech synthesis request shaped for Speech. |
+
+Relay token validation checks the Entra signature through an injected verifier,
+then issuer, tenant, relay audience, lifetime, and the required app role/scope
+or enrolled-device claim. Tokens minted for Microsoft Graph or any other API
+are rejected. Foundry and Speech calls use the relay's managed identity; the
+caller bearer token is never forwarded.
+
+Required runtime configuration:
+
+- `AZURE_TENANT_ID`
+- `AZURE_CLIENT_ID`
+- `SPARKY_RELAY_URL`
+- `SPARKY_RELAY_AUDIENCE`
+- `SPARKY_RELAY_DEVICE_SCOPE`
+- `SPARKY_FOUNDRY_SCOPE`
+- `SPARKY_SPEECH_SCOPE`
+
+Deployment adapters should additionally configure the relay-required app role,
+scope, or enrolled-device claim used by `RelayAuthConfig`.
 
 ### Device hardware access
 
