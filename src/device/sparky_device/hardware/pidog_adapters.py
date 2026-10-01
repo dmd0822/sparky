@@ -17,6 +17,7 @@ import threading
 import time
 import subprocess
 import shutil
+from pathlib import Path
 from typing import Any, Sequence
 
 from .ports import (
@@ -46,6 +47,7 @@ __all__ = [
     "PidogMicrophoneAdapter",
     "PidogMotionAdapter",
     "PidogSensorAdapter",
+    "PidogSpeakerAdapter",
     "VilibCameraAdapter",
     "build_pidog_ports",
     "load_pidog",
@@ -60,6 +62,13 @@ _INVALID_DISTANCE = 0.0
 _CAMERA_FIRST_FRAME_TIMEOUT_SECONDS = 2.0
 _CAMERA_FRAME_POLL_INTERVAL_SECONDS = 0.05
 _ARECORD_FIRST_READ_TIMEOUT_SECONDS = 0.05
+_SPEAKER_PLAYBACK_DIR = ".sparky-speaker-playback"
+_SPEAKER_PLAYERS: dict[str, tuple[str, ...]] = {
+    "wav": ("aplay", "-q"),
+    "mp3": ("mpg123", "-q"),
+    "ogg": ("ogg123", "-q"),
+    "webm": ("ffplay", "-nodisp", "-autoexit", "-loglevel", "error"),
+}
 
 
 def load_pidog() -> Any:
@@ -536,6 +545,148 @@ class PidogMicrophoneAdapter:
         return completed.returncode == 0
 
 
+class PidogSpeakerAdapter:
+    """Binds speaker playback to the Robot HAT I2S speaker through ALSA.
+
+    ``robot-hat`` does not expose a byte-stream playback API. The adapter keeps
+    the vendor boundary thin by writing the received bytes to a repo-local
+    playback cache and invoking the system player for the encoded format
+    (``aplay`` for WAV by default).
+    """
+
+    def __init__(
+        self,
+        dog: Any | None = None,
+        *,
+        playback_dir: str | Path | None = None,
+        players: dict[str, tuple[str, ...]] | None = None,
+    ) -> None:
+        self._dog = dog
+        self._playback_dir = (
+            Path(playback_dir)
+            if playback_dir is not None
+            else Path.cwd() / _SPEAKER_PLAYBACK_DIR
+        )
+        self._players = dict(_SPEAKER_PLAYERS if players is None else players)
+        self._process: subprocess.Popen[bytes] | None = None
+        self._open = False
+        self._sample_rate = 0
+        self._channels = 0
+        self._sample_width = 0
+
+    @staticmethod
+    def _check_volume(volume: int) -> int:
+        if not 0 <= volume <= 100:
+            raise HardwareError(f"volume must be between 0 and 100, got {volume}")
+        return int(volume)
+
+    def open(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+    ) -> None:
+        self._sample_rate, self._channels, self._sample_width = validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        if not self.speaker_available():
+            raise HardwareUnavailableError(
+                "speaker playback is unavailable. Run the PiDog i2samp.sh setup, "
+                "reboot, and ensure a supported playback command is on PATH."
+            )
+        self._playback_dir.mkdir(parents=True, exist_ok=True)
+        self._open = True
+
+    def play(
+        self,
+        audio: bytes,
+        *,
+        audio_format: str = "wav",
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        volume: int = 100,
+    ) -> None:
+        validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        volume = self._check_volume(volume)
+        if not self._open:
+            raise HardwareError("speaker port is not open; call open() first")
+        if not audio:
+            raise HardwareError("speaker audio must not be empty")
+        audio_format = _normalise_audio_format(audio_format)
+        command = self._players.get(audio_format)
+        if command is None:
+            raise HardwareError(
+                f"speaker audio format {audio_format!r} is unsupported; "
+                f"expected one of: {', '.join(sorted(self._players))}"
+            )
+        if shutil.which(command[0]) is None:
+            raise HardwareUnavailableError(
+                f"speaker player {command[0]!r} for {audio_format} audio is not on PATH"
+            )
+        self._set_vendor_volume(volume)
+        path = self._playback_dir / f"speech-{time.monotonic_ns()}.{audio_format}"
+        path.write_bytes(audio)
+        try:
+            self._process = subprocess.Popen(
+                [*command, str(path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout, stderr = self._process.communicate()
+            if self._process.returncode != 0:
+                message = (
+                    stderr.decode("utf-8", errors="replace").strip()
+                    or stdout.decode("utf-8", errors="replace").strip()
+                    or f"{command[0]} exited with {self._process.returncode}"
+                )
+                raise HardwareError(f"speaker playback failed: {message}")
+        except OSError as error:  # pragma: no cover - requires host audio state
+            raise HardwareUnavailableError(f"could not start speaker playback: {error}") from error
+        finally:
+            self._process = None
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def _set_vendor_volume(self, volume: int) -> None:
+        music = getattr(self._dog, "music", None)
+        setter = getattr(music, "music_set_volume", None)
+        if setter is not None:
+            setter(volume)
+
+    def stop(self) -> None:
+        process = self._process
+        if process is None or process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=1)
+
+    def close(self) -> None:
+        if not self._open:
+            return
+        self.stop()
+        self._open = False
+
+    def is_open(self) -> bool:
+        return self._open
+
+    def speaker_available(self) -> bool:
+        return any(shutil.which(command[0]) is not None for command in self._players.values())
+
+
 def _rpicam_detects_camera() -> bool | None:
     """Probe camera presence without starting vilib's asynchronous pipeline."""
 
@@ -582,6 +733,13 @@ def _raise_arecord_failure(stderr: str) -> None:
     raise HardwareError(f"microphone capture failed: {message}")
 
 
+def _normalise_audio_format(audio_format: str) -> str:
+    value = str(audio_format).strip().lower()
+    if not value:
+        raise HardwareError("audio_format must not be empty")
+    return value
+
+
 def _encode_jpeg(image: Any) -> tuple[bytes, int, int]:
     """Encode a ``vilib`` BGR frame to JPEG bytes."""
 
@@ -617,6 +775,7 @@ def build_pidog_ports(
         board=PidogBoardAdapter(robot),
         camera=VilibCameraAdapter(vilib),
         microphone=PidogMicrophoneAdapter(),
+        speaker=PidogSpeakerAdapter(robot),
         sensors=PidogSensorAdapter(robot),
         profile=PIDOG_PROFILE,
     )

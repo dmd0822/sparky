@@ -142,6 +142,13 @@ relay handler with `audio: ""`, `audio_format`, `status`, and
 `invalid_request`, `timeout`, `transport_error`, `downstream_status`, and
 `empty_result`.
 
+On the device, `AudioService.speak()` consumes that relay payload, rejects any
+relay failure shape before playback, base64-decodes successful audio, validates
+WAV output as 16 kHz mono 16-bit PCM, and sends the original bytes to the
+`SpeakerPort`. The simulator records playback calls for tests; the PiDog
+adapter plays through the Robot HAT I2S speaker using ALSA-backed system
+players such as `aplay` for WAV.
+
 The `/ai/vision` downstream adapter translates the relay image request into a
 Foundry chat-completions vision request using the configured deployment. Vision
 responses are normalized for the device as `caption`, `labels`, `status`, and

@@ -47,6 +47,7 @@ __all__ = [
     "RobotPorts",
     "SensorPort",
     "ServoRange",
+    "SpeakerPort",
     "TouchState",
     "VILIB_CAPTURE_SIZE",
     "validate_angles",
@@ -504,6 +505,44 @@ class MicrophonePort(Protocol):
 
 
 @runtime_checkable
+class SpeakerPort(Protocol):
+    """Speaker playback. Accepts raw PCM or encoded audio bytes."""
+
+    def open(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+    ) -> None:
+        """Open playback for the requested PCM shape."""
+
+    def play(
+        self,
+        audio: bytes,
+        *,
+        audio_format: str = "wav",
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        volume: int = 100,
+    ) -> None:
+        """Play PCM or encoded audio bytes with explicit format metadata."""
+
+    def stop(self) -> None:
+        """Stop any active playback. Must be idempotent."""
+
+    def close(self) -> None:
+        """Release speaker playback resources. Must be idempotent."""
+
+    def is_open(self) -> bool:
+        """Report whether speaker playback is currently open."""
+
+    def speaker_available(self) -> bool:
+        """Report whether a speaker appears to be present."""
+
+
+@runtime_checkable
 class SensorPort(Protocol):
     """Ultrasonic, touch, IMU, and sound-direction reads."""
 
@@ -529,6 +568,7 @@ class RobotPorts:
     camera: CameraPort
     sensors: SensorPort
     microphone: MicrophonePort | None = None
+    speaker: SpeakerPort | None = None
     profile: str = "unknown"
     closed: bool = field(default=False, repr=False)
 
@@ -553,6 +593,8 @@ class RobotPorts:
         ]
         if self.microphone is not None:
             shutdown_steps.insert(2, self.microphone.close)
+        if self.speaker is not None:
+            shutdown_steps.insert(3, self.speaker.close)
         for shutdown in shutdown_steps:
             try:
                 shutdown()

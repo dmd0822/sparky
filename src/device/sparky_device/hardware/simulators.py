@@ -40,12 +40,14 @@ from .ports import (
 
 __all__ = [
     "MotionCommand",
+    "PlaybackCommand",
     "RgbCommand",
     "SimulatedBoard",
     "SimulatedCamera",
     "SimulatedMicrophone",
     "SimulatedMotion",
     "SimulatedSensors",
+    "SimulatedSpeaker",
     "SoundCommand",
     "build_simulated_ports",
     "load_wav_fixture",
@@ -72,6 +74,18 @@ class SoundCommand:
     """One recorded audio request."""
 
     name: str
+    volume: int
+
+
+@dataclass(frozen=True)
+class PlaybackCommand:
+    """One recorded speaker playback request."""
+
+    audio: bytes
+    audio_format: str
+    sample_rate: int
+    channels: int
+    sample_width: int
     volume: int
 
 
@@ -482,6 +496,117 @@ class SimulatedMicrophone:
         return self._available
 
 
+class SimulatedSpeaker:
+    """Records PCM or encoded playback requests for assertions."""
+
+    def __init__(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        available: bool = True,
+        busy: bool = False,
+    ) -> None:
+        self.sample_rate, self.channels, self.sample_width = validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        self._available = available
+        self._busy = busy
+        self._open = False
+        self.open_count = 0
+        self.stop_count = 0
+        self.close_count = 0
+        self.playbacks: list[PlaybackCommand] = []
+        self.requested_formats: list[tuple[int, int, int]] = []
+
+    @staticmethod
+    def _check_volume(volume: int) -> int:
+        if not 0 <= volume <= 100:
+            raise HardwareError(f"volume must be between 0 and 100, got {volume}")
+        return int(volume)
+
+    def set_available(self, available: bool) -> None:
+        self._available = available
+
+    def set_busy(self, busy: bool) -> None:
+        self._busy = busy
+
+    def open(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+    ) -> None:
+        requested = validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        if not self._available:
+            raise HardwareUnavailableError("simulated speaker is not available")
+        if self._busy:
+            raise HardwareError("simulated speaker is busy")
+        if self._open:
+            return
+        self.sample_rate, self.channels, self.sample_width = requested
+        self.requested_formats.append(requested)
+        self._open = True
+        self.open_count += 1
+
+    def play(
+        self,
+        audio: bytes,
+        *,
+        audio_format: str = "wav",
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        volume: int = 100,
+    ) -> None:
+        sample_rate, channels, sample_width = validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        if not self._open:
+            raise HardwareError("speaker port is not open; call open() first")
+        if self._busy:
+            raise HardwareError("simulated speaker is busy")
+        if not audio:
+            raise HardwareError("speaker audio must not be empty")
+        if not audio_format or not audio_format.strip():
+            raise HardwareError("audio_format must not be empty")
+        self.playbacks.append(
+            PlaybackCommand(
+                audio=bytes(audio),
+                audio_format=audio_format.strip().lower(),
+                sample_rate=sample_rate,
+                channels=channels,
+                sample_width=sample_width,
+                volume=self._check_volume(volume),
+            )
+        )
+
+    def stop(self) -> None:
+        self.stop_count += 1
+
+    def close(self) -> None:
+        if not self._open:
+            return
+        self._open = False
+        self.close_count += 1
+
+    def is_open(self) -> bool:
+        return self._open
+
+    def speaker_available(self) -> bool:
+        return self._available
+
+
 class SimulatedSensors:
     """Emits scripted sensor readings, holding the last value when exhausted."""
 
@@ -543,6 +668,7 @@ def build_simulated_ports(
     camera_fixture_dir: str | Path | None = None,
     microphone: SimulatedMicrophone | None = None,
     microphone_fixture_path: str | Path | None = None,
+    speaker: SimulatedSpeaker | None = None,
 ) -> RobotPorts:
     """Assemble a fully simulated :class:`RobotPorts` bundle."""
 
@@ -566,6 +692,7 @@ def build_simulated_ports(
         board=SimulatedBoard(),
         camera=camera,
         microphone=microphone_port,
+        speaker=speaker if speaker is not None else SimulatedSpeaker(),
         sensors=SimulatedSensors(),
         profile=SIMULATOR_PROFILE,
     )
