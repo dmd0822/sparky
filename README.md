@@ -115,6 +115,40 @@ or enrolled-device claim. Tokens minted for Microsoft Graph or any other API
 are rejected. Foundry and Speech calls use the relay's managed identity; the
 caller bearer token is never forwarded.
 
+The `/speech/synthesize` route accepts JSON with `text` and, when the caller is
+speaking as a registered persona, `persona_id`. The relay looks up that persona
+in its persona registry and uses `voice.name`, `voice.rate`, `voice.pitch`, and
+`voice.volume` to build Azure Speech SSML. If the persona has no synthesis voice
+name, the relay falls back to `SPARKY_SPEECH_VOICE`; descriptive voice fields
+outside those four keys do not affect synthesis. Global persona safety policy
+validation still takes precedence over voice settings. The normalized success
+contract sent to the device is:
+
+```json
+{
+  "audio": "base64-encoded-audio-bytes",
+  "audio_format": "wav",
+  "correlation_id": "caller-or-generated-id",
+  "metadata": {
+    "latency_ms": 125
+  }
+}
+```
+
+`audio_format` is derived from `SPARKY_SPEECH_OUTPUT_FORMAT` and is one of
+`wav`, `mp3`, `ogg`, or `webm`. Failure responses still return HTTP 200 from the
+relay handler with `audio: ""`, `audio_format`, `status`, and
+`metadata.failure`; recognized failure codes are `speech_not_configured`,
+`invalid_request`, `timeout`, `transport_error`, `downstream_status`, and
+`empty_result`.
+
+On the device, `AudioService.speak()` consumes that relay payload, rejects any
+relay failure shape before playback, base64-decodes successful audio, validates
+WAV output as 16 kHz mono 16-bit PCM, and sends the original bytes to the
+`SpeakerPort`. The simulator records playback calls for tests; the PiDog
+adapter plays through the Robot HAT I2S speaker using ALSA-backed system
+players such as `aplay` for WAV.
+
 The `/ai/vision` downstream adapter translates the relay image request into a
 Foundry chat-completions vision request using the configured deployment. Vision
 responses are normalized for the device as `caption`, `labels`, `status`, and

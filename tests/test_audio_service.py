@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import base64
 from pathlib import Path
 import unittest
 
@@ -12,6 +13,7 @@ from src.device.sparky_device.hardware import (
     HardwareUnavailableError,
     MicrophonePort,
     SimulatedMicrophone,
+    SimulatedSpeaker,
     build_simulated_ports,
     load_wav_fixture,
 )
@@ -23,6 +25,14 @@ from src.device.sparky_device.services import (
 
 ROOT = Path(__file__).parents[1]
 AUDIO_FIXTURES = ROOT / "tests" / "fixtures" / "audio"
+
+
+def speech_payload(fixture: str = "tone-16khz.wav") -> dict[str, object]:
+    return {
+        "audio": base64.b64encode((AUDIO_FIXTURES / fixture).read_bytes()).decode("ascii"),
+        "audio_format": "wav",
+        "metadata": {"latency_ms": 12},
+    }
 
 
 class IncrementingClock:
@@ -68,6 +78,20 @@ class FaultingReadMicrophone(SimulatedMicrophone):
 class MalformedReadMicrophone(SimulatedMicrophone):
     def read_chunk(self):  # noqa: ANN201 - deliberately violates the port contract
         return "not audio"
+
+
+class FailingPlaybackSpeaker(SimulatedSpeaker):
+    def play(
+        self,
+        audio: bytes,
+        *,
+        audio_format: str = "wav",
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        volume: int = 100,
+    ) -> None:
+        raise HardwareError("speaker playback failed: player exited with 2")
 
 
 class AudioServiceHappyPathTests(unittest.TestCase):
@@ -219,6 +243,87 @@ class AudioFixtureReplayTests(unittest.TestCase):
 
         self.assertFalse(microphone.is_open())
         self.assertEqual(microphone.close_count, 1)
+
+
+class AudioPlaybackTests(unittest.TestCase):
+    def test_speak_decodes_wav_payload_and_records_speaker_playback(self) -> None:
+        speaker = SimulatedSpeaker()
+        service = AudioService(
+            SimulatedMicrophone(),
+            speaker=speaker,
+            time_source=IncrementingClock(),
+        )
+
+        playback = service.speak(speech_payload(), volume=57)
+
+        self.assertEqual(playback.audio_format, "wav")
+        self.assertEqual(playback.sample_rate, 16000)
+        self.assertEqual(playback.channels, 1)
+        self.assertEqual(playback.sample_width, 2)
+        self.assertGreater(playback.duration_seconds, 0)
+        self.assertEqual(speaker.open_count, 1)
+        self.assertEqual(len(speaker.playbacks), 1)
+        self.assertEqual(speaker.playbacks[0].audio_format, "wav")
+        self.assertEqual(speaker.playbacks[0].volume, 57)
+
+    def test_speak_rejects_format_mismatch_without_playing(self) -> None:
+        speaker = SimulatedSpeaker()
+        service = AudioService(SimulatedMicrophone(), speaker=speaker)
+
+        with self.assertRaisesRegex(HardwareError, "format mismatch"):
+            service.speak(speech_payload("tone-8khz.wav"))
+
+        self.assertEqual(speaker.playbacks, [])
+
+    def test_speak_propagates_relay_failure_payload(self) -> None:
+        speaker = SimulatedSpeaker()
+        service = AudioService(SimulatedMicrophone(), speaker=speaker)
+        payload = {
+            "audio": "",
+            "audio_format": "wav",
+            "status": "downstream_status",
+            "metadata": {
+                "latency_ms": 10,
+                "failure": {"code": "quota", "message": "speech quota exceeded"},
+            },
+        }
+
+        with self.assertRaisesRegex(HardwareError, "quota.*speech quota exceeded"):
+            service.speak(payload)
+
+        self.assertEqual(speaker.playbacks, [])
+
+    def test_speak_reports_unavailable_speaker(self) -> None:
+        speaker = SimulatedSpeaker(available=False)
+        service = AudioService(SimulatedMicrophone(), speaker=speaker)
+
+        with self.assertRaises(HardwareUnavailableError):
+            service.speak(speech_payload())
+
+        self.assertEqual(speaker.open_count, 0)
+
+    def test_speak_propagates_speaker_playback_failure_cleanly(self) -> None:
+        speaker = FailingPlaybackSpeaker()
+        service = AudioService(SimulatedMicrophone(), speaker=speaker)
+
+        with self.assertRaisesRegex(HardwareError, "speaker playback failed.*player exited with 2"):
+            service.speak(speech_payload())
+
+        self.assertEqual(speaker.open_count, 1)
+        self.assertEqual(speaker.playbacks, [])
+
+    def test_close_closes_speaker_once(self) -> None:
+        speaker = SimulatedSpeaker()
+        service = AudioService(SimulatedMicrophone(), speaker=speaker)
+        service.speak(speech_payload())
+
+        first = service.close()
+        second = service.close()
+
+        self.assertTrue(first.closed)
+        self.assertTrue(second.closed)
+        self.assertFalse(speaker.is_open())
+        self.assertEqual(speaker.close_count, 1)
 
 
 class AudioServiceErrorPathTests(unittest.TestCase):

@@ -12,6 +12,15 @@ from xml.sax.saxutils import escape, quoteattr
 
 from .keyless_auth import AzureRelayConfig, build_speech_aad_authorization_token
 
+try:  # pragma: no cover - installed package path.
+    from sparky_contracts.personas import PersonaManifest, PersonaVoiceSettings, persona_voice_settings
+except ImportError:  # pragma: no cover - repo-root test path.
+    from src.shared.sparky_contracts.personas import (
+        PersonaManifest,
+        PersonaVoiceSettings,
+        persona_voice_settings,
+    )
+
 
 DEFAULT_TIMEOUT_SECONDS = 20.0
 
@@ -57,11 +66,13 @@ class SpeechSynthesisAdapter:
         transport: SpeechTransport | None = None,
         *,
         clock: Callable[[], float] | None = None,
+        persona_registry: Mapping[str, PersonaManifest] | None = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         self.config = config
         self.transport = transport or UrlLibSpeechTransport()
         self.clock = clock or time.monotonic
+        self.persona_registry = dict(persona_registry or {})
         self.timeout_seconds = timeout_seconds
 
     def speech(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
@@ -133,13 +144,33 @@ class SpeechSynthesisAdapter:
         text = payload.get("text")
         if not isinstance(text, str) or not text.strip():
             raise ValueError("Speech payload requires text.")
-        voice = self.config.speech_voice.strip()
+        voice_settings = self._voice_settings(payload)
+        voice = (voice_settings.name or self.config.speech_voice).strip()
         voice_attribute = f" name={quoteattr(voice)}" if voice else ""
+        speech_text = escape(text.strip())
+        if voice_settings.prosody:
+            prosody_attributes = "".join(
+                f" {key}={quoteattr(value)}" for key, value in voice_settings.prosody.items()
+            )
+            speech_text = f"<prosody{prosody_attributes}>{speech_text}</prosody>"
         return (
             '<speak version="1.0" xml:lang="en-US">'
-            f"<voice{voice_attribute}>{escape(text.strip())}</voice>"
+            f"<voice{voice_attribute}>{speech_text}</voice>"
             "</speak>"
         )
+
+    def _voice_settings(self, payload: Mapping[str, Any]) -> PersonaVoiceSettings:
+        persona_id = payload.get("persona_id")
+        if persona_id is None:
+            return PersonaVoiceSettings()
+        if not isinstance(persona_id, str) or not persona_id.strip():
+            raise ValueError("Speech payload persona_id must be a string when provided.")
+        if not self.persona_registry:
+            raise ValueError("Speech persona_id requires a configured persona registry.")
+        persona = self.persona_registry.get(persona_id.strip())
+        if persona is None:
+            raise ValueError("Speech payload persona_id is not registered.")
+        return persona_voice_settings(persona)
 
     def _authorization_header(self, authorization: str) -> str:
         if not self.config.speech_resource_id:

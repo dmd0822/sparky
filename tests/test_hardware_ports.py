@@ -9,9 +9,12 @@ assertions run on a GitHub-hosted runner and on the robot.
 from __future__ import annotations
 
 import builtins
+from pathlib import Path
+import sys
 import threading
 import time
 import unittest
+from unittest import mock
 
 from src.device.sparky_device.hardware import (
     DEFAULT_LIMITS,
@@ -30,6 +33,8 @@ from src.device.sparky_device.hardware import (
     PidogBoardAdapter,
     PidogMotionAdapter,
     PidogSensorAdapter,
+    PidogSpeakerAdapter,
+    PlaybackCommand,
     RgbColor,
     RGB_STYLES,
     RobotPorts,
@@ -39,6 +44,8 @@ from src.device.sparky_device.hardware import (
     SimulatedCamera,
     SimulatedMotion,
     SimulatedSensors,
+    SimulatedSpeaker,
+    SpeakerPort,
     TouchState,
     VILIB_CAPTURE_SIZE,
     VilibCameraAdapter,
@@ -238,6 +245,7 @@ class ProtocolConformanceTests(unittest.TestCase):
         self.assertIsInstance(SimulatedBoard(), BoardPort)
         self.assertIsInstance(SimulatedCamera(), CameraPort)
         self.assertIsInstance(SimulatedSensors(), SensorPort)
+        self.assertIsInstance(SimulatedSpeaker(), SpeakerPort)
 
     def test_adapters_satisfy_ports(self) -> None:
         dog = FakePidog()
@@ -245,6 +253,7 @@ class ProtocolConformanceTests(unittest.TestCase):
         self.assertIsInstance(PidogBoardAdapter(dog), BoardPort)
         self.assertIsInstance(VilibCameraAdapter(object()), CameraPort)
         self.assertIsInstance(PidogSensorAdapter(dog), SensorPort)
+        self.assertIsInstance(PidogSpeakerAdapter(dog), SpeakerPort)
 
 
 class MotionActionValidationTests(unittest.TestCase):
@@ -465,6 +474,64 @@ class SimulatedBoardTests(unittest.TestCase):
             self.board.play_sound("bark")
 
 
+class SimulatedSpeakerTests(unittest.TestCase):
+    def test_open_play_close_records_playback(self) -> None:
+        speaker = SimulatedSpeaker()
+
+        speaker.open(sample_rate=16000, channels=1, sample_width=2)
+        speaker.play(
+            b"RIFFdata",
+            audio_format="wav",
+            sample_rate=16000,
+            channels=1,
+            sample_width=2,
+            volume=45,
+        )
+        speaker.close()
+
+        self.assertEqual(speaker.open_count, 1)
+        self.assertEqual(speaker.close_count, 1)
+        self.assertFalse(speaker.is_open())
+        self.assertEqual(
+            speaker.playbacks,
+            [
+                PlaybackCommand(
+                    audio=b"RIFFdata",
+                    audio_format="wav",
+                    sample_rate=16000,
+                    channels=1,
+                    sample_width=2,
+                    volume=45,
+                )
+            ],
+        )
+
+    def test_rejects_play_before_open(self) -> None:
+        with self.assertRaisesRegex(HardwareError, "not open"):
+            SimulatedSpeaker().play(b"audio")
+
+    def test_unavailable_speaker_raises_clean_error(self) -> None:
+        speaker = SimulatedSpeaker(available=False)
+
+        with self.assertRaises(HardwareUnavailableError):
+            speaker.open()
+
+    def test_busy_speaker_raises_clean_error(self) -> None:
+        speaker = SimulatedSpeaker(busy=True)
+
+        with self.assertRaisesRegex(HardwareError, "busy"):
+            speaker.open()
+
+    def test_close_is_idempotent(self) -> None:
+        speaker = SimulatedSpeaker()
+        speaker.open()
+
+        speaker.close()
+        speaker.close()
+
+        self.assertEqual(speaker.close_count, 1)
+
+
 class SimulatedCameraTests(unittest.TestCase):
     def test_capture_before_start_fails(self) -> None:
         with self.assertRaises(HardwareError):
@@ -553,11 +620,15 @@ class RobotPortsTests(unittest.TestCase):
     def test_close_safe_stops_before_releasing(self) -> None:
         ports = build_simulated_ports()
         ports.camera.start()
+        assert ports.speaker is not None
+        ports.speaker.open()
         ports.close()
         self.assertEqual(ports.motion.stop_count, 1)
         self.assertTrue(ports.motion.closed)
         self.assertTrue(ports.board.closed)
         self.assertFalse(ports.camera.is_running())
+        self.assertFalse(ports.speaker.is_open())
+        self.assertEqual(ports.speaker.close_count, 1)
         self.assertEqual(ports.board.rgb_cleared, 1)
 
     def test_close_is_idempotent(self) -> None:
@@ -574,6 +645,7 @@ class RobotPortsTests(unittest.TestCase):
             board=board,
             camera=ExplodingPort("camera"),
             sensors=SimulatedSensors(),
+            speaker=ExplodingPort("speaker"),
             profile="test",
         )
         with self.assertRaises(HardwareError) as ctx:
@@ -583,6 +655,7 @@ class RobotPortsTests(unittest.TestCase):
         self.assertEqual(motion.stop_count, 1)
         self.assertTrue(motion.closed)
         self.assertTrue(board.closed)
+        self.assertIn("speaker.close failed", str(ctx.exception))
 
     def test_aggregates_multiple_failures(self) -> None:
         ports = RobotPorts(
@@ -777,6 +850,76 @@ class PidogBoardAdapterTests(unittest.TestCase):
     def test_clear_rgb_closes_the_strip(self) -> None:
         self.board.clear_rgb()
         self.assertEqual(self.dog.rgb_strip.close_count, 1)
+
+
+class PidogSpeakerAdapterTests(unittest.TestCase):
+    def test_play_writes_bytes_and_invokes_configured_player(self) -> None:
+        playback_dir = Path(__file__).parents[1] / ".sparky-test-speaker"
+        speaker = PidogSpeakerAdapter(
+            FakePidog(),
+            playback_dir=playback_dir,
+            players={"wav": (sys.executable, "-c", "import sys; sys.exit(0)")},
+        )
+
+        try:
+            speaker.open()
+            speaker.play(b"RIFFdata", audio_format="wav", volume=44)
+        finally:
+            speaker.close()
+            for child in playback_dir.glob("*"):
+                child.unlink()
+            playback_dir.rmdir()
+
+        self.assertFalse(speaker.is_open())
+
+    def test_missing_player_is_unavailable(self) -> None:
+        speaker = PidogSpeakerAdapter(players={"wav": ("missing-sparky-player",)})
+
+        with self.assertRaises(HardwareUnavailableError):
+            speaker.open()
+
+    def test_player_nonzero_exit_raises_clean_hardware_error(self) -> None:
+        class FailedPlayback:
+            returncode = 2
+
+            def communicate(self) -> tuple[bytes, bytes]:
+                return b"", b"alsa device busy"
+
+        playback_dir = Path(__file__).parents[1] / ".sparky-test-speaker-failure"
+        speaker = PidogSpeakerAdapter(
+            FakePidog(),
+            playback_dir=playback_dir,
+            players={"wav": ("sparky-player",)},
+        )
+
+        try:
+            with mock.patch(
+                "src.device.sparky_device.hardware.pidog_adapters.shutil.which",
+                return_value="sparky-player",
+            ), mock.patch(
+                "src.device.sparky_device.hardware.pidog_adapters.subprocess.Popen",
+                return_value=FailedPlayback(),
+            ):
+                speaker.open()
+                with self.assertRaisesRegex(HardwareError, "speaker playback failed.*alsa device busy"):
+                    speaker.play(b"RIFFdata", audio_format="wav")
+        finally:
+            speaker.close()
+            if playback_dir.exists():
+                for child in playback_dir.glob("*"):
+                    child.unlink()
+                playback_dir.rmdir()
+
+    def test_rejects_unsupported_format_without_side_effect(self) -> None:
+        speaker = PidogSpeakerAdapter(
+            players={"wav": (sys.executable, "-c", "import sys; sys.exit(0)")},
+        )
+        speaker.open()
+
+        with self.assertRaisesRegex(HardwareError, "unsupported"):
+            speaker.play(b"audio", audio_format="flac")
+
+        speaker.close()
 
 
 class PidogSensorAdapterTests(unittest.TestCase):

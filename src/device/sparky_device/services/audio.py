@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from io import BytesIO
 from math import ceil, isfinite
 from numbers import Real
 from threading import RLock
 import time
 from typing import Any
+import wave
 
 from ..hardware.ports import (
     AudioChunk,
     HardwareError,
     HardwareUnavailableError,
     MicrophonePort,
+    SpeakerPort,
     validate_audio_format,
 )
 
@@ -24,6 +28,7 @@ __all__ = [
     "AudioBuffer",
     "AudioCapture",
     "AudioFlush",
+    "AudioPlayback",
     "AudioService",
     "AudioServiceState",
     "AudioStatus",
@@ -37,6 +42,7 @@ CANONICAL_AUDIO_CHANNELS = 1
 CANONICAL_AUDIO_SAMPLE_WIDTH = 2
 DEFAULT_CHUNK_SECONDS = 0.1
 DEFAULT_MAX_BUFFER_SECONDS = 5.0
+SUPPORTED_SPEECH_AUDIO_FORMATS = frozenset(("wav", "mp3", "ogg", "webm"))
 
 
 class AudioStatus(Enum):
@@ -156,6 +162,45 @@ class AudioFlush:
 
 
 @dataclass(frozen=True)
+class AudioPlayback:
+    """Result of one synthesized speech playback."""
+
+    timestamp: float
+    audio_format: str
+    byte_length: int
+    sample_rate: int
+    channels: int
+    sample_width: int
+    duration_seconds: float
+
+    def __post_init__(self) -> None:
+        _validate_timestamp(self.timestamp)
+        if self.audio_format not in SUPPORTED_SPEECH_AUDIO_FORMATS:
+            raise ValueError(f"unsupported audio_format {self.audio_format!r}")
+        if self.byte_length <= 0:
+            raise ValueError(f"byte_length must be positive, got {self.byte_length}")
+        validate_audio_format(
+            sample_rate=self.sample_rate,
+            channels=self.channels,
+            sample_width=self.sample_width,
+        )
+        _validate_non_negative_float(self.duration_seconds, "duration_seconds")
+
+    def as_dict(self) -> dict[str, object]:
+        """Return a JSON-friendly representation for logs."""
+
+        return {
+            "timestamp": self.timestamp,
+            "audio_format": self.audio_format,
+            "byte_length": self.byte_length,
+            "sample_rate": self.sample_rate,
+            "channels": self.channels,
+            "sample_width": self.sample_width,
+            "duration_seconds": self.duration_seconds,
+        }
+
+
+@dataclass(frozen=True)
 class AudioServiceState:
     """Observable lifecycle state for tests and device planners."""
 
@@ -190,6 +235,7 @@ class AudioService:
         self,
         microphone: MicrophonePort,
         *,
+        speaker: SpeakerPort | None = None,
         source_id: str = "sparky-microphone",
         sample_rate: int = CANONICAL_AUDIO_SAMPLE_RATE,
         channels: int = CANONICAL_AUDIO_CHANNELS,
@@ -199,6 +245,7 @@ class AudioService:
         time_source: Callable[[], float] = time.monotonic,
     ) -> None:
         self._microphone = microphone
+        self._speaker = speaker
         self._source_id = _validate_source_id(source_id)
         self._sample_rate, self._channels, self._sample_width = validate_audio_format(
             sample_rate=sample_rate,
@@ -360,17 +407,104 @@ class AudioService:
             except Exception as error:  # noqa: BLE001 - vendor faults become status values
                 return self._state_unlocked(AudioStatus.UNAVAILABLE, _detail(error))
 
+    def speak(
+        self,
+        relay_payload: dict[str, object],
+        *,
+        volume: int = 100,
+    ) -> AudioPlayback:
+        """Play a relay speech-synthesis payload or raise a clean hardware error."""
+
+        with self._lock:
+            if self._closed:
+                raise HardwareUnavailableError("audio service is closed")
+            speaker = self._speaker
+            if speaker is None:
+                raise HardwareUnavailableError("audio service has no speaker port")
+            _raise_relay_failure(relay_payload)
+            audio_format = _payload_audio_format(relay_payload)
+            raw = _payload_audio_bytes(relay_payload)
+            sample_rate = self._sample_rate
+            channels = self._channels
+            sample_width = self._sample_width
+            duration = 0.0
+            if audio_format == "wav":
+                pcm, sample_rate, channels, sample_width = _decode_wav_payload(raw)
+                _require_expected_playback_format(
+                    sample_rate=sample_rate,
+                    channels=channels,
+                    sample_width=sample_width,
+                    expected_rate=self._sample_rate,
+                    expected_channels=self._channels,
+                    expected_width=self._sample_width,
+                )
+                frames = _decode_pcm(pcm, sample_width, channels)
+                frames = _convert_channels(frames, channels)
+                frames = _resample_frames(frames, sample_rate, sample_rate)
+                pcm = _encode_pcm(frames, sample_width)
+                duration = _duration_seconds(
+                    len(pcm),
+                    sample_rate,
+                    channels,
+                    sample_width,
+                )
+            if not speaker.speaker_available():
+                raise HardwareUnavailableError("speaker is not available")
+            if not speaker.is_open():
+                speaker.open(
+                    sample_rate=sample_rate,
+                    channels=channels,
+                    sample_width=sample_width,
+                )
+            speaker.play(
+                raw,
+                audio_format=audio_format,
+                sample_rate=sample_rate,
+                channels=channels,
+                sample_width=sample_width,
+                volume=volume,
+            )
+            return AudioPlayback(
+                timestamp=self._timestamp(),
+                audio_format=audio_format,
+                byte_length=len(raw),
+                sample_rate=sample_rate,
+                channels=channels,
+                sample_width=sample_width,
+                duration_seconds=duration,
+            )
+
     def close(self) -> AudioServiceState:
         """Stop capture and release service ownership. Idempotent."""
 
         with self._lock:
+            if self._closed:
+                return AudioServiceState(
+                    running=False,
+                    closed=True,
+                    status=self._last_status,
+                    detail=self._last_detail,
+                    last_capture=self._last_capture,
+                    buffered_chunks=len(self._buffer),
+                    buffered_bytes=self._buffered_bytes_unlocked(),
+                )
             state = self.stop()
+            speaker_error: str | None = None
+            if self._speaker is not None:
+                try:
+                    self._speaker.close()
+                except (HardwareError, TypeError, ValueError) as error:
+                    speaker_error = _detail(error)
+                except Exception as error:  # noqa: BLE001 - vendor faults become status values
+                    speaker_error = _detail(error)
             self._closed = True
+            status = AudioStatus.MALFORMED if speaker_error else state.status
+            detail = speaker_error if speaker_error else state.detail
             return AudioServiceState(
                 running=False,
                 closed=True,
-                status=state.status,
-                detail=state.detail,
+                status=status,
+                detail=detail,
                 last_capture=self._last_capture,
                 buffered_chunks=len(self._buffer),
                 buffered_bytes=self._buffered_bytes_unlocked(),
@@ -441,6 +575,98 @@ def _chunk_as_dict(chunk: AudioChunk) -> dict[str, object]:
         "timestamp": chunk.timestamp,
         "sequence": chunk.sequence,
     }
+
+
+def _raise_relay_failure(payload: dict[str, object]) -> None:
+    status = payload.get("status")
+    metadata = payload.get("metadata")
+    failure: object = None
+    if isinstance(metadata, dict):
+        failure = metadata.get("failure")
+    if status is None and not failure:
+        return
+    code = None
+    message = None
+    if isinstance(failure, dict):
+        code = failure.get("code")
+        message = failure.get("message")
+    detail = f"relay speech synthesis failed with status {status!r}"
+    if code or message:
+        detail += f": {code or 'unknown'} - {message or 'no message'}"
+    raise HardwareError(detail)
+
+
+def _payload_audio_format(payload: dict[str, object]) -> str:
+    audio_format = str(payload.get("audio_format", "")).strip().lower()
+    if audio_format not in SUPPORTED_SPEECH_AUDIO_FORMATS:
+        raise HardwareError(
+            f"speech audio_format {audio_format!r} is unsupported; expected one of: "
+            + ", ".join(sorted(SUPPORTED_SPEECH_AUDIO_FORMATS))
+        )
+    return audio_format
+
+
+def _payload_audio_bytes(payload: dict[str, object]) -> bytes:
+    value = payload.get("audio")
+    if not isinstance(value, str) or not value:
+        raise HardwareError("speech payload audio must be a non-empty base64 string")
+    try:
+        audio = base64.b64decode(value, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise HardwareError("speech payload audio is not valid base64") from error
+    if not audio:
+        raise HardwareError("speech payload decoded to empty audio")
+    return audio
+
+
+def _decode_wav_payload(data: bytes) -> tuple[bytes, int, int, int]:
+    try:
+        with wave.open(BytesIO(data), "rb") as handle:
+            channels = handle.getnchannels()
+            sample_width = handle.getsampwidth()
+            sample_rate = handle.getframerate()
+            validate_audio_format(
+                sample_rate=sample_rate,
+                channels=channels,
+                sample_width=sample_width,
+            )
+            pcm = handle.readframes(handle.getnframes())
+    except (wave.Error, EOFError) as error:
+        raise HardwareError(f"speech payload is not a valid WAV file: {error}") from error
+    if not pcm:
+        raise HardwareError("speech WAV payload contains no audio frames")
+    return pcm, sample_rate, channels, sample_width
+
+
+def _require_expected_playback_format(
+    *,
+    sample_rate: int,
+    channels: int,
+    sample_width: int,
+    expected_rate: int,
+    expected_channels: int,
+    expected_width: int,
+) -> None:
+    validate_audio_format(
+        sample_rate=sample_rate,
+        channels=channels,
+        sample_width=sample_width,
+    )
+    if (
+        sample_rate,
+        channels,
+        sample_width,
+    ) != (
+        expected_rate,
+        expected_channels,
+        expected_width,
+    ):
+        raise HardwareError(
+            "speech audio format mismatch: expected "
+            f"{expected_rate} Hz, {expected_channels} channel(s), "
+            f"{expected_width}-byte samples; got {sample_rate} Hz, "
+            f"{channels} channel(s), {sample_width}-byte samples"
+        )
 
 
 def _decode_pcm(data: bytes, sample_width: int, channels: int) -> list[list[float]]:

@@ -23,7 +23,12 @@ from typing import Iterable, Mapping
 
 from .pidog_adapters import PIDOG_PROFILE, build_pidog_ports, vendor_libraries_available
 from .ports import DEFAULT_LIMITS, Frame, MotionLimits, RobotPorts
-from .simulators import SIMULATOR_PROFILE, SimulatedMicrophone, build_simulated_ports
+from .simulators import (
+    SIMULATOR_PROFILE,
+    SimulatedMicrophone,
+    SimulatedSpeaker,
+    build_simulated_ports,
+)
 
 __all__ = [
     "AUTO_PROFILE",
@@ -75,6 +80,7 @@ def create_ports(
     frames: Iterable[Frame] | None = None,
     microphone: SimulatedMicrophone | None = None,
     microphone_fixture_path: str | Path | None = None,
+    speaker: SimulatedSpeaker | None = None,
 ) -> RobotPorts:
     """Build the port bundle for the resolved profile.
 
@@ -87,6 +93,7 @@ def create_ports(
         microphone: Simulated microphone to use. Ignored on hardware.
         microphone_fixture_path: WAV fixture for the simulated microphone.
             Ignored on hardware.
+        speaker: Simulated speaker to use. Ignored on hardware.
 
     Raises:
         HardwareUnavailableError: ``pidog`` was requested but the vendor
@@ -101,4 +108,5 @@ def create_ports(
         frames=frames,
         microphone=microphone,
         microphone_fixture_path=microphone_fixture_path,
+        speaker=speaker,
     )

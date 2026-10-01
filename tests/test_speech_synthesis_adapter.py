@@ -16,6 +16,7 @@ from src.cloud.sparky_relay.relay_auth import (
     jwt_payload_without_verification,
 )
 from src.cloud.sparky_relay.speech_synthesis import SpeechSynthesisAdapter
+from src.shared.sparky_contracts.personas import PersonaManifest
 
 
 NOW = 1_800_000_000
@@ -103,12 +104,25 @@ class SpeechSynthesisAdapterTests(unittest.TestCase):
         *,
         config: AzureRelayConfig | None = None,
         clock: SteppingClock | None = None,
+        persona_registry: Mapping[str, PersonaManifest] | None = None,
     ) -> SpeechSynthesisAdapter:
         return SpeechSynthesisAdapter(
             config or self.config,
             transport,
             clock=clock or SteppingClock(10.0, 10.125),
+            persona_registry=persona_registry,
             timeout_seconds=7.5,
+        )
+
+    def persona(self, *, voice: Mapping[str, Any]) -> PersonaManifest:
+        return PersonaManifest(
+            persona_id="gentle_guide",
+            display_name="Gentle Guide",
+            version="1.0-test",
+            capabilities=("conversation", "tts"),
+            prompt_intent="Guide users through tasks in calm, plain language.",
+            behavioral_rules=("Use quiet confirmation language.",),
+            voice=voice,
         )
 
     def test_success_normalizes_audio_latency_auth_and_escaped_ssml(self) -> None:
@@ -131,8 +145,58 @@ class SpeechSynthesisAdapterTests(unittest.TestCase):
         self.assertEqual(headers["X-Microsoft-OutputFormat"], "riff-24khz-16bit-mono-pcm")
         self.assertEqual(headers["x-correlation-id"], "cid-speech")
         ssml = body.decode("utf-8")
+        self.assertIn('<voice name="en-US-AvaMultilingualNeural">', ssml)
         self.assertIn("Sparky &lt;speaks&gt; &amp; listens", ssml)
         self.assertNotIn("Sparky <speaks> & listens", ssml)
+
+    def test_persona_voice_and_prosody_shape_ssml_from_registry(self) -> None:
+        transport = RecordingTransport(b"audio")
+        persona = self.persona(
+            voice={
+                "name": "en-US-JennyNeural",
+                "rate": "-5%",
+                "pitch": "+2st",
+                "volume": "soft",
+            }
+        )
+
+        self.adapter(transport, persona_registry={"gentle_guide": persona}).speech(
+            {"text": "hello", "persona_id": "gentle_guide"},
+            self.headers,
+        )
+
+        ssml = transport.calls[0][1].decode("utf-8")
+        self.assertIn('<voice name="en-US-JennyNeural">', ssml)
+        self.assertIn('<prosody rate="-5%" pitch="+2st" volume="soft">hello</prosody>', ssml)
+
+    def test_persona_prosody_preserves_text_escaping(self) -> None:
+        transport = RecordingTransport(b"audio")
+        persona = self.persona(voice={"name": "en-US-JennyNeural", "rate": "slow"})
+
+        self.adapter(transport, persona_registry={"gentle_guide": persona}).speech(
+            {"text": "Sparky <speaks> & listens", "persona_id": "gentle_guide"},
+            self.headers,
+        )
+
+        ssml = transport.calls[0][1].decode("utf-8")
+        self.assertIn(
+            '<prosody rate="slow">Sparky &lt;speaks&gt; &amp; listens</prosody>',
+            ssml,
+        )
+        self.assertNotIn("Sparky <speaks> & listens", ssml)
+
+    def test_config_voice_fallback_when_persona_has_no_synthesis_voice(self) -> None:
+        transport = RecordingTransport(b"audio")
+        persona = self.persona(voice={"style": "calm_plain"})
+
+        self.adapter(transport, persona_registry={"gentle_guide": persona}).speech(
+            {"text": "hello", "persona_id": "gentle_guide"},
+            self.headers,
+        )
+
+        ssml = transport.calls[0][1].decode("utf-8")
+        self.assertIn('<voice name="en-US-AvaMultilingualNeural">hello</voice>', ssml)
+        self.assertNotIn("<prosody", ssml)
 
     def test_passes_through_authorization_when_resource_id_is_not_set(self) -> None:
         config = AzureRelayConfig(

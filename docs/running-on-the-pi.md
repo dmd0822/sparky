@@ -112,9 +112,10 @@ with create_ports() as robot:
 "
 ```
 
-`create_ports()` returns a `RobotPorts` bundle with five members — `motion`,
-`board`, `camera`, `microphone`, and `sensors`. Using it as a context manager guarantees the
-servos are safe-stopped and every port released, even if your code raises.
+`create_ports()` returns a `RobotPorts` bundle with six members — `motion`,
+`board`, `camera`, `microphone`, `speaker`, and `sensors`. Using it as a
+context manager guarantees the servos are safe-stopped and every port released,
+even if your code raises.
 
 The camera is optional. Code that can use images should ask the port first and
 skip camera work when no module is attached:
@@ -179,6 +180,9 @@ must include one of these acceptance records before it is closed:
 - a real PiDog run of `python scripts/motion_service_hil.py`; and
 - for microphone-capture milestones, `python scripts/audio_service_hil.py --ci`
   plus a Pi run of `python scripts/audio_service_hil.py`; and
+- for synthesized-speech playback milestones, `python -m unittest
+  tests.test_audio_service` plus the speaker playback snippet below against
+  the PiDog Robot HAT speaker; and
 - for relay-auth milestones, `python scripts/relay_auth_smoke.py --ci` plus a
   Pi run of `python scripts/relay_auth_smoke.py` against the deployed relay; and
 - notes for any SKIP/FAIL result, including whether the milestone accepts the
@@ -266,7 +270,7 @@ follow-up risk.
 | 6 | Sensor | Hand or flat target about 20 cm in front of ultrasonic sensor | Numeric `distance_cm` near the target distance | PASS when a plausible numeric distance is printed | FAIL when the reading is `None`, implausible, or raises |
 | 7 | Sensor | Touch left pad, right pad, then both pads at prompts | `LEFT`, `RIGHT`, then `BOTH` | PASS when all three states match the prompted fixture | FAIL on wrong state, no state change, or exception |
 | 8 | Sensor | Hold dog level, then gently tilt it | Two IMU acceleration tuples with changed axes | PASS when acceleration changes after tilt | FAIL when values do not change or are malformed |
-| 9 | Audio | Speaker enabled; listen for `single_bark_1` | Audible bark from the speaker | PASS when the command returns and the operator hears the bark | FAIL when silent, distorted by setup, or raises |
+| 9 | Audio | Speaker enabled; listen for `single_bark_1`; for synthesized-speech milestones, also play a relay-shaped WAV payload through `AudioService.speak()` | Audible bark and, when in scope, audible synthesized-tone playback from the speaker | PASS when the command returns and the operator hears the expected sound | FAIL when silent, distorted by setup, or raises |
 | 10 | Board | Watch RGB strip during blue monochromatic command | Strip turns blue, then clears | PASS when LEDs light and clear | FAIL when command is silent, wrong color, or not cleared |
 | 11 | Camera | Optional camera attached and uncovered; for vision milestones also call `CameraService.capture_frame()` | One 640x480 frame with non-empty bytes and packaged metadata containing source and packaged dimensions, sequence, timestamp, and source ID | PASS when a frame is captured and the packaged result reports status `ok` with honest dimensions; SKIP when no camera is attached for a non-vision milestone | FAIL when a required camera milestone cannot capture or package a frame |
 | 12 | Safety | Let the script exit or interrupt it | Cleanup reports ports closed; motion stopped; camera stopped; RGB cleared | PASS when cleanup reports success | FAIL when cleanup reports any close/stop error |
@@ -383,6 +387,49 @@ Fail criteria: the snippet crashes, busy-device errors escape instead of
 returning `malformed`, missing-device errors escape instead of returning
 `unavailable`, or flushed audio is empty while the microphone was expected to
 capture sound. Record any accepted SKIP/FAIL as a milestone acceptance risk.
+
+### Synthesized speech playback check
+
+For text-to-speech playback milestones, rehearse with the unit tests first:
+
+```bash
+python -m unittest tests.test_audio_service
+```
+
+Then validate the same relay-shaped payload path on the PiDog speaker. This
+uses the committed WAV fixture to stand in for a relay `/speech/synthesize`
+success response and exercises `AudioService.speak()` plus the `SpeakerPort`
+adapter:
+
+```bash
+python - <<'PY'
+import base64
+from pathlib import Path
+
+from sparky_device.hardware import create_ports
+from sparky_device.services import AudioService
+
+audio = Path("tests/fixtures/audio/tone-16khz.wav").read_bytes()
+payload = {
+    "audio": base64.b64encode(audio).decode("ascii"),
+    "audio_format": "wav",
+    "metadata": {"latency_ms": 0},
+}
+
+with create_ports("pidog") as robot:
+    service = AudioService(robot.microphone, speaker=robot.speaker)
+    print(service.speak(payload, volume=70).as_dict())
+    print(service.close().as_dict())
+PY
+```
+
+Pass criteria: the operator hears the fixture tone, the printed playback
+dictionary reports `audio_format='wav'`, `sample_rate=16000`, `channels=1`,
+`sample_width=2`, and cleanup closes the speaker path. Fail criteria: the
+snippet crashes, relay failure payloads attempt playback, format mismatches are
+silently coerced, the speaker is silent after `i2samp.sh` and reboot, or cleanup
+cannot stop/close the speaker. Record any accepted SKIP/FAIL as a milestone
+acceptance risk.
 
 ### Camera service check
 

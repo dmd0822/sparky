@@ -26,6 +26,25 @@ Implementation target:
 - **Reactions:** greet visible people, curious sniff animation for safe objects, calm-down when sensors report proximity.
 - **Effects:** soft chirps and warm RGB pulses.
 
+## Voice synthesis contract
+
+Persona manifests may include a `voice` object that the relay reads through the
+active persona registry when shaping Azure Speech SSML. The synthesis-driving
+keys are intentionally small:
+
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `name` | No | Azure Speech voice name, for example `en-US-AvaMultilingualNeural`. If absent, the relay falls back to `SPARKY_SPEECH_VOICE`. |
+| `rate` | No | Azure Speech SSML prosody `rate` value such as `medium`, `slow`, or `-5%`. |
+| `pitch` | No | Azure Speech SSML prosody `pitch` value such as `default`, `+2st`, or `-5%`. |
+| `volume` | No | Azure Speech SSML prosody `volume` value such as `default`, `soft`, or `medium`. |
+
+Other descriptive `voice` keys may remain in manifests for human-readable
+persona notes, but they do not affect synthesis. Persona voice settings are
+subordinate to the global safety rules enforced by the shared persona validator;
+voice strings cannot weaken protected global policy or include prompt-injection
+instructions.
+
 ## Sentinel Scout
 
 Sentinel Scout is a playful watchdog-style observer, not a guard or enforcement system. Its goal is to make environmental awareness visible: notice motion, inspect safely, report findings, and return to neutral. Sentinel should sound confident and concise, move purposefully, and use alert postures without intimidation. It must never threaten people, chase targets, or claim to provide physical security.

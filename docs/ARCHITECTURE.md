@@ -109,6 +109,18 @@ results, and safety-filtered results return an explicit failure `status` with
 empty `caption` and `labels`, rather than leaking service exceptions through
 the relay boundary.
 
+The Speech synthesis path accepts relay JSON with `text` and optional
+`persona_id`. When a persona ID is present, the relay resolves it through the
+configured persona registry and uses only the manifest's synthesis voice keys:
+`voice.name` for the Azure Speech voice, plus optional SSML prosody values
+`voice.rate`, `voice.pitch`, and `voice.volume`. `SPARKY_SPEECH_VOICE` is an
+explicit fallback when no registered persona voice name is set. The relay
+returns base64 audio in `audio`, a normalized `audio_format` of `wav`, `mp3`,
+`ogg`, or `webm` derived from `SPARKY_SPEECH_OUTPUT_FORMAT`,
+`metadata.latency_ms`, and the request correlation ID. Synthesis failures use
+empty audio plus `status` and `metadata.failure`, keeping downstream Speech
+error bodies and credentials out of the device contract.
+
 The Speech recognition path mirrors the synthesis adapter but uses the short-audio
 REST endpoint instead of the Speech SDK so the relay core remains stdlib-only.
 The device posts JSON to `POST /speech/recognize` with base64 WAV/PCM audio in
@@ -506,7 +518,7 @@ The seam ships in `src/device/sparky_device/hardware/`:
 
 | Module | Contents |
 | --- | --- |
-| `ports.py` | `MotionPort`, `BoardPort`, `CameraPort`, `SensorPort` protocols, shared value objects, and the `RobotPorts` bundle |
+| `ports.py` | `MotionPort`, `BoardPort`, `CameraPort`, `SensorPort`, `SpeakerPort` protocols, shared value objects, and the `RobotPorts` bundle |
 | `simulators.py` | Recording fakes used by unit tests and off-robot development |
 | `pidog_adapters.py` | The only code that touches `pidog`, `robot_hat`, `vilib`, and `cv2`, all imported lazily |
 | `factory.py` | `create_ports()` and the `SPARKY_HARDWARE` profile switch (`pidog`, `simulator`, `auto`) |
@@ -514,9 +526,11 @@ The seam ships in `src/device/sparky_device/hardware/`:
 Port responsibilities:
 
 - `MotionPort` wraps `Pidog` actions and leg/head/tail servo moves
-- `BoardPort` wraps `robot_hat` features such as speaker and RGB strip
+- `BoardPort` wraps bundled sound assets and RGB strip features
 - `CameraPort` wraps `vilib`
 - `SensorPort` wraps ultrasonic/touch/IMU/sound-direction reads
+- `SpeakerPort` wraps arbitrary synthesized audio playback, accepting raw PCM
+  or encoded bytes plus format metadata
 
 Adapters validate speed and servo angles *before* calling the vendor library, so
 an out-of-range command is rejected in software rather than sent to a servo.
@@ -527,6 +541,12 @@ with explicit `ok`, `unavailable`, or `malformed` statuses instead of overloaded
 pattern: `CameraService` owns start/capture/stop, converts camera absence and
 malformed frames into status-bearing results, and packages successful captures
 into JSON-friendly device-local `PackagedFrame` values.
+`AudioService.speak()` owns the text-to-speech playback boundary: it rejects
+relay failure payloads, decodes the relay base64 audio, validates WAV synthesis
+as the canonical 16 kHz mono 16-bit PCM shape, and calls `SpeakerPort.play()`
+with the original bytes. The PiDog speaker adapter keeps vendor code isolated
+by writing those bytes to a local playback cache and invoking the Robot HAT I2S
+speaker through ALSA/system players (`aplay` for WAV by default).
 
 Camera packaging is deliberately above the port. `vilib` captures at its native
 640x480 only, so the port rejects every other requested resolution before
