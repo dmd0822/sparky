@@ -109,6 +109,18 @@ results, and safety-filtered results return an explicit failure `status` with
 empty `caption` and `labels`, rather than leaking service exceptions through
 the relay boundary.
 
+The Speech synthesis path accepts relay JSON with `text` and optional
+`persona_id`. When a persona ID is present, the relay resolves it through the
+configured persona registry and uses only the manifest's synthesis voice keys:
+`voice.name` for the Azure Speech voice, plus optional SSML prosody values
+`voice.rate`, `voice.pitch`, and `voice.volume`. `SPARKY_SPEECH_VOICE` is an
+explicit fallback when no registered persona voice name is set. The relay
+returns base64 audio in `audio`, a normalized `audio_format` of `wav`, `mp3`,
+`ogg`, or `webm` derived from `SPARKY_SPEECH_OUTPUT_FORMAT`,
+`metadata.latency_ms`, and the request correlation ID. Synthesis failures use
+empty audio plus `status` and `metadata.failure`, keeping downstream Speech
+error bodies and credentials out of the device contract.
+
 The Speech recognition path mirrors the synthesis adapter but uses the short-audio
 REST endpoint instead of the Speech SDK so the relay core remains stdlib-only.
 The device posts JSON to `POST /speech/recognize` with base64 WAV/PCM audio in

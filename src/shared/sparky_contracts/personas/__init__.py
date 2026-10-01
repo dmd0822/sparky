@@ -134,6 +134,7 @@ PERSONA_MANIFEST_FIELDS = frozenset(
 )
 
 PERSONA_SAFETY_NOTE_FIELDS = frozenset({"notes", "rules", "tightening_rules"})
+PERSONA_VOICE_FIELDS = frozenset({"name", "pitch", "rate", "volume"})
 
 MEMORY_ROLES = frozenset({"assistant", "user"})
 
@@ -190,6 +191,34 @@ class PersonaSafetyNotes:
 
     def as_dict(self) -> dict[str, Any]:
         return {"tightening_rules": list(self.tightening_rules)}
+
+
+@dataclass(frozen=True)
+class PersonaVoiceSettings:
+    """Speech synthesis settings declared by a persona manifest."""
+
+    name: str | None = None
+    rate: str | None = None
+    pitch: str | None = None
+    volume: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "name", _optional_string(self.name))
+        object.__setattr__(self, "rate", _optional_string(self.rate))
+        object.__setattr__(self, "pitch", _optional_string(self.pitch))
+        object.__setattr__(self, "volume", _optional_string(self.volume))
+
+    @property
+    def prosody(self) -> Mapping[str, str]:
+        return {
+            key: value
+            for key, value in (
+                ("rate", self.rate),
+                ("pitch", self.pitch),
+                ("volume", self.volume),
+            )
+            if value
+        }
 
 
 @dataclass(frozen=True)
@@ -277,6 +306,22 @@ class PersonaManifest:
             "reactions": dict(self.reactions),
             "effects": dict(self.effects),
         }
+
+
+def persona_voice_settings(manifest: PersonaManifest) -> PersonaVoiceSettings:
+    """Return the synthesis-driving voice settings from a persona manifest."""
+
+    voice = _mapping_copy(manifest.voice, "voice")
+    synthesis_values = {key: voice[key] for key in PERSONA_VOICE_FIELDS if key in voice}
+    for key, value in synthesis_values.items():
+        if not isinstance(value, str):
+            raise ValueError(f"voice.{key} must be a string.")
+    return PersonaVoiceSettings(
+        name=synthesis_values.get("name"),
+        rate=synthesis_values.get("rate"),
+        pitch=synthesis_values.get("pitch"),
+        volume=synthesis_values.get("volume"),
+    )
 
 
 @dataclass(frozen=True)
@@ -819,10 +864,12 @@ __all__ = [
     "PersonaSafetyNotes",
     "PersonaScopedMemoryStore",
     "PersonaSwitchResult",
+    "PersonaVoiceSettings",
     "PromptAssemblyMetadata",
     "PromptSegment",
     "PromptSegmentMetadata",
     "compose_prompt",
+    "persona_voice_settings",
     "switch_persona",
     "validate_persona_manifest",
 ]
