@@ -91,6 +91,7 @@ Authenticated endpoints:
 | `POST` | `/ai/chat` | Relay-shaped chat request to Foundry using the relay managed identity. |
 | `POST` | `/ai/vision` | Relay-shaped image analysis request to Foundry using the relay managed identity. |
 | `POST` | `/speech/synthesize` | Relay-shaped text-to-speech request to Speech using the relay managed identity. |
+| `POST` | `/speech/recognize` | Relay-shaped speech-to-text request to Speech short-audio REST recognition using the relay managed identity. |
 
 The vision path is implemented as a downstream perception adapter rather than
 inside the dispatcher. The relay validates the device token, acquires a
@@ -107,6 +108,40 @@ failures, non-success downstream statuses, malformed responses, empty model
 results, and safety-filtered results return an explicit failure `status` with
 empty `caption` and `labels`, rather than leaking service exceptions through
 the relay boundary.
+
+The Speech recognition path mirrors the synthesis adapter but uses the short-audio
+REST endpoint instead of the Speech SDK so the relay core remains stdlib-only.
+The device posts JSON to `POST /speech/recognize` with base64 WAV/PCM audio in
+`audio`; the relay validates the caller token, obtains its own managed-identity
+token for `https://cognitiveservices.azure.com/.default`, decodes the audio, and
+posts raw bytes to:
+
+```text
+{SPARKY_SPEECH_ENDPOINT}/stt/speech/recognition/conversation/cognitiveservices/v1?language={SPARKY_SPEECH_RECOGNITION_LANGUAGE}&format=detailed
+```
+
+Microsoft Learn's current short-audio REST documentation includes the `/stt/`
+prefix in the endpoint path, which corrects the earlier assumed path without
+that segment. The default downstream content type is
+`audio/wav; codecs=audio/pcm; samplerate=16000`; this matches the documented
+16 kHz mono PCM WAV short-audio format. Successful detailed responses are
+normalized to top-level `transcript`, `confidence`, `correlation_id`, and
+`metadata.latency_ms` / `metadata.recognition_status`. Failure results use an
+empty transcript, `confidence: 0.0`, `status`, and `metadata.failure`, with
+`NoMatch`, `InitialSilenceTimeout`, and `BabbleTimeout` mapped to `no_match`.
+Downstream error bodies are never echoed back to callers.
+
+Speech Entra authentication requires a Speech resource custom subdomain such as
+`https://<custom-name>.cognitiveservices.azure.com`, plus `Cognitive Services
+User` or equivalent RBAC for the relay managed identity. SDK-native Entra auth
+uses `TokenCredential` with that custom-domain endpoint; Sparky currently uses
+REST to avoid adding the `azure-cognitiveservices-speech` dependency to the
+stdlib relay core. If a future feature needs SDK-only streaming or custom speech,
+that dependency must be isolated outside the core and must still use managed
+identity rather than keys. The REST short-audio path is limited to final results,
+short direct audio payloads, and the documented WAV/OGG input formats; batch
+transcription, custom speech, and partial results require different Speech APIs
+or SDK surfaces.
 
 Authentication failures return structured `401` responses with a generic reason
 and the request correlation ID. Authorization failures, such as a valid token
@@ -535,7 +570,7 @@ non-zero on any failed required step.
   tenant, wrong audience (including Microsoft Graph), expired, future-`nbf`,
   and missing-grant paths
 - contract tests for request/response schemas on `/health`, `/ai/chat`,
-  `/ai/vision`, and `/speech/synthesize`
+  `/ai/vision`, `/speech/synthesize`, and `/speech/recognize`
 - mocked Foundry and Speech relay clients; tests assert the caller's bearer
   token is never forwarded downstream and managed identity is used for the
   relay-to-service hop, including the concrete vision adapter
@@ -557,12 +592,15 @@ Manual relay-auth HIL validation for this issue:
 1. On the Pi, configure the relay app registration public-client values and
    request the relay audience scope (`api://<relay-app-id>/.default` or the
    project-specific delegated scope) through device-code sign-in.
-2. Call `GET /health`, `POST /ai/chat`, `POST /ai/vision`, and
-   `POST /speech/synthesize` with the relay-audience bearer token and an
-   `x-correlation-id`; confirm all successful responses return the same
-   correlation ID and no configuration details. For `/ai/vision`, submit a
-   captured camera frame and confirm the response has top-level `caption`,
-   `labels`, `status`, `correlation_id`, and observability metadata.
+2. Call `GET /health`, `POST /ai/chat`, `POST /ai/vision`,
+   `POST /speech/synthesize`, and `POST /speech/recognize` with the
+   relay-audience bearer token and an `x-correlation-id`; confirm all successful
+   responses return the same correlation ID and no configuration details. For
+   `/ai/vision`, submit a captured camera frame and confirm the response has
+   top-level `caption`, `labels`, `status`, `correlation_id`, and observability
+   metadata. For `/speech/recognize`, submit base64-encoded 16 kHz mono PCM WAV
+   audio and confirm the response has top-level `transcript`, `confidence`,
+   `correlation_id`, and recognition metadata.
 3. Repeat one call with no token, a malformed token, an expired token, a token
    for Microsoft Graph, and a validly signed token missing the required
    role/scope or enrolled-device claim; confirm only structured `401`/`403`
@@ -585,8 +623,10 @@ Relay follow-up risks:
 - The first enrolled-device grant convention (app role, delegated scope, or
   custom enrolled-device claim) must be finalized in the relay app registration
   before Pi enrollment runbooks are declared complete.
-- Speech request shaping remains mocked until the service-specific integration
-  issue wires a concrete SDK/REST client behind the downstream port.
+- Speech synthesis and recognition request shaping are covered by mocked
+  transports and fixtures, but live South Central US Speech RBAC, custom-domain
+  endpoint behavior, and audio quality still need manual relay-auth HIL
+  validation against a deployed dev environment.
 - The Foundry vision adapter now has mocked transport coverage, but live
   deployment selection, regional model quota, and safety-filter policy should
   be validated against the target Foundry resource before declaring HIL

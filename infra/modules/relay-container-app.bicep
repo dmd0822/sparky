@@ -68,6 +68,12 @@ param speechVoice string = 'en-US-AvaMultilingualNeural'
 @description('Speech synthesis output format used by the relay.')
 param speechOutputFormat string = 'riff-24khz-16bit-mono-pcm'
 
+@description('Speech recognition language used by the relay.')
+param speechRecognitionLanguage string = 'en-US'
+
+@description('Speech recognition input content type used by the relay.')
+param speechInputFormat string = 'audio/wav; codecs=audio/pcm; samplerate=16000'
+
 var effectiveRelayDeviceScope = empty(relayDeviceScope) && !empty(relayAudience) ? '${relayAudience}/.default' : relayDeviceScope
 var relayEnv = [
   {
@@ -113,6 +119,14 @@ var relayEnv = [
   {
     name: 'SPARKY_SPEECH_OUTPUT_FORMAT'
     value: speechOutputFormat
+  }
+  {
+    name: 'SPARKY_SPEECH_RECOGNITION_LANGUAGE'
+    value: speechRecognitionLanguage
+  }
+  {
+    name: 'SPARKY_SPEECH_INPUT_FORMAT'
+    value: speechInputFormat
   }
 ]
 

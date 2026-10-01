@@ -60,7 +60,7 @@ class RelayAsgiTests(unittest.TestCase):
 
         route_paths = {getattr(route, "path", "") for route in app.routes}
 
-        self.assertTrue({"/health", "/ai/chat", "/ai/vision", "/speech/synthesize"}.issubset(route_paths))
+        self.assertTrue({"/health", "/ai/chat", "/ai/vision", "/speech/synthesize", "/speech/recognize"}.issubset(route_paths))
 
     def test_health_does_not_require_relay_configuration(self) -> None:
         app = create_app()
@@ -91,7 +91,7 @@ class RelayAsgiTests(unittest.TestCase):
         def unavailable_relay() -> FakeRelay:
             raise ValueError("bad config contains super-secret-env-value")
 
-        for path in ("/ai/chat", "/ai/vision", "/speech/synthesize"):
+        for path in ("/ai/chat", "/ai/vision", "/speech/synthesize", "/speech/recognize"):
             with self.subTest(path=path):
                 response = asyncio.run(
                     _handle_relay_request(

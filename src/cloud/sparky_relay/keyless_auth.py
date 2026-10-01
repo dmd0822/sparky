@@ -22,6 +22,8 @@ DEFAULT_SPEECH_ENDPOINT = ""
 DEFAULT_SPEECH_RESOURCE_ID = ""
 DEFAULT_SPEECH_VOICE = "en-US-AvaMultilingualNeural"
 DEFAULT_SPEECH_OUTPUT_FORMAT = "riff-24khz-16bit-mono-pcm"
+DEFAULT_SPEECH_RECOGNITION_LANGUAGE = "en-US"
+DEFAULT_SPEECH_INPUT_FORMAT = "audio/wav; codecs=audio/pcm; samplerate=16000"
 
 _FORBIDDEN_DEVICE_SCOPE_AUDIENCES = (
     "https://cognitiveservices.azure.com",
@@ -50,6 +52,8 @@ class AzureRelayConfig:
     speech_resource_id: str = DEFAULT_SPEECH_RESOURCE_ID
     speech_voice: str = DEFAULT_SPEECH_VOICE
     speech_output_format: str = DEFAULT_SPEECH_OUTPUT_FORMAT
+    speech_recognition_language: str = DEFAULT_SPEECH_RECOGNITION_LANGUAGE
+    speech_input_format: str = DEFAULT_SPEECH_INPUT_FORMAT
 
     def __post_init__(self) -> None:
         assert_device_scope_is_relay_audience(self.device_scope)
@@ -93,6 +97,14 @@ class AzureRelayConfig:
             speech_output_format=values.get(
                 "SPARKY_SPEECH_OUTPUT_FORMAT",
                 DEFAULT_SPEECH_OUTPUT_FORMAT,
+            ),
+            speech_recognition_language=values.get(
+                "SPARKY_SPEECH_RECOGNITION_LANGUAGE",
+                DEFAULT_SPEECH_RECOGNITION_LANGUAGE,
+            ),
+            speech_input_format=values.get(
+                "SPARKY_SPEECH_INPUT_FORMAT",
+                DEFAULT_SPEECH_INPUT_FORMAT,
             ),
         )
 
@@ -172,6 +184,18 @@ class AzureRelayConfig:
                         "aad#<speech-resource-id>#<aad-access-token>."
                     ),
                 },
+                "speech_recognition": {
+                    "operation": "POST /speech/recognize",
+                    "managed_identity_scope": self.speech_scope,
+                    "resource": "speech",
+                    "language": self.speech_recognition_language,
+                    "input_format": self.speech_input_format,
+                    "rest_auth_note": (
+                        "Short-audio REST recognition uses the Speech custom-domain "
+                        "endpoint with the relay managed identity; audio is sent as "
+                        "base64 in relay JSON and raw bytes downstream."
+                    ),
+                },
                 "foundry_vision": {
                     "operation": "POST /ai/vision",
                     "managed_identity_scope": self.foundry_scope,
@@ -203,6 +227,11 @@ class AzureRelayConfig:
                 "-H 'Authorization: Bearer <relay-audience-access-token>' "
                 "-H 'Content-Type: application/json' "
                 "--data '{\"text\":\"Sparky keyless speech smoke test\"}'",
+                "curl -X POST "
+                f"'{self.relay_url}/speech/recognize' "
+                "-H 'Authorization: Bearer <relay-audience-access-token>' "
+                "-H 'Content-Type: application/json' "
+                "--data '{\"audio\":\"<base64-wav>\"}'",
             ],
         }
 

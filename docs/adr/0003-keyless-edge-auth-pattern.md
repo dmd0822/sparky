@@ -70,5 +70,14 @@ Rejected for the baseline because certificate issuance, secure storage, and rota
 The device presents only its relay-audience Entra token to the relay. After
 validating that token, the relay acquires a separate managed-identity token for
 `https://cognitiveservices.azure.com/.default` and uses that token for each
-service hop: Foundry chat/vision via chat completions, and Speech synthesis via
-the Speech endpoint. The caller token is never forwarded downstream.
+service hop: Foundry chat/vision via chat completions, Speech synthesis, and
+Speech recognition. The caller token is never forwarded downstream.
+
+For speech-to-text, the relay accepts base64 short audio in JSON at
+`POST /speech/recognize`, decodes it inside the relay, and sends raw audio bytes
+to the Speech custom-domain short-audio REST endpoint with managed identity. The
+current REST endpoint path is
+`/stt/speech/recognition/conversation/cognitiveservices/v1?language=<lang>&format=detailed`.
+The REST choice keeps the relay core stdlib-only; a future Speech SDK path is
+allowed only if it stays keyless with `TokenCredential` and a custom-domain
+endpoint.

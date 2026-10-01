@@ -20,7 +20,9 @@ from .keyless_auth import (
     DEFAULT_CHAT_DEPLOYMENT,
     DEFAULT_FOUNDRY_ENDPOINT,
     DEFAULT_SPEECH_ENDPOINT,
+    DEFAULT_SPEECH_INPUT_FORMAT,
     DEFAULT_SPEECH_OUTPUT_FORMAT,
+    DEFAULT_SPEECH_RECOGNITION_LANGUAGE,
     DEFAULT_SPEECH_RESOURCE_ID,
     DEFAULT_SPEECH_VOICE,
     DEFAULT_VISION_API_VERSION,
@@ -28,6 +30,7 @@ from .keyless_auth import (
 )
 from .relay_api import DownstreamRelayClient, RelayApp, RelayRequest, RelayResponse
 from .relay_auth import PyJwtEntraTokenVerifier, RelayAuthConfig
+from .speech_recognition import SpeechRecognitionAdapter
 from .speech_synthesis import SpeechSynthesisAdapter
 
 
@@ -60,6 +63,7 @@ class ManagedIdentityDownstreamRelayClient(DownstreamRelayClient):
         self._chat: FoundryChatAdapter | None = None
         self._vision: FoundryVisionAdapter | None = None
         self._speech: SpeechSynthesisAdapter | None = None
+        self._recognition: SpeechRecognitionAdapter | None = None
 
     def chat(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
         if self.relay_config is None:
@@ -82,6 +86,13 @@ class ManagedIdentityDownstreamRelayClient(DownstreamRelayClient):
             self._speech = SpeechSynthesisAdapter(self.relay_config)
         return self._speech.speech(payload, headers)
 
+    def recognize(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
+        if self.relay_config is None:
+            return {"transcript": "", "confidence": 0.0}
+        if self._recognition is None:
+            self._recognition = SpeechRecognitionAdapter(self.relay_config)
+        return self._recognition.recognize(payload, headers)
+
 
 def create_app(relay_app: RelayApp | None = None) -> FastAPI:
     """Create the FastAPI adapter around an injected or environment-built relay."""
@@ -103,6 +114,10 @@ def create_app(relay_app: RelayApp | None = None) -> FastAPI:
 
     @app.post("/speech/synthesize")
     async def speech(request: Request) -> JSONResponse:
+        return await _handle_relay_request(request, relay_provider)
+
+    @app.post("/speech/recognize")
+    async def recognize(request: Request) -> JSONResponse:
         return await _handle_relay_request(request, relay_provider)
 
     return app
@@ -194,6 +209,11 @@ def _build_relay_config_from_env(env: Mapping[str, str]) -> AzureRelayConfig:
         speech_resource_id=env.get("SPARKY_SPEECH_RESOURCE_ID", DEFAULT_SPEECH_RESOURCE_ID),
         speech_voice=env.get("SPARKY_SPEECH_VOICE", DEFAULT_SPEECH_VOICE),
         speech_output_format=env.get("SPARKY_SPEECH_OUTPUT_FORMAT", DEFAULT_SPEECH_OUTPUT_FORMAT),
+        speech_recognition_language=env.get(
+            "SPARKY_SPEECH_RECOGNITION_LANGUAGE",
+            DEFAULT_SPEECH_RECOGNITION_LANGUAGE,
+        ),
+        speech_input_format=env.get("SPARKY_SPEECH_INPUT_FORMAT", DEFAULT_SPEECH_INPUT_FORMAT),
     )
 
 
