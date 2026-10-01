@@ -162,6 +162,21 @@ These steps are the hardware-in-the-loop pass. They require a deployed relay env
 7. `Cognitive Services User` assigned to the relay managed identity on both the Foundry or AI Services account and the Speech account.
 8. Local operators should select the subscription with `az account set --subscription <subscription-id>`. GitHub Actions should read `AZURE_SUBSCRIPTION_ID` from the repository secret.
 
+### Relay-side downstream configuration
+
+Set these only on the deployed relay Container App. They are relay-side downstream settings, not Pi settings. The Pi must continue to hold only the relay-facing values from Step 1.
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `SPARKY_CHAT_DEPLOYMENT` | `""` | Foundry chat deployment name. Operator-supplied; chat returns `chat_not_configured` when unset. |
+| `SPARKY_CHAT_API_VERSION` | `2024-10-21` | Azure OpenAI chat-completions API version. |
+| `SPARKY_SPEECH_ENDPOINT` | `""` | Speech resource endpoint. Speech returns `speech_not_configured` when unset. |
+| `SPARKY_SPEECH_RESOURCE_ID` | `""` | Speech resource ARM resource ID. When set, the relay wraps the managed-identity token as `Bearer aad#<resource-id>#<token>` for regional Speech resources. When unset, the relay passes through plain `Bearer <token>`, which requires a Speech resource with a custom subdomain. |
+| `SPARKY_SPEECH_VOICE` | `en-US-AvaMultilingualNeural` | Text-to-speech voice. |
+| `SPARKY_SPEECH_OUTPUT_FORMAT` | `riff-24khz-16bit-mono-pcm` | Text-to-speech output format. The relay's returned `audio_format` should match the configured format family; the default response reports `wav`. |
+
+Do not copy any of these values to the Pi. If the Pi needs one of these values to complete a test, the test is no longer proving the intended keyless relay boundary.
+
 ### Primary path: run the relay-auth smoke harness
 
 The preferred Pi validation path is the runnable harness, which automates Steps
@@ -420,7 +435,8 @@ Expected result:
 
 - The relay accepts the Pi token after validating issuer and audience.
 - The relay calls Foundry with its managed identity.
-- The response is a successful relay response or a clear downstream Foundry status from the relay.
+- A live success is HTTP `200` with a JSON body containing a non-empty `reply` string and a `correlation_id` matching the request correlation ID if one was sent.
+- HTTP `200` with an empty `reply` plus `status` and `metadata` means the downstream call failed and the relay degraded gracefully instead of raising. `chat_not_configured` in that metadata means `SPARKY_CHAT_DEPLOYMENT` is unset on the relay.
 
 How to tell it failed:
 
@@ -448,12 +464,15 @@ Expected result:
 
 - The relay accepts the same relay-audience Pi token.
 - The relay calls Speech with its managed identity.
-- The response is synthesized audio, a relay success envelope, or a clear downstream Speech status from the relay.
+- A live success is HTTP `200` with a JSON body containing non-empty base64 `audio`, an `audio_format` matching `SPARKY_SPEECH_OUTPUT_FORMAT` (the default response reports `wav`), and a `correlation_id` matching the request correlation ID if one was sent.
+- `speech_not_configured` means `SPARKY_SPEECH_ENDPOINT` is unset on the relay.
+- To sanity-check a saved response, run `jq -r '.audio' speech-response.json | base64 -d > relay-speech.wav && test -s relay-speech.wav && wc -c relay-speech.wav`; the decoded file should be non-trivially sized.
 
 How to tell it failed:
 
 - `401` or `403` at the relay points to Pi token issuer or audience validation.
 - A downstream Speech authorization failure points to RBAC scope, RBAC propagation, endpoint, or managed identity configuration.
+- If Speech returns downstream `401` after the relay authenticated the Pi, confirm the environment's token form: set `SPARKY_SPEECH_RESOURCE_ID` for regional or non-custom-subdomain Speech resources so the relay sends `Bearer aad#<resource-id>#<token>`; leave it unset only when the Speech resource has a custom subdomain and accepts a plain `Bearer <token>`.
 - A Speech feature error may reflect regional feature availability. Core STT/TTS and advanced Speech feature availability must be checked live; do not infer it from local tests.
 
 ### Step 6: Verify relay logs without exposing token values
@@ -504,6 +523,10 @@ Tick these after a complete pass:
 - [ ] The relay validated the Pi token issuer and relay audience before downstream calls.
 - [ ] The relay used its system-assigned managed identity for Foundry.
 - [ ] The relay used its system-assigned managed identity for Speech.
+- [ ] Chat returned HTTP `200` with a non-empty live `reply` and the expected `correlation_id`.
+- [ ] Speech returned HTTP `200` with decodable non-empty `audio`, the expected `audio_format`, and the expected `correlation_id`.
+- [ ] The Speech authorization form was confirmed for the environment: `aad#<resource-id>#<token>` when `SPARKY_SPEECH_RESOURCE_ID` is set, or plain `Bearer <token>` only for a custom-subdomain Speech resource.
+- [ ] The six relay-side downstream env vars were present on the relay Container App and absent from the Pi environment.
 - [ ] Relay logs showed token purpose, issuer, audience, and status only; no raw token or key material was logged.
 - [ ] Foundry quota and Speech feature availability were verified in the deployed South Central US environment, or recorded as live-environment blockers.
 - [ ] RBAC assignment behavior was verified in the deployed environment after propagation, or recorded as a live-environment blocker.
@@ -546,9 +569,9 @@ Fix: confirm the Pi requested `SPARKY_RELAY_DEVICE_SCOPE`, not a Cognitive Servi
 
 ### Foundry or Speech returns downstream authorization errors
 
-Cause: the relay identity may not have `Cognitive Services User`, the assignment may be scoped to the wrong resource, RBAC may not have propagated yet, or the relay is using the wrong downstream endpoint.
+Cause: the relay identity may not have `Cognitive Services User` on both the Foundry or AI Services account and the Speech account, the assignment may be scoped to the wrong resource, RBAC may not have propagated yet, the relay may be using the wrong downstream endpoint, or Speech may be receiving the wrong managed-identity token form.
 
-Fix: verify the role assignment scope for the relay managed identity on both resources. Wait for RBAC propagation and retry. If it still fails, capture it as a live-environment blocker rather than adding key fallback.
+Fix: verify `Cognitive Services User` for the relay system-assigned managed identity on both resources. Wait several minutes for RBAC propagation and retry before changing configuration. For Speech, confirm whether this environment needs `SPARKY_SPEECH_RESOURCE_ID` set so the relay sends `Bearer aad#<resource-id>#<token>`, or unset so it sends plain `Bearer <token>` to a custom-subdomain resource. If it still fails, capture it as a live-environment blocker rather than adding key fallback.
 
 ### Foundry model or Speech feature is unavailable
 
@@ -561,3 +584,12 @@ Fix: verify quota, model deployment, and Speech feature support in the deployed 
 Cause: executable code, config, infra, or workflow YAML contains a forbidden key-based fallback marker.
 
 Fix: remove the key-based fallback path. Markdown may name forbidden mechanisms in prose, but scanned executable surfaces must stay keyless.
+
+## Follow-up open questions
+
+These items are tracked here because the hardware-in-the-loop guide is the canonical place to close them with live relay evidence.
+
+- Neither the chat nor the speech downstream path has been validated against live Azure; current coverage is unit-level with injected fake transports. Close this by completing Steps 4 and 5 successfully against a deployed dev environment.
+- The Speech authorization token format is conditional: `aad#<resource-id>#<token>` when `SPARKY_SPEECH_RESOURCE_ID` is set, or plain `Bearer <token>` for a custom-subdomain Speech resource. Only one form runs per environment, and neither has been exercised live. Close this by confirming which form the dev Speech resource accepts and recording it in the validation notes.
+- `SPARKY_CHAT_DEPLOYMENT` is operator-supplied and not wired by infra, so a freshly deployed environment returns `chat_not_configured` until an operator sets it. Open question: should dev Bicep pin a default deployment name, or is operator-supplied correct?
+- `SPARKY_CHAT_API_VERSION` defaults to `2024-10-21`; it has not been validated against what the deployed Foundry resource actually serves. Close this by confirming the deployed resource accepts that API version during the live chat validation.
