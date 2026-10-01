@@ -334,7 +334,7 @@ def _run_step(
             out=out,
             prompt=prompt,
         )
-        robot.motion.move_head(yaw=30, speed=50)
+        robot.motion.move_head(yaw=30, speed=75)
         robot.motion.wait_all_done(timeout=min(wait_timeout, 5.0))
         return _result(4, Status.PASS, "head command settled")
 
@@ -345,7 +345,7 @@ def _run_step(
             out=out,
             prompt=prompt,
         )
-        robot.motion.do_action("forward", steps=5, speed=30)
+        robot.motion.do_action("forward", steps=5, speed=95)
         if not simulate:
             time.sleep(10.5)
         robot.motion.stop()
@@ -504,7 +504,7 @@ def _run_step(
 
     if step == 14:
         try:
-            motion.trot(steps=1, speed=40)
+            motion.trot(steps=10, speed=95)
         except HardwareError as error:
             return _result(14, Status.PASS, f"rejected trot from sit: {error}")
         return _result(14, Status.FAIL, "trot from sitting posture was accepted")
@@ -524,12 +524,12 @@ def _run_step(
             out=out,
             prompt=prompt,
         )
-        motion.forward(steps=5, speed=30)
+        motion.forward(steps=5, speed=95)
         return _result(15, Status.PASS, f"stood, then issued forward gait: {motion.state}")
 
     if step == 16:
         try:
-            motion.turn_left(steps=1, speed=30)
+            motion.turn_left(steps=10, speed=95)
         except HardwareError as error:
             return _result(16, Status.PASS, f"rejected conflicting turn: {error}")
         return _result(16, Status.FAIL, "conflicting turn was accepted")
