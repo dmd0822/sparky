@@ -46,3 +46,5 @@
 📌 Team update (2026-09-30T15:33:55-04:00): New device-side module services/perception.py bridges PackagedFrame into shared PerceptionRequest for relay-facing perception while PackagedFrame remains device-local — decided by Lead
 
 📌 Team update (2026-09-30T16:11:05-04:00): Device and cloud perception modules now use the three-tier shared-contract import cascade: installed `sparky_contracts` package, repo-root `src.shared.sparky_contracts`, then a path-discovering local `src/shared` helper. This is required because script entry points put the script directory, not the repo root, on `sys.path`. — decided by Lead
+
+📌 Conversation orchestrator implementation (2026-10-01T14:48:32-04:00): Added `sparky_device.services.ConversationOrchestrator` for issue #16. It runs microphone capture → STT → persona-composed chat prompt → persona-routed TTS → speaker playback through injected seams, records frozen conversation state/results, degrades predictably for STT/chat/TTS failures, and ships `scripts/conversation_orchestrator_hil.py` for CI-safe rehearsal plus PiDog hardware-in-the-loop validation.
