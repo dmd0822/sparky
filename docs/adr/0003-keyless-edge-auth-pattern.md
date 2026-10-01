@@ -64,3 +64,11 @@ Rejected for the baseline because certificate issuance, secure storage, and rota
 
 - Implement backend audience/app role checks for enrolled devices.
 - Revisit certificate-backed workload identity only if unattended fleet-scale enrollment becomes necessary.
+
+## Downstream call path
+
+The device presents only its relay-audience Entra token to the relay. After
+validating that token, the relay acquires a separate managed-identity token for
+`https://cognitiveservices.azure.com/.default` and uses that token for each
+service hop: Foundry chat/vision via chat completions, and Speech synthesis via
+the Speech endpoint. The caller token is never forwarded downstream.

@@ -11,16 +11,24 @@ from urllib.request import Request as UrlRequest, urlopen
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from .foundry_chat import FoundryChatAdapter
 from .foundry_vision import FoundryVisionAdapter
 from .keyless_auth import (
     AzureRelayConfig,
     COGNITIVE_SERVICES_SCOPE,
+    DEFAULT_CHAT_API_VERSION,
+    DEFAULT_CHAT_DEPLOYMENT,
     DEFAULT_FOUNDRY_ENDPOINT,
+    DEFAULT_SPEECH_ENDPOINT,
+    DEFAULT_SPEECH_OUTPUT_FORMAT,
+    DEFAULT_SPEECH_RESOURCE_ID,
+    DEFAULT_SPEECH_VOICE,
     DEFAULT_VISION_API_VERSION,
     DEFAULT_VISION_DEPLOYMENT,
 )
 from .relay_api import DownstreamRelayClient, RelayApp, RelayRequest, RelayResponse
 from .relay_auth import PyJwtEntraTokenVerifier, RelayAuthConfig
+from .speech_synthesis import SpeechSynthesisAdapter
 
 
 _DEFAULT_RELAY_APP: RelayApp | None = None
@@ -49,18 +57,30 @@ class ManagedIdentityDownstreamRelayClient(DownstreamRelayClient):
 
     def __init__(self, relay_config: AzureRelayConfig | None = None) -> None:
         self.relay_config = relay_config
-        self._vision = FoundryVisionAdapter(relay_config) if relay_config is not None else None
+        self._chat: FoundryChatAdapter | None = None
+        self._vision: FoundryVisionAdapter | None = None
+        self._speech: SpeechSynthesisAdapter | None = None
 
     def chat(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
-        return {"reply": ""}
+        if self.relay_config is None:
+            return {"reply": ""}
+        if self._chat is None:
+            self._chat = FoundryChatAdapter(self.relay_config)
+        return self._chat.chat(payload, headers)
 
     def vision(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
-        if self._vision is None:
+        if self.relay_config is None:
             return {"caption": "", "labels": []}
+        if self._vision is None:
+            self._vision = FoundryVisionAdapter(self.relay_config)
         return self._vision.vision(payload, headers)
 
     def speech(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
-        return {"audio": "", "audio_format": "wav"}
+        if self.relay_config is None:
+            return {"audio": "", "audio_format": "wav"}
+        if self._speech is None:
+            self._speech = SpeechSynthesisAdapter(self.relay_config)
+        return self._speech.speech(payload, headers)
 
 
 def create_app(relay_app: RelayApp | None = None) -> FastAPI:
@@ -168,6 +188,12 @@ def _build_relay_config_from_env(env: Mapping[str, str]) -> AzureRelayConfig:
         foundry_endpoint=env.get("SPARKY_FOUNDRY_ENDPOINT", DEFAULT_FOUNDRY_ENDPOINT),
         vision_deployment=env.get("SPARKY_VISION_DEPLOYMENT", DEFAULT_VISION_DEPLOYMENT),
         vision_api_version=env.get("SPARKY_VISION_API_VERSION", DEFAULT_VISION_API_VERSION),
+        chat_deployment=env.get("SPARKY_CHAT_DEPLOYMENT", DEFAULT_CHAT_DEPLOYMENT),
+        chat_api_version=env.get("SPARKY_CHAT_API_VERSION", DEFAULT_CHAT_API_VERSION),
+        speech_endpoint=env.get("SPARKY_SPEECH_ENDPOINT", DEFAULT_SPEECH_ENDPOINT),
+        speech_resource_id=env.get("SPARKY_SPEECH_RESOURCE_ID", DEFAULT_SPEECH_RESOURCE_ID),
+        speech_voice=env.get("SPARKY_SPEECH_VOICE", DEFAULT_SPEECH_VOICE),
+        speech_output_format=env.get("SPARKY_SPEECH_OUTPUT_FORMAT", DEFAULT_SPEECH_OUTPUT_FORMAT),
     )
 
 

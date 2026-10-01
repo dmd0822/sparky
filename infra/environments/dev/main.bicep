@@ -116,6 +116,8 @@ module relay '../../modules/relay-container-app.bicep' = {
     relayDeviceScope: relayDeviceScope
     foundryScope: foundryScope
     speechScope: speechScope
+    speechEndpoint: speech.outputs.endpoint
+    speechResourceId: speech.outputs.accountResourceId
   }
 }
 
