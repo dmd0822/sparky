@@ -1,0 +1,37 @@
+{
+  "scene": "failed",
+  "sample_prompt": "failed_scene",
+  "request": {
+    "image": "ZmFpbGVkLXNjZW5lLWZyYW1l",
+    "prompt": "When the image cannot be analyzed safely or reliably, return an explicit failure status with concise failure details.",
+    "media_type": "image/jpeg",
+    "correlation_id": "perception-failed-001",
+    "source": {
+      "source_id": "front-camera",
+      "sequence": 44,
+      "timestamp": 1800000002.75,
+      "source_width": 640,
+      "source_height": 480
+    }
+  },
+  "response": {
+    "caption": "",
+    "labels": [],
+    "status": "timeout",
+    "metadata": {
+      "latency_ms": 20000,
+      "token_usage": {
+        "prompt": null,
+        "completion": null,
+        "total": null
+      },
+      "model": "",
+      "deployment": "sparky-vision",
+      "failure": {
+        "code": "timeout",
+        "message": "Foundry vision request timed out."
+      }
+    },
+    "correlation_id": "perception-failed-001"
+  }
+}

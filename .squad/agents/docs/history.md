@@ -19,3 +19,12 @@
 📌 Session update (2026-09-30T14:56:49-04:00): Added README build/status badges for Code CI, Code CD, Infra CI, Infra CD, Python Validation, and Workflow Lint; squad automation workflows remain intentionally unbadged as bot plumbing.
 
 📌 Team update (2026-09-30T14:56:49-04:00): README now carries build status badges for Code CI, Code CD, Infra CI, Infra CD, Python Validation, and Workflow Lint; bot automation workflows remain intentionally excluded — decided by docs.
+
+### 2026-09-30: Documented shared perception contract rules
+- Added ADR 0006 for issue #12 covering shared perception boundaries, ADR 0005 alignment, ownership, versioning, fixtures, and HIL validation.
+- Updated `docs/ARCHITECTURE.md` so `sparky_contracts/` reflects perception DTOs, statuses, prompts, and contract versioning.
+- Validated with `python -m unittest discover -s tests -p "test_docs_policy.py"` and `python -m unittest discover -s tests -p "test_repository_structure.py"`.
+
+### 2026-09-30T15:51:42-04:00: Closed shared perception documentation gaps
+- Added an explicit open-questions and follow-up-risks register to ADR 0006 for the shipped perception contract surface.
+- Expanded `src/shared/README.md` with the perception DTOs, prompts, version constant, fixture location, and ADR ownership/versioning pointer.

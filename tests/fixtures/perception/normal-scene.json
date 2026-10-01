@@ -1,0 +1,33 @@
+{
+  "scene": "normal",
+  "sample_prompt": "normal_scene",
+  "request": {
+    "image": "bm9ybWFsLXNjZW5lLWZyYW1l",
+    "prompt": "Describe the visible scene for Sparky's behavior planner. Prefer concrete objects, people, obstacles, and room context.",
+    "media_type": "image/jpeg",
+    "correlation_id": "perception-normal-001",
+    "source": {
+      "source_id": "front-camera",
+      "sequence": 42,
+      "timestamp": 1800000000.25,
+      "source_width": 640,
+      "source_height": 480
+    }
+  },
+  "response": {
+    "caption": "A robot dog is on a workbench beside a laptop and a coffee mug.",
+    "labels": ["robot dog", "workbench", "laptop", "mug"],
+    "status": "ok",
+    "metadata": {
+      "latency_ms": 118,
+      "token_usage": {
+        "prompt": 44,
+        "completion": 18,
+        "total": 62
+      },
+      "model": "gpt-4.1-mini",
+      "deployment": "sparky-vision"
+    },
+    "correlation_id": "perception-normal-001"
+  }
+}

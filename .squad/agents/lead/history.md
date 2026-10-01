@@ -18,3 +18,9 @@
 
 📌 Team update (2026-09-30T12:45:22-04:00): Relay now returns 503 `relay_unavailable` on AI routes and an anonymous 200 on `/health` until `relayAudience` is supplied at deploy time — device-side smoke runs should expect this.
 
+
+📌 2026-09-30T15:33:55-04:00: Implemented issue #12 code-side shared perception contracts without promoting `PackagedFrame`: added the shared `PerceptionRequest`, round-trip DTO parsing, perception fixtures, cloud adapter aliasing to shared prompts, and device bridge helpers that build requests from packaged frames and parse relay responses.
+
+📌 2026-09-30T16:01:16-04:00: Fixed the Code CI import regression by adding repo-local shared-contract fallback path resolution at the device and cloud perception package boundaries. Verified unittest discovery, motion HIL CI smoke, relay-auth CI smoke, and compileall all pass.
+
+📌 Team update (2026-09-30T16:11:05-04:00): Device and cloud perception modules now use the three-tier shared-contract import cascade: installed `sparky_contracts` package, repo-root `src.shared.sparky_contracts`, then a path-discovering local `src/shared` helper. This is required because script entry points put the script directory, not the repo root, on `sys.path`. — decided by Lead

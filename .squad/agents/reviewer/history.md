@@ -16,3 +16,9 @@
 
 📌 Team update (2026-09-30T11:10:46-04:00): Relay API surface now enforces injected Entra token validation and managed-identity downstream calls; PR #69 closes #9 — decided by Security
 
+
+### 2026-09-30T15:39:31-04:00 — Issue 12 perception contract review
+
+- Reconciled ADR 0006 and architecture wording against the implemented `sparky_contracts` perception surface: `PerceptionRequest`, `PerceptionResult`, metadata/failure DTOs, prompt constants, fixtures, and device/cloud helpers.
+- Verified ADR 0005 remains honored: `PackagedFrame` stays device-local, with `request_from_packaged_frame()` bridging to the shared relay contract.
+- Required validation passed: `python -m unittest discover -s tests` (287 tests) and `python -m compileall -q src tests`.
