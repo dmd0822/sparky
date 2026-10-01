@@ -177,6 +177,8 @@ must include one of these acceptance records before it is closed:
 
 - the simulator harness output from `python scripts/motion_service_hil.py --ci`;
 - a real PiDog run of `python scripts/motion_service_hil.py`; and
+- for microphone-capture milestones, `python scripts/audio_service_hil.py --ci`
+  plus a Pi run of `python scripts/audio_service_hil.py`; and
 - for relay-auth milestones, `python scripts/relay_auth_smoke.py --ci` plus a
   Pi run of `python scripts/relay_auth_smoke.py` against the deployed relay; and
 - notes for any SKIP/FAIL result, including whether the milestone accepts the
@@ -336,10 +338,28 @@ committed WAV fixtures prove replay and normalization without a robot:
 python -m unittest tests.test_audio_service
 ```
 
-Then validate the planner-facing microphone boundary on the Pi. This captures
-three normalized chunks, flushes the bounded buffer, and prints the STT-ready
-PCM shape. Keep the room quiet except for a short sound near the microphone
-array after the snippet starts.
+Rehearse the operator-run HIL script off-robot next. This is the CI harness
+command and should pass on a laptop or GitHub-hosted runner with no PiDog
+libraries installed:
+
+```bash
+python scripts/audio_service_hil.py --ci
+```
+
+Then run the same microphone capture check against the PiDog from the
+repository root on the Pi:
+
+```bash
+python scripts/audio_service_hil.py
+```
+
+The script captures three normalized chunks by default, flushes the bounded
+buffer, prints the STT-ready PCM shape, and closes the microphone path on
+success, failure, or Ctrl+C. Keep the room quiet except for a short sound near
+the microphone array after the script starts. Use `--chunks N` to collect a
+longer or shorter sample after a fix.
+
+For one-off debugging, the equivalent planner-facing boundary call is:
 
 ```bash
 python - <<'PY'
