@@ -27,3 +27,5 @@
 📌 Team update (2026-09-30T11:20:01-04:00): Relay auth surface from #9 now has an automated device-side smoke harness at `scripts/relay_auth_smoke.py`; live negative Microsoft Graph / missing-grant cases use unsigned diagnostic JWTs rather than granting the Pi non-relay tokens.
 📌 Team update (2026-09-30T12:45:22-04:00): The relay now has a real ASGI entry point and Dockerfile; relay-auth smoke coverage remains keyless and the image keeps the port-80/non-root deployment constraint — decided by lead.
 
+
+📌 Team update (2026-10-01T09:46:28.545-04:00): Infra CD Dev automation was recommended, security-reviewed, and implemented with Dev-only workflow_run guardrails; roster has a capability gap for CI/CD workflow authoring, so implementation routed to reviewer.

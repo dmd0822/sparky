@@ -34,6 +34,10 @@ DEPLOYMENT_WORKFLOWS = (INFRA_CD, CODE_CD)
 
 # ``on`` is parsed by PyYAML 1.1 semantics as the boolean True.
 ON_KEY = True
+YAML_MERGE_KEY = re.compile(r"^\s*<<\s*:")
+YAML_ANCHOR_OR_ALIAS_AT_VALUE = re.compile(
+    r"^\s*(?:[-?]\s+)?(?:[^#\n:]+:\s*)?(?:![^\s]+\s+)?[&*][A-Za-z_][A-Za-z0-9_-]*(?:\s|$)"
+)
 
 
 def read(path: Path) -> str:
@@ -42,6 +46,25 @@ def read(path: Path) -> str:
 
 def load(path: Path) -> dict:
     return yaml.safe_load(read(path))
+
+
+def workflow_lines_outside_block_scalars(path: Path) -> list[tuple[int, str]]:
+    """Return raw workflow lines, excluding literal/folded shell blocks."""
+    lines: list[tuple[int, str]] = []
+    block_scalar_indent: int | None = None
+    for line_number, line in enumerate(read(path).splitlines(), start=1):
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" "))
+        if block_scalar_indent is not None:
+            if not stripped or indent > block_scalar_indent:
+                continue
+            block_scalar_indent = None
+
+        lines.append((line_number, line))
+        code = line.split("#", 1)[0].rstrip()
+        if re.search(r"(?::\s*|-\s*)[>|][+-]?\s*$", code):
+            block_scalar_indent = indent
+    return lines
 
 
 def trigger_paths(workflow: dict) -> list[str]:
@@ -77,6 +100,22 @@ class WorkflowSyntaxTests(unittest.TestCase):
         for path in sorted(WORKFLOWS.glob("*.yml")):
             with self.subTest(path=path.name):
                 self.assertIsInstance(load(path), dict)
+
+    def test_workflows_do_not_use_yaml_anchors_aliases_or_merge_keys(self) -> None:
+        forbidden: list[str] = []
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for line_number, line in workflow_lines_outside_block_scalars(path):
+                code = line.split("#", 1)[0].rstrip()
+                if YAML_MERGE_KEY.search(code) or YAML_ANCHOR_OR_ALIAS_AT_VALUE.search(code):
+                    forbidden.append(f"{path.name}:{line_number}: {line.strip()}")
+
+        self.assertEqual(
+            forbidden,
+            [],
+            "GitHub workflow YAML must not use anchors, aliases, or merge keys; "
+            "local YAML parsers can accept syntax that the Actions parser or "
+            f"repo policy rejects: {forbidden}",
+        )
 
     def test_delivery_workflows_exist_with_expected_names(self) -> None:
         expected = {
@@ -166,9 +205,34 @@ class TriggerSeparationTests(unittest.TestCase):
                 triggers = load(path)[ON_KEY]
                 self.assertIn("workflow_dispatch", triggers)
 
-    def test_infra_cd_is_manual_only(self) -> None:
+    def test_infra_cd_is_manual_or_successful_infra_ci_on_main_only(self) -> None:
         triggers = load(INFRA_CD)[ON_KEY]
-        self.assertEqual(set(triggers), {"workflow_dispatch"})
+        self.assertEqual(set(triggers), {"workflow_dispatch", "workflow_run"})
+        self.assertEqual(
+            triggers["workflow_run"],
+            {
+                "workflows": ["Infra CI"],
+                "types": ["completed"],
+                "branches": ["main"],
+            },
+        )
+
+    def test_infra_cd_workflow_run_references_existing_workflow_names(self) -> None:
+        workflow_names = {
+            workflow.get("name")
+            for workflow in (load(path) for path in sorted(WORKFLOWS.glob("*.yml")))
+        }
+        referenced = load(INFRA_CD)[ON_KEY]["workflow_run"]["workflows"]
+        self.assertIsInstance(referenced, list)
+        for name in referenced:
+            with self.subTest(workflow=name):
+                self.assertIn(
+                    name,
+                    workflow_names,
+                    f"infra-cd.yml workflow_run references {name!r}, but no "
+                    ".github/workflows/*.yml file has that exact workflow name. "
+                    "Update the CD reference when renaming the CI workflow.",
+                )
 
     def test_workflows_running_python_tests_install_their_dependencies(self) -> None:
         for path in sorted(WORKFLOWS.glob("*.yml")):
@@ -263,6 +327,13 @@ class InfraDeploymentTests(unittest.TestCase):
         for name, job in load(INFRA_CD)["jobs"].items():
             with self.subTest(job=name):
                 self.assertIn("environment", job)
+
+    def test_automated_infra_cd_runs_only_after_successful_ci(self) -> None:
+        deploy = load(INFRA_CD)["jobs"]["deploy"]
+        self.assertEqual(
+            deploy.get("if"),
+            "github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'",
+        )
 
     def test_environment_input_offers_dev_and_prod(self) -> None:
         dispatch = load(INFRA_CD)[ON_KEY]["workflow_dispatch"]
