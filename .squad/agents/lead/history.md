@@ -24,3 +24,7 @@
 📌 2026-09-30T16:01:16-04:00: Fixed the Code CI import regression by adding repo-local shared-contract fallback path resolution at the device and cloud perception package boundaries. Verified unittest discovery, motion HIL CI smoke, relay-auth CI smoke, and compileall all pass.
 
 📌 Team update (2026-09-30T16:11:05-04:00): Device and cloud perception modules now use the three-tier shared-contract import cascade: installed `sparky_contracts` package, repo-root `src.shared.sparky_contracts`, then a path-discovering local `src/shared` helper. This is required because script entry points put the script directory, not the repo root, on `sys.path`. — decided by Lead
+
+📌 Team update (2026-10-01T09:46:28.545-04:00): Infra CD Dev automation was recommended, security-reviewed, and implemented with Dev-only workflow_run guardrails; roster has a capability gap for CI/CD workflow authoring, so implementation routed to reviewer.
+
+📌 Team update (2026-10-01T10:15:16.0716551-04:00): The advisory design for automated Dev Infra CD deployment shipped in PR #80 via commit 877eb24, using `workflow_run` gated on successful Infra CI runs from `main`. — decided by coordinator

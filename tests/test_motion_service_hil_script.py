@@ -98,13 +98,13 @@ class MotionServiceHilScriptTests(unittest.TestCase):
             recorder.seen_actions,
             [
                 ("sit", 1, 50),
-                ("forward", 5, 30),
+                ("forward", 5, 95),
                 ("sit", 1, 50),
                 ("stand", 1, 50),
-                ("forward", 5, 30),
+                ("forward", 5, 95),
             ],
         )
-        self.assertEqual(recorder.seen_head_moves, [(30, 0.0, 0.0, 50)])
+        self.assertEqual(recorder.seen_head_moves, [(30, 0.0, 0.0, 75)])
         self.assertIn("distance", robot.sensors.reads)
         self.assertEqual(robot.sensors.reads.count("touch"), 3)
         self.assertEqual(robot.sensors.reads.count("imu"), 2)

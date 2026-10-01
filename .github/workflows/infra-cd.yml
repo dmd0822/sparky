@@ -1,7 +1,8 @@
 name: Infra CD
 
-# Manual-only infrastructure deployment. Uses Incremental mode, never Complete,
-# and always runs what-if before create.
+# Infrastructure deployment. Dev auto-deploys after Infra CI succeeds on main;
+# prod remains manual. Uses Incremental mode, never Complete, and always runs
+# what-if before create.
 #
 # Auth is keyless: GitHub OIDC / workload identity federation only. No publish
 # profiles, service principal secrets, storage keys, or ACR admin credentials.
@@ -18,29 +19,52 @@ on:
         options:
           - dev
           - prod
+  # This exact workflow name must match .github/workflows/infra-ci.yml.
+  # tests.test_workflow_policy guards the coupling so CI renames fail loudly.
+  workflow_run:
+    workflows: ["Infra CI"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
 
+env:
+  DEPLOYMENT_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+
 concurrency:
-  group: infra-cd-${{ inputs.environment }}
+  # GitHub only allows github/inputs/vars contexts in workflow-level
+  # concurrency, so this cannot reference env.DEPLOYMENT_ENVIRONMENT.
+  group: infra-cd-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-    environment: ${{ inputs.environment }}
+    # GitHub does not allow the env context in jobs.<job_id>.environment, so
+    # this cannot reference env.DEPLOYMENT_ENVIRONMENT.
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
     env:
       RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-sparky' }}
-      TEMPLATE_FILE: infra/environments/${{ inputs.environment }}/main.bicep
-      PARAMETERS_FILE: infra/environments/${{ inputs.environment }}/main.bicepparam
-      DEPLOYMENT_NAME: sparky-infra-${{ inputs.environment }}-${{ github.run_id }}
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+
+      - name: Prepare deployment variables
+        env:
+          DEPLOYMENT_NAME: sparky-infra-${{ env.DEPLOYMENT_ENVIRONMENT }}-${{ github.run_id }}
+          TEMPLATE_FILE: infra/environments/${{ env.DEPLOYMENT_ENVIRONMENT }}/main.bicep
+          PARAMETERS_FILE: infra/environments/${{ env.DEPLOYMENT_ENVIRONMENT }}/main.bicepparam
+        run: |
+          {
+            echo "DEPLOYMENT_NAME=$DEPLOYMENT_NAME"
+            echo "TEMPLATE_FILE=$TEMPLATE_FILE"
+            echo "PARAMETERS_FILE=$PARAMETERS_FILE"
+          } >> "$GITHUB_ENV"
 
       - name: Azure login
         uses: azure/login@v2
@@ -86,5 +110,5 @@ jobs:
       - name: Upload deployment outputs
         uses: actions/upload-artifact@v4
         with:
-          name: infra-outputs-${{ inputs.environment }}
+          name: infra-outputs-${{ env.DEPLOYMENT_ENVIRONMENT }}
           path: deployment-outputs.json
