@@ -28,3 +28,5 @@
 ### 2026-09-30T15:51:42-04:00: Closed shared perception documentation gaps
 - Added an explicit open-questions and follow-up-risks register to ADR 0006 for the shipped perception contract surface.
 - Expanded `src/shared/README.md` with the perception DTOs, prompts, version constant, fixture location, and ADR ownership/versioning pointer.
+
+📌 Team update (2026-10-01T11:30:56.616-04:00): README, ARCHITECTURE, and ADR 0003 now document the Entra-authenticated STT relay contract, /stt REST path, optional config defaults, and TTS-like failure envelope.

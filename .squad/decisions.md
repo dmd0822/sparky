@@ -135,13 +135,10 @@
 **What:** Malformed IMU axis values are validated in `SensorService` before returning an OK reading, while `ImuReading.__post_init__` remains limited to structural axis-count validation.
 **Why:** This fixes issue #7's service-level malformed-data requirement with the smallest safe blast radius. Moving the rule into the shared hardware value object would change behavior for every adapter and simulator construction site, while the service already owns normalizing inconsistent port failures into explicit `ReadingStatus` values.
 
-
 ### 2026-09-30: SensorService IMU malformed-data coverage gap
 **By:** reviewer
 **What:** Issue #7 gap analysis found SensorService treats any `ImuReading` instance as OK without validating that acceleration/gyro axes are numeric and finite. The existing malformed IMU test covers a `HardwareError` raised by the port, not an invalid `ImuReading` value object.
 **Why:** The issue explicitly requires malformed sensor data paths. Distance, touch, and sound malformed values are detected directly by SensorService, but IMU malformed value-object content can still be logged/planned as an OK reading. Add service-side IMU axis validation and a representative malformed-IMU fixture before closing the issue.
-
-
 
 ### 2026-09-30: Use stdlib relay core with injected auth and downstream ports
 **By:** Security
@@ -153,12 +150,10 @@
 **What:** The Pi relay-auth smoke harness replays no-token and malformed-token cases directly, and uses unsigned diagnostic JWTs for expired, Microsoft Graph-audience, and missing-grant negative cases. The harness asserts only sanitized structured 401/403 responses with correlation IDs and no bearer material in the body.
 **Why:** The Pi must request only the relay scope during device-code sign-in. Minting live Graph or intentionally under-granted Entra tokens from the Pi would weaken the ADR-0003 boundary and require extra tenant setup. Unsigned diagnostics still exercise the deployed relay's fail-closed auth surface without giving the device non-relay tokens.
 
-
 ### 2026-09-30T12:45:22-04:00: Keep relay container on port 80
 **By:** lead
 **What:** The relay image binds uvicorn to port 80 while running as a non-root user by granting the Python runtime permission to bind the low port inside the image.
 **Why:** The existing code-cd workflow only updates the Container App image. Keeping the Container Apps targetPort at 80 avoids a separate infra rollout requirement during image cutover while preserving the non-root container requirement.
-
 
 ### 2026-09-30T12:45:22-04:00: Tolerant relay startup for deploy-time auth configuration
 **By:** Lead
@@ -175,26 +170,32 @@
 **What:** Device and cloud perception modules now fall back to locating `src/shared` relative to their own files when neither an installed `sparky_contracts` package nor repo-root `src.shared.sparky_contracts` import is available.
 **Why:** Operator scripts may put only package-specific source roots on `sys.path`, where Python does not include the repo root. Fixing the package boundary keeps all current and future perception entry points consistent without patching individual scripts or weakening the approved shared contract surface.
 
-
 ### 2026-10-01T09:40:15.680-04:00: Automate dev infra CD after infra CI
 **By:** lead (requested by Dave Davis)
 **What:** Dev infrastructure deployments should be automated only after Infra CI succeeds on `main`, with the deployment environment hardcoded to `dev` for non-manual runs and prod remaining manual-only.
 **Why:** This preserves the current validated path, mirrors Code CD's auto-dev/manual-prod split, prevents user-supplied automated inputs from reaching `prod`, and avoids deploying unvalidated Bicep while keeping dev drift low.
-
 
 ### 2026-10-01T09:46:28.545-04:00: Keep infra CD automation scoped to dev after Infra CI
 **By:** reviewer (requested by Dave Davis)
 **What:** Implemented infra CD automation via `workflow_run` from the exact `Infra CI` workflow name on `main`, with automated runs deriving `dev` for deployment environment, file paths, deployment name, artifact name, and concurrency while preserving manual prod dispatch.
 **Why:** This preserves the security-reviewed OIDC environment boundary and prevents automated runs from routing to prod or bypassing successful CI completion.
 
-
 ### 2026-10-01T09:40:15.680-04:00: Infra CD automation guardrails
 **By:** security (requested by Dave Davis)
 **What:** Dev infra deployment automation is acceptable only when the deploy job stays environment-scoped to `dev`, runs from trusted main-branch code after merge, keeps `id-token: write` job-scoped, and leaves prod manual/approval-gated. PR-triggered Azure auth should be what-if only and must not use `pull_request_target` or run deploy code from forks with deploy privileges.
 **Why:** The documented OIDC subjects are exact trust boundaries (`environment:dev`, `environment:prod`, optional `ref:refs/heads/main`, optional `pull_request`). Changing triggers without matching subject and environment design either fails auth or expands Azure reach. The current workflow parameterizes `environment`, templates, artifacts, and concurrency from `inputs.environment`, so automated defaults must be hardcoded defensively to avoid accidental prod or empty-path behavior.
 
-
 ### 2026-10-01T10:15:16.0716551-04:00: Harden Infra CD workflow_run deployment policy (consolidated)
 **By:** reviewer
 **What:** Infra CD now supports the automated Dev deployment trigger via `workflow_run` on successful Infra CI runs from `main`, while preserving manual dispatch behavior. The final workflow keeps the dispatch/dev/prod ternary inline only where the `env` context is unavailable (`concurrency.group` and `jobs.deploy.environment`), writes runtime deployment variables in a `Prepare deployment variables` step (`DEPLOYMENT_NAME`, `TEMPLATE_FILE`, `PARAMETERS_FILE`) via `$GITHUB_ENV`, and documents/tests the coupling between `workflow_run.workflows: ["Infra CI"]` and the Infra CI workflow `name:`. A prior reviewer pass attempted YAML anchors/aliases for reuse; that approach was removed before shipping.
 **Why:** GitHub Actions context availability prevents `env.*` from being used in workflow-level concurrency and job environment binding, but duplicated runtime expressions elsewhere were drift-prone. Raw-text workflow policy tests now ban YAML anchors, aliases, and merge keys because Python YAML parsing can be more permissive than the GitHub Actions workflow parser, so YAML-level validation alone cannot certify an Actions workflow.
+
+### 2026-10-01T11:16:09.2889365-04:00: Use REST STT with base64 relay audio
+**By:** lead
+**What:** `POST /speech/recognize` accepts base64-encoded short audio in JSON, decodes it in the relay, and posts raw bytes to the Azure Speech custom-domain short-audio REST endpoint using the relay managed identity. Success returns `transcript`, `confidence`, `correlation_id`, and recognition metadata; failure returns an empty transcript, `confidence: 0.0`, a stable status code (`speech_not_configured`, `invalid_request`, `timeout`, `transport_error`, `downstream_status`, `no_match`, or `empty_result`), and sanitized failure metadata.
+**Why:** The JSON/base64 boundary matches the existing relay request model and TTS response pattern, while REST keeps the relay core stdlib-only. Microsoft Learn currently documents the short-audio endpoint with the `/stt/speech/recognition/conversation/cognitiveservices/v1` path and requires a Speech custom-domain endpoint for Microsoft Entra authentication; future SDK-only streaming work must stay keyless via `TokenCredential` rather than introducing API keys.
+
+### 2026-10-01T11:30:56.616-04:00: Keep STT relay configuration backward compatible
+**By:** lead
+**What:** Append speech_recognition_language and speech_input_format at the end of the frozen AzureRelayConfig dataclass and leave them out of the required environment tuple.
+**Why:** Existing relay deployments should continue to start without new required settings while STT receives explicit optional defaults for language and input format.
