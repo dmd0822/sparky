@@ -18,11 +18,12 @@ Profiles:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Iterable, Mapping
 
 from .pidog_adapters import PIDOG_PROFILE, build_pidog_ports, vendor_libraries_available
 from .ports import DEFAULT_LIMITS, Frame, MotionLimits, RobotPorts
-from .simulators import SIMULATOR_PROFILE, build_simulated_ports
+from .simulators import SIMULATOR_PROFILE, SimulatedMicrophone, build_simulated_ports
 
 __all__ = [
     "AUTO_PROFILE",
@@ -72,6 +73,8 @@ def create_ports(
     env: Mapping[str, str] | None = None,
     limits: MotionLimits = DEFAULT_LIMITS,
     frames: Iterable[Frame] | None = None,
+    microphone: SimulatedMicrophone | None = None,
+    microphone_fixture_path: str | Path | None = None,
 ) -> RobotPorts:
     """Build the port bundle for the resolved profile.
 
@@ -81,6 +84,9 @@ def create_ports(
         env: Environment mapping to read instead of :data:`os.environ`.
         limits: Motion envelope applied by both the simulators and adapters.
         frames: Frames the simulated camera should replay. Ignored on hardware.
+        microphone: Simulated microphone to use. Ignored on hardware.
+        microphone_fixture_path: WAV fixture for the simulated microphone.
+            Ignored on hardware.
 
     Raises:
         HardwareUnavailableError: ``pidog`` was requested but the vendor
@@ -90,4 +96,9 @@ def create_ports(
     resolved = resolve_profile(profile, env=env)
     if resolved == PIDOG_PROFILE:
         return build_pidog_ports(limits=limits)
-    return build_simulated_ports(limits=limits, frames=frames)
+    return build_simulated_ports(
+        limits=limits,
+        frames=frames,
+        microphone=microphone,
+        microphone_fixture_path=microphone_fixture_path,
+    )

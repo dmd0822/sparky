@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from .audio import (
+    AudioBuffer,
+    AudioCapture,
+    AudioFlush,
+    AudioService,
+    AudioServiceState,
+    AudioStatus,
+)
 from .camera import (
     CameraCapture,
     CameraService,
@@ -23,6 +31,12 @@ from .sensors import (
 )
 
 __all__ = [
+    "AudioBuffer",
+    "AudioCapture",
+    "AudioFlush",
+    "AudioService",
+    "AudioServiceState",
+    "AudioStatus",
     "CameraCapture",
     "CameraService",
     "CameraServiceState",
