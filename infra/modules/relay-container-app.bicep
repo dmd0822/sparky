@@ -50,6 +50,24 @@ param foundryScope string = 'https://cognitiveservices.azure.com/.default'
 @description('Managed-identity scope used by the relay when calling Speech.')
 param speechScope string = 'https://cognitiveservices.azure.com/.default'
 
+@description('Optional Foundry chat deployment name used by the relay.')
+param chatDeployment string = ''
+
+@description('Foundry chat completions API version used by the relay.')
+param chatApiVersion string = '2024-10-21'
+
+@description('Optional Speech endpoint used by the relay.')
+param speechEndpoint string = ''
+
+@description('Optional Speech resource ID used to build Speech Entra authorization tokens.')
+param speechResourceId string = ''
+
+@description('Speech synthesis voice used by the relay.')
+param speechVoice string = 'en-US-AvaMultilingualNeural'
+
+@description('Speech synthesis output format used by the relay.')
+param speechOutputFormat string = 'riff-24khz-16bit-mono-pcm'
+
 var effectiveRelayDeviceScope = empty(relayDeviceScope) && !empty(relayAudience) ? '${relayAudience}/.default' : relayDeviceScope
 var relayEnv = [
   {
@@ -71,6 +89,30 @@ var relayEnv = [
   {
     name: 'SPARKY_SPEECH_SCOPE'
     value: speechScope
+  }
+  {
+    name: 'SPARKY_CHAT_DEPLOYMENT'
+    value: chatDeployment
+  }
+  {
+    name: 'SPARKY_CHAT_API_VERSION'
+    value: chatApiVersion
+  }
+  {
+    name: 'SPARKY_SPEECH_ENDPOINT'
+    value: speechEndpoint
+  }
+  {
+    name: 'SPARKY_SPEECH_RESOURCE_ID'
+    value: speechResourceId
+  }
+  {
+    name: 'SPARKY_SPEECH_VOICE'
+    value: speechVoice
+  }
+  {
+    name: 'SPARKY_SPEECH_OUTPUT_FORMAT'
+    value: speechOutputFormat
   }
 ]
 

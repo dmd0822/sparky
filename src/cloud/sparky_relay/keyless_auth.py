@@ -16,6 +16,12 @@ DEFAULT_DEVICE_SCOPE = f"{DEFAULT_RELAY_AUDIENCE}/.default"
 DEFAULT_FOUNDRY_ENDPOINT = ""
 DEFAULT_VISION_DEPLOYMENT = ""
 DEFAULT_VISION_API_VERSION = "2024-10-21"
+DEFAULT_CHAT_DEPLOYMENT = ""
+DEFAULT_CHAT_API_VERSION = "2024-10-21"
+DEFAULT_SPEECH_ENDPOINT = ""
+DEFAULT_SPEECH_RESOURCE_ID = ""
+DEFAULT_SPEECH_VOICE = "en-US-AvaMultilingualNeural"
+DEFAULT_SPEECH_OUTPUT_FORMAT = "riff-24khz-16bit-mono-pcm"
 
 _FORBIDDEN_DEVICE_SCOPE_AUDIENCES = (
     "https://cognitiveservices.azure.com",
@@ -38,6 +44,12 @@ class AzureRelayConfig:
     foundry_endpoint: str = DEFAULT_FOUNDRY_ENDPOINT
     vision_deployment: str = DEFAULT_VISION_DEPLOYMENT
     vision_api_version: str = DEFAULT_VISION_API_VERSION
+    chat_deployment: str = DEFAULT_CHAT_DEPLOYMENT
+    chat_api_version: str = DEFAULT_CHAT_API_VERSION
+    speech_endpoint: str = DEFAULT_SPEECH_ENDPOINT
+    speech_resource_id: str = DEFAULT_SPEECH_RESOURCE_ID
+    speech_voice: str = DEFAULT_SPEECH_VOICE
+    speech_output_format: str = DEFAULT_SPEECH_OUTPUT_FORMAT
 
     def __post_init__(self) -> None:
         assert_device_scope_is_relay_audience(self.device_scope)
@@ -73,6 +85,15 @@ class AzureRelayConfig:
             foundry_endpoint=values.get("SPARKY_FOUNDRY_ENDPOINT", DEFAULT_FOUNDRY_ENDPOINT),
             vision_deployment=values.get("SPARKY_VISION_DEPLOYMENT", DEFAULT_VISION_DEPLOYMENT),
             vision_api_version=values.get("SPARKY_VISION_API_VERSION", DEFAULT_VISION_API_VERSION),
+            chat_deployment=values.get("SPARKY_CHAT_DEPLOYMENT", DEFAULT_CHAT_DEPLOYMENT),
+            chat_api_version=values.get("SPARKY_CHAT_API_VERSION", DEFAULT_CHAT_API_VERSION),
+            speech_endpoint=values.get("SPARKY_SPEECH_ENDPOINT", DEFAULT_SPEECH_ENDPOINT),
+            speech_resource_id=values.get("SPARKY_SPEECH_RESOURCE_ID", DEFAULT_SPEECH_RESOURCE_ID),
+            speech_voice=values.get("SPARKY_SPEECH_VOICE", DEFAULT_SPEECH_VOICE),
+            speech_output_format=values.get(
+                "SPARKY_SPEECH_OUTPUT_FORMAT",
+                DEFAULT_SPEECH_OUTPUT_FORMAT,
+            ),
         )
 
     def build_device_code_payload(self) -> dict[str, str]:

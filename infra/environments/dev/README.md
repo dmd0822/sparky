@@ -46,6 +46,13 @@ ADR 0003 runtime contract: `AZURE_TENANT_ID`, `SPARKY_RELAY_AUDIENCE`,
 If `relayDeviceScope` is left empty, the template derives it as
 `<relayAudience>/.default`.
 
+The relay module also emits optional downstream settings when a relay audience is
+configured: `SPARKY_CHAT_DEPLOYMENT`, `SPARKY_CHAT_API_VERSION`,
+`SPARKY_SPEECH_ENDPOINT`, `SPARKY_SPEECH_RESOURCE_ID`, `SPARKY_SPEECH_VOICE`,
+and `SPARKY_SPEECH_OUTPUT_FORMAT`. Dev wires the Speech endpoint and resource ID
+from the Speech module outputs; chat deployment remains an operator-supplied
+value until model deployment names are finalized.
+
 It is deliberately **not** stored in `main.bicepparam`. Entra app registrations
 are Microsoft Graph objects that Bicep does not manage, and their IDs are
 tenant-specific, so the value is supplied at deploy time. See
