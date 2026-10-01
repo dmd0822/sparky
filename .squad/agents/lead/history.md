@@ -28,3 +28,5 @@
 📌 Team update (2026-10-01T09:46:28.545-04:00): Infra CD Dev automation was recommended, security-reviewed, and implemented with Dev-only workflow_run guardrails; roster has a capability gap for CI/CD workflow authoring, so implementation routed to reviewer.
 
 📌 Team update (2026-10-01T10:15:16.0716551-04:00): The advisory design for automated Dev Infra CD deployment shipped in PR #80 via commit 877eb24, using `workflow_run` gated on successful Infra CI runs from `main`. — decided by coordinator
+
+📌 2026-10-01T11:16:09.2889365-04:00: Implemented relay-side Speech-to-text for issue #14 with a stdlib REST adapter, Entra managed-identity Speech authorization, base64-audio JSON relay contract, normalized transcript/confidence metadata, and mocked plus fixture-backed tests. Chose REST over Speech SDK to preserve the relay core's no-new-dependency boundary while documenting the SDK/custom-domain path for future streaming work.

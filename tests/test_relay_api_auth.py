@@ -66,6 +66,10 @@ class RecordingDownstream:
         self.calls.append(("speech", payload, headers))
         return {"audio": "base64-wav", "audio_format": "wav"}
 
+    def recognize(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
+        self.calls.append(("recognize", payload, headers))
+        return {"transcript": "hello sparky", "confidence": 0.93}
+
 
 class RelayAuthTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -258,12 +262,20 @@ class RelayAuthTests(unittest.TestCase):
         self.assertEqual(response.body["audio_format"], "wav")
         self.assertEqual(self.downstream.calls[0][0], "speech")
 
+    def test_speech_recognition_endpoint_integration(self) -> None:
+        response = self.app.handle(self.request("/speech/recognize", {"audio": "base64-wav"}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.body["transcript"], "hello sparky")
+        self.assertEqual(response.body["confidence"], 0.93)
+        self.assertEqual(self.downstream.calls[0][0], "recognize")
+
     def test_contract_schemas_cover_each_endpoint(self) -> None:
         self.assertEqual(
             {schema["path"] for schema in REQUEST_SCHEMAS.values()},
-            {"/health", "/ai/chat", "/ai/vision", "/speech/synthesize"},
+            {"/health", "/ai/chat", "/ai/vision", "/speech/synthesize", "/speech/recognize"},
         )
-        for name in ("health", "chat", "vision", "speech", "error"):
+        for name in ("health", "chat", "vision", "speech", "recognize", "error"):
             with self.subTest(schema=name):
                 self.assertIn(name, RESPONSE_SCHEMAS)
                 self.assertTrue(RESPONSE_SCHEMAS[name]["required"])
@@ -274,6 +286,7 @@ class RelayAuthTests(unittest.TestCase):
             "chat": self.request("/ai/chat", {"prompt": "hello"}),
             "vision": self.request("/ai/vision", {"image": "base64-image"}),
             "speech": self.request("/speech/synthesize", {"text": "hello"}),
+            "recognize": self.request("/speech/recognize", {"audio": "base64-wav"}),
         }
         for name, request in cases.items():
             with self.subTest(endpoint=name):

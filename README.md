@@ -107,6 +107,7 @@ authenticated endpoints are:
 | `POST` | `/ai/chat` | Chat request shaped for Foundry. |
 | `POST` | `/ai/vision` | Vision request shaped for Foundry. |
 | `POST` | `/speech/synthesize` | Speech synthesis request shaped for Speech. |
+| `POST` | `/speech/recognize` | Speech-to-text request shaped for Speech short-audio REST recognition. |
 
 Relay token validation checks the Entra signature through an injected verifier,
 then issuer, tenant, relay audience, lifetime, and the required app role/scope
@@ -121,6 +122,29 @@ responses are normalized for the device as `caption`, `labels`, `status`, and
 failure details for timeout, downstream status, invalid body, empty result, or
 safety-filtered result paths.
 
+The `/speech/recognize` route accepts JSON with base64-encoded short audio in an
+`audio` field, decodes it inside the relay, and posts the raw WAV/PCM bytes to
+the Speech custom-domain short-audio REST endpoint with the relay managed
+identity. The normalized success contract is:
+
+```json
+{
+  "transcript": "recognized text",
+  "confidence": 0.91,
+  "correlation_id": "caller-or-generated-id",
+  "metadata": {
+    "latency_ms": 125,
+    "recognition_status": "Success"
+  }
+}
+```
+
+Failure responses still return HTTP 200 from the relay handler with
+`transcript: ""`, `confidence: 0.0`, `status`, and `metadata.failure`. Recognized
+failure codes are `speech_not_configured`, `invalid_request`, `timeout`,
+`transport_error`, `downstream_status`, `no_match`, and `empty_result`; downstream
+Speech error bodies are not echoed into the failure message.
+
 Required runtime configuration:
 
 - `AZURE_TENANT_ID`
@@ -130,6 +154,12 @@ Required runtime configuration:
 - `SPARKY_RELAY_DEVICE_SCOPE`
 - `SPARKY_FOUNDRY_SCOPE`
 - `SPARKY_SPEECH_SCOPE`
+- `SPARKY_SPEECH_ENDPOINT`
+- `SPARKY_SPEECH_RESOURCE_ID`
+- `SPARKY_SPEECH_VOICE`
+- `SPARKY_SPEECH_OUTPUT_FORMAT`
+- `SPARKY_SPEECH_RECOGNITION_LANGUAGE` (default `en-US`)
+- `SPARKY_SPEECH_INPUT_FORMAT` (default `audio/wav; codecs=audio/pcm; samplerate=16000`)
 - `SPARKY_FOUNDRY_ENDPOINT`
 - `SPARKY_VISION_DEPLOYMENT`
 - `SPARKY_VISION_API_VERSION`

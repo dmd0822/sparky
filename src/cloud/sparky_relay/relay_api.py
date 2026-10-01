@@ -25,6 +25,7 @@ REQUEST_SCHEMAS: dict[str, dict[str, Any]] = {
     "chat": {"method": "POST", "path": "/ai/chat", "required": ["prompt"]},
     "vision": {"method": "POST", "path": "/ai/vision", "required": ["image"]},
     "speech": {"method": "POST", "path": "/speech/synthesize", "required": ["text"]},
+    "recognize": {"method": "POST", "path": "/speech/recognize", "required": ["audio"]},
 }
 
 RESPONSE_SCHEMAS: dict[str, dict[str, Any]] = {
@@ -32,6 +33,7 @@ RESPONSE_SCHEMAS: dict[str, dict[str, Any]] = {
     "chat": {"required": ["reply", "correlation_id"]},
     "vision": {"required": ["caption", "labels", "correlation_id"]},
     "speech": {"required": ["audio", "audio_format", "correlation_id"]},
+    "recognize": {"required": ["transcript", "confidence", "correlation_id"]},
     "error": {"required": ["error", "correlation_id"]},
 }
 
@@ -66,6 +68,9 @@ class DownstreamRelayClient(Protocol):
 
     def speech(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
         """Return a relay-shaped speech result."""
+
+    def recognize(self, payload: Mapping[str, Any], headers: Mapping[str, str]) -> Mapping[str, Any]:
+        """Return a relay-shaped speech recognition result."""
 
 
 class RelayPolicy(Protocol):
@@ -169,6 +174,8 @@ class RelayApp:
             return self._vision(request, context, correlation_id)
         if method == "POST" and request.path == "/speech/synthesize":
             return self._speech(request, context, correlation_id)
+        if method == "POST" and request.path == "/speech/recognize":
+            return self._recognize(request, context, correlation_id)
         return _error(404, "not_found", "No relay endpoint matched the request.", correlation_id)
 
     def _chat(
@@ -227,6 +234,26 @@ class RelayApp:
         result = dict(self.downstream.speech(request.body, headers))
         result.setdefault("audio", "")
         result.setdefault("audio_format", "wav")
+        result["correlation_id"] = correlation_id
+        return _response(200, result, correlation_id)
+
+    def _recognize(
+        self,
+        request: RelayRequest,
+        context: AuthContext,
+        correlation_id: str,
+    ) -> RelayResponse:
+        audio = request.body.get("audio")
+        if not isinstance(audio, str) or not audio.strip():
+            return _error(400, "invalid_request", "Speech recognition requires audio.", correlation_id)
+        headers = self._downstream_headers(
+            self.relay_config.speech_scope,
+            context,
+            correlation_id,
+        )
+        result = dict(self.downstream.recognize(request.body, headers))
+        result.setdefault("transcript", "")
+        result.setdefault("confidence", 0.0)
         result["correlation_id"] = correlation_id
         return _response(200, result, correlation_id)
 
