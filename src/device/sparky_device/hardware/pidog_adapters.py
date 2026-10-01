@@ -16,9 +16,11 @@ from __future__ import annotations
 import threading
 import time
 import subprocess
+import shutil
 from typing import Any, Sequence
 
 from .ports import (
+    AudioChunk,
     DEFAULT_LIMITS,
     HEAD_JOINT_COUNT,
     LEG_JOINT_COUNT,
@@ -29,6 +31,7 @@ from .ports import (
     MotionLimits,
     RgbColor,
     RobotPorts,
+    validate_audio_format,
     validate_camera_resolution,
     validate_rgb_style,
     TouchState,
@@ -40,6 +43,7 @@ from .ports import (
 __all__ = [
     "PIDOG_PROFILE",
     "PidogBoardAdapter",
+    "PidogMicrophoneAdapter",
     "PidogMotionAdapter",
     "PidogSensorAdapter",
     "VilibCameraAdapter",
@@ -55,6 +59,7 @@ PIDOG_PROFILE = "pidog"
 _INVALID_DISTANCE = 0.0
 _CAMERA_FIRST_FRAME_TIMEOUT_SECONDS = 2.0
 _CAMERA_FRAME_POLL_INTERVAL_SECONDS = 0.05
+_ARECORD_FIRST_READ_TIMEOUT_SECONDS = 0.05
 
 
 def load_pidog() -> Any:
@@ -395,6 +400,142 @@ class VilibCameraAdapter:
         return self._vilib_injected
 
 
+class PidogMicrophoneAdapter:
+    """Binds the microphone port to ALSA ``arecord`` raw PCM capture."""
+
+    def __init__(
+        self,
+        *,
+        executable: str = "arecord",
+        first_read_timeout: float = _ARECORD_FIRST_READ_TIMEOUT_SECONDS,
+    ) -> None:
+        self._executable = executable
+        self._first_read_timeout = first_read_timeout
+        self._process: subprocess.Popen[bytes] | None = None
+        self._bytes_per_chunk = 0
+        self._sample_rate = 0
+        self._channels = 0
+        self._sample_width = 0
+        self._sequence = 0
+
+    def open(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        frames_per_chunk: int = 1600,
+    ) -> None:
+        sample_rate, channels, sample_width = validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        if frames_per_chunk <= 0:
+            raise HardwareError(
+                f"frames_per_chunk must be positive, got {frames_per_chunk}"
+            )
+        if self._process is not None and self._process.poll() is None:
+            return
+        if shutil.which(self._executable) is None:
+            raise HardwareUnavailableError(
+                "ALSA 'arecord' is not installed or not on PATH. Install ALSA "
+                "utilities on the Raspberry Pi, or set SPARKY_HARDWARE=simulator."
+            )
+        command = [
+            self._executable,
+            "-q",
+            "-t",
+            "raw",
+            "-f",
+            _arecord_format(sample_width),
+            "-r",
+            str(sample_rate),
+            "-c",
+            str(channels),
+            "-",
+        ]
+        try:
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError as error:  # pragma: no cover - depends on host PATH
+            raise HardwareUnavailableError(
+                "ALSA 'arecord' is not installed or not on PATH."
+            ) from error
+        except OSError as error:  # pragma: no cover - requires host audio state
+            raise HardwareUnavailableError(f"could not start microphone capture: {error}") from error
+        time.sleep(self._first_read_timeout)
+        if process.poll() is not None:
+            _, stderr = process.communicate(timeout=1)
+            _raise_arecord_failure(stderr.decode("utf-8", errors="replace"))
+        self._process = process
+        self._bytes_per_chunk = int(frames_per_chunk) * channels * sample_width
+        self._sample_rate = sample_rate
+        self._channels = channels
+        self._sample_width = sample_width
+        self._sequence = 0
+
+    def read_chunk(self) -> AudioChunk:
+        process = self._process
+        if process is None or process.stdout is None or process.poll() is not None:
+            raise HardwareError("microphone port is not open; call open() first")
+        data = process.stdout.read(self._bytes_per_chunk)
+        if not data:
+            stderr = b""
+            if process.stderr is not None:
+                try:
+                    stderr = process.stderr.read()
+                except Exception:
+                    stderr = b""
+            _raise_arecord_failure(stderr.decode("utf-8", errors="replace"))
+        self._sequence += 1
+        return AudioChunk(
+            data=data,
+            sample_rate=self._sample_rate,
+            channels=self._channels,
+            sample_width=self._sample_width,
+            timestamp=time.monotonic(),
+            sequence=self._sequence,
+        )
+
+    def close(self) -> None:
+        process = self._process
+        self._process = None
+        if process is None:
+            return
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1)
+
+    def is_open(self) -> bool:
+        return self._process is not None and self._process.poll() is None
+
+    def microphone_available(self) -> bool:
+        if shutil.which(self._executable) is None:
+            return False
+        try:
+            completed = subprocess.run(
+                [self._executable, "-l"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (FileNotFoundError, subprocess.SubprocessError, OSError):
+            return False
+        output = f"{completed.stdout}\n{completed.stderr}".lower()
+        if "no soundcards" in output or "no hardware devices" in output:
+            return False
+        return completed.returncode == 0
+
+
 def _rpicam_detects_camera() -> bool | None:
     """Probe camera presence without starting vilib's asynchronous pipeline."""
 
@@ -414,6 +555,31 @@ def _rpicam_detects_camera() -> bool | None:
     if completed.returncode == 0 and output.strip():
         return True
     return None
+
+
+def _arecord_format(sample_width: int) -> str:
+    if sample_width == 1:
+        return "U8"
+    if sample_width == 2:
+        return "S16_LE"
+    if sample_width == 4:
+        return "S32_LE"
+    raise HardwareError(f"unsupported sample_width for arecord: {sample_width}")
+
+
+def _raise_arecord_failure(stderr: str) -> None:
+    message = stderr.strip() or "arecord produced no microphone audio"
+    lowered = message.lower()
+    if "device or resource busy" in lowered or "busy" in lowered:
+        raise HardwareError(f"microphone device is busy: {message}")
+    if (
+        "no such file" in lowered
+        or "no soundcards" in lowered
+        or "cannot find card" in lowered
+        or "not found" in lowered
+    ):
+        raise HardwareUnavailableError(f"microphone device is unavailable: {message}")
+    raise HardwareError(f"microphone capture failed: {message}")
 
 
 def _encode_jpeg(image: Any) -> tuple[bytes, int, int]:
@@ -450,6 +616,7 @@ def build_pidog_ports(
         motion=PidogMotionAdapter(robot, limits=limits),
         board=PidogBoardAdapter(robot),
         camera=VilibCameraAdapter(vilib),
+        microphone=PidogMicrophoneAdapter(),
         sensors=PidogSensorAdapter(robot),
         profile=PIDOG_PROFILE,
     )

@@ -14,8 +14,10 @@ from pathlib import Path
 import time
 from itertools import cycle
 from typing import Iterable, Iterator, Sequence
+import wave
 
 from .ports import (
+    AudioChunk,
     DEFAULT_LIMITS,
     HEAD_JOINT_COUNT,
     LEG_JOINT_COUNT,
@@ -30,6 +32,7 @@ from .ports import (
     VILIB_CAPTURE_SIZE,
     validate_angles,
     validate_action_name,
+    validate_audio_format,
     validate_camera_resolution,
     validate_rgb_style,
     validate_speed,
@@ -40,10 +43,12 @@ __all__ = [
     "RgbCommand",
     "SimulatedBoard",
     "SimulatedCamera",
+    "SimulatedMicrophone",
     "SimulatedMotion",
     "SimulatedSensors",
     "SoundCommand",
     "build_simulated_ports",
+    "load_wav_fixture",
     "load_frame_fixtures",
     "solid_frame",
 ]
@@ -344,6 +349,139 @@ class SimulatedCamera:
         return self._available
 
 
+class SimulatedMicrophone:
+    """Replays scripted PCM chunks or WAV fixtures for microphone capture."""
+
+    def __init__(
+        self,
+        chunks: Iterable[bytes] | None = None,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        available: bool = True,
+        busy: bool = False,
+        loop: bool = True,
+    ) -> None:
+        validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        self._source = list(chunks) if chunks is not None else []
+        if not self._source:
+            frame_width = channels * sample_width
+            self._source = [b"\x00" * (max(1, sample_rate // 10) * frame_width)]
+        if any(not chunk for chunk in self._source):
+            raise ValueError("SimulatedMicrophone chunks must not be empty")
+        self.sample_rate = sample_rate
+        self.channels = channels
+        self.sample_width = sample_width
+        self._available = available
+        self._busy = busy
+        self._loop = loop
+        self._running = False
+        self._cursor = 0
+        self._requested_frames_per_chunk = 1600
+        self._sequence = 0
+        self.open_count = 0
+        self.close_count = 0
+        self.read_count = 0
+        self.requested_formats: list[tuple[int, int, int, int]] = []
+
+    @classmethod
+    def from_wav(
+        cls,
+        fixture_path: str | Path,
+        *,
+        frames_per_chunk: int = 1600,
+        available: bool = True,
+        busy: bool = False,
+        loop: bool = True,
+    ) -> "SimulatedMicrophone":
+        chunks, sample_rate, channels, sample_width = load_wav_fixture(
+            fixture_path,
+            frames_per_chunk=frames_per_chunk,
+        )
+        return cls(
+            chunks,
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+            available=available,
+            busy=busy,
+            loop=loop,
+        )
+
+    def set_available(self, available: bool) -> None:
+        self._available = available
+
+    def set_busy(self, busy: bool) -> None:
+        self._busy = busy
+
+    def open(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        frames_per_chunk: int = 1600,
+    ) -> None:
+        requested = validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        if frames_per_chunk <= 0:
+            raise HardwareError(
+                f"frames_per_chunk must be positive, got {frames_per_chunk}"
+            )
+        if not self._available:
+            raise HardwareUnavailableError("simulated microphone is not available")
+        if self._busy:
+            raise HardwareError("simulated microphone is busy")
+        if self._running:
+            return
+        self._running = True
+        self.open_count += 1
+        self._requested_frames_per_chunk = int(frames_per_chunk)
+        self.requested_formats.append((*requested, int(frames_per_chunk)))
+
+    def read_chunk(self) -> AudioChunk:
+        if not self._running:
+            raise HardwareError("microphone port is not open; call open() first")
+        if not self._source:
+            raise HardwareError("no simulated microphone chunks are configured")
+        if self._cursor >= len(self._source):
+            if not self._loop:
+                raise HardwareError("no more simulated microphone chunks remain")
+            self._cursor = 0
+        data = self._source[self._cursor]
+        self._cursor += 1
+        self._sequence += 1
+        self.read_count += 1
+        return AudioChunk(
+            data=data,
+            sample_rate=self.sample_rate,
+            channels=self.channels,
+            sample_width=self.sample_width,
+            timestamp=time.monotonic(),
+            sequence=self._sequence,
+        )
+
+    def close(self) -> None:
+        if not self._running:
+            return
+        self._running = False
+        self.close_count += 1
+
+    def is_open(self) -> bool:
+        return self._running
+
+    def microphone_available(self) -> bool:
+        return self._available
+
+
 class SimulatedSensors:
     """Emits scripted sensor readings, holding the last value when exhausted."""
 
@@ -403,24 +541,64 @@ def build_simulated_ports(
     limits: MotionLimits = DEFAULT_LIMITS,
     frames: Iterable[Frame] | None = None,
     camera_fixture_dir: str | Path | None = None,
+    microphone: SimulatedMicrophone | None = None,
+    microphone_fixture_path: str | Path | None = None,
 ) -> RobotPorts:
     """Assemble a fully simulated :class:`RobotPorts` bundle."""
 
     if frames is not None and camera_fixture_dir is not None:
         raise ValueError("pass either frames or camera_fixture_dir, not both")
+    if microphone is not None and microphone_fixture_path is not None:
+        raise ValueError("pass either microphone or microphone_fixture_path, not both")
     camera = (
         SimulatedCamera.from_fixture_directory(camera_fixture_dir)
         if camera_fixture_dir is not None
         else SimulatedCamera(frames=frames)
+    )
+    microphone_port = (
+        SimulatedMicrophone.from_wav(microphone_fixture_path)
+        if microphone_fixture_path is not None
+        else (microphone if microphone is not None else SimulatedMicrophone())
     )
 
     return RobotPorts(
         motion=SimulatedMotion(limits=limits),
         board=SimulatedBoard(),
         camera=camera,
+        microphone=microphone_port,
         sensors=SimulatedSensors(),
         profile=SIMULATOR_PROFILE,
     )
+
+
+def load_wav_fixture(
+    fixture_path: str | Path,
+    *,
+    frames_per_chunk: int = 1600,
+) -> tuple[list[bytes], int, int, int]:
+    """Load a PCM WAV file into replay chunks."""
+
+    if frames_per_chunk <= 0:
+        raise ValueError(f"frames_per_chunk must be positive, got {frames_per_chunk}")
+    path = Path(fixture_path)
+    with wave.open(str(path), "rb") as handle:
+        channels = handle.getnchannels()
+        sample_width = handle.getsampwidth()
+        sample_rate = handle.getframerate()
+        validate_audio_format(
+            sample_rate=sample_rate,
+            channels=channels,
+            sample_width=sample_width,
+        )
+        chunks: list[bytes] = []
+        while True:
+            data = handle.readframes(frames_per_chunk)
+            if not data:
+                break
+            chunks.append(data)
+    if not chunks:
+        raise ValueError(f"WAV fixture has no audio frames: {path}")
+    return chunks, sample_rate, channels, sample_width
 
 
 def load_frame_fixtures(

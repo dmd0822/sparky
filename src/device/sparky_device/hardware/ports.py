@@ -21,9 +21,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from math import isfinite
+from numbers import Real
 from typing import Final, Protocol, Sequence, runtime_checkable
 
 __all__ = [
+    "AUDIO_MAX_CHANNELS",
+    "AUDIO_SAMPLE_WIDTHS",
+    "AudioChunk",
     "BoardPort",
     "CameraPort",
     "DEFAULT_LIMITS",
@@ -33,6 +38,7 @@ __all__ = [
     "HEAD_JOINT_COUNT",
     "ImuReading",
     "LEG_JOINT_COUNT",
+    "MicrophonePort",
     "MOTION_ACTIONS",
     "MotionLimits",
     "MotionPort",
@@ -45,6 +51,7 @@ __all__ = [
     "VILIB_CAPTURE_SIZE",
     "validate_angles",
     "validate_action_name",
+    "validate_audio_format",
     "validate_camera_resolution",
     "validate_rgb_style",
     "validate_speed",
@@ -64,6 +71,10 @@ LEG_JOINT_COUNT = 8
 
 #: The head is yaw, roll, pitch.
 HEAD_JOINT_COUNT = 3
+
+AUDIO_SAMPLE_WIDTHS: Final[tuple[int, ...]] = (1, 2, 4)
+_AUDIO_SAMPLE_WIDTH_SET: Final[frozenset[int]] = frozenset(AUDIO_SAMPLE_WIDTHS)
+AUDIO_MAX_CHANNELS: Final[int] = 8
 
 
 @dataclass(frozen=True)
@@ -206,6 +217,34 @@ def validate_speed(speed: int, limits: MotionLimits = DEFAULT_LIMITS) -> int:
     return int(speed)
 
 
+def validate_audio_format(
+    *,
+    sample_rate: int,
+    channels: int,
+    sample_width: int,
+) -> tuple[int, int, int]:
+    """Validate PCM audio shape shared by microphone adapters and simulators."""
+
+    for name, value in (
+        ("sample_rate", sample_rate),
+        ("channels", channels),
+        ("sample_width", sample_width),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise HardwareError(f"{name} must be an int, got {value!r}")
+    if sample_rate <= 0:
+        raise HardwareError(f"sample_rate must be positive, got {sample_rate}")
+    if not 1 <= channels <= AUDIO_MAX_CHANNELS:
+        raise HardwareError(
+            f"channels must be between 1 and {AUDIO_MAX_CHANNELS}, got {channels}"
+        )
+    if sample_width not in _AUDIO_SAMPLE_WIDTH_SET:
+        raise HardwareError(
+            f"sample_width must be one of {AUDIO_SAMPLE_WIDTHS}, got {sample_width}"
+        )
+    return (sample_rate, channels, sample_width)
+
+
 def validate_angles(
     values: Sequence[float],
     *,
@@ -322,6 +361,41 @@ class Frame:
             raise ValueError("frame data must not be empty")
 
 
+@dataclass(frozen=True)
+class AudioChunk:
+    """A chunk of interleaved PCM microphone audio."""
+
+    data: bytes
+    sample_rate: int
+    channels: int = 1
+    sample_width: int = 2
+    timestamp: float = 0.0
+    sequence: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.data:
+            raise ValueError("audio chunk data must not be empty")
+        validate_audio_format(
+            sample_rate=self.sample_rate,
+            channels=self.channels,
+            sample_width=self.sample_width,
+        )
+        frame_width = self.channels * self.sample_width
+        if len(self.data) % frame_width != 0:
+            raise ValueError(
+                "audio chunk data length must align to complete frames "
+                f"({frame_width} bytes), got {len(self.data)}"
+            )
+        if isinstance(self.timestamp, bool) or not isinstance(self.timestamp, Real):
+            raise ValueError(f"timestamp must be a finite number, got {self.timestamp!r}")
+        if not isfinite(float(self.timestamp)) or float(self.timestamp) < 0:
+            raise ValueError(f"timestamp must be a finite non-negative number, got {self.timestamp!r}")
+        if isinstance(self.sequence, bool) or not isinstance(self.sequence, int):
+            raise ValueError(f"sequence must be an int, got {self.sequence!r}")
+        if self.sequence < 0:
+            raise ValueError(f"sequence must be non-negative, got {self.sequence}")
+
+
 @runtime_checkable
 class MotionPort(Protocol):
     """Motion and posture control. Wraps ``pidog.Pidog``."""
@@ -403,6 +477,33 @@ class CameraPort(Protocol):
 
 
 @runtime_checkable
+class MicrophonePort(Protocol):
+    """Microphone capture. Produces interleaved PCM chunks."""
+
+    def open(
+        self,
+        *,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        frames_per_chunk: int = 1600,
+    ) -> None:
+        """Open capture for the requested PCM shape and chunk size."""
+
+    def read_chunk(self) -> AudioChunk:
+        """Return the next microphone PCM chunk."""
+
+    def close(self) -> None:
+        """Release microphone capture resources. Must be idempotent."""
+
+    def is_open(self) -> bool:
+        """Report whether microphone capture is currently open."""
+
+    def microphone_available(self) -> bool:
+        """Report whether a microphone appears to be present."""
+
+
+@runtime_checkable
 class SensorPort(Protocol):
     """Ultrasonic, touch, IMU, and sound-direction reads."""
 
@@ -427,6 +528,7 @@ class RobotPorts:
     board: BoardPort
     camera: CameraPort
     sensors: SensorPort
+    microphone: MicrophonePort | None = None
     profile: str = "unknown"
     closed: bool = field(default=False, repr=False)
 
@@ -442,13 +544,16 @@ class RobotPorts:
             return
         self.closed = True
         errors: list[BaseException] = []
-        for shutdown in (
+        shutdown_steps = [
             self.motion.stop,
             self.camera.stop,
             self.board.clear_rgb,
             self.motion.close,
             self.board.close,
-        ):
+        ]
+        if self.microphone is not None:
+            shutdown_steps.insert(2, self.microphone.close)
+        for shutdown in shutdown_steps:
             try:
                 shutdown()
             except Exception as error:  # noqa: BLE001 - aggregated and re-raised

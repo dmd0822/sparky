@@ -32,7 +32,7 @@ against the Pi's GPIO stack. Run these once per device:
 ```bash
 sudo apt update
 sudo apt install -y git python3-pip python3-venv python3-dev \
-  libopencv-dev python3-opencv portaudio19-dev
+  libopencv-dev python3-opencv portaudio19-dev alsa-utils
 
 cd ~
 git clone https://github.com/sunfounder/robot-hat.git -b v2.0
@@ -112,8 +112,8 @@ with create_ports() as robot:
 "
 ```
 
-`create_ports()` returns a `RobotPorts` bundle with four members — `motion`,
-`board`, `camera`, and `sensors`. Using it as a context manager guarantees the
+`create_ports()` returns a `RobotPorts` bundle with five members — `motion`,
+`board`, `camera`, `microphone`, and `sensors`. Using it as a context manager guarantees the
 servos are safe-stopped and every port released, even if your code raises.
 
 The camera is optional. Code that can use images should ask the port first and
@@ -326,6 +326,43 @@ Use the same physical actions from steps 6-8 and 18 while running the snippet.
 | IMU sample | `imu.status` is `ok`; `acceleration` and `gyro` each contain three numeric axes | PASS when numeric axes print | FAIL on crash, malformed axes, or unavailable hardware without explanation |
 | Sound direction | `sound_direction.status` is `ok`; `direction_degrees` is numeric when sound is detected, or `None` with a detail message when no sound is detected | PASS when the service reports explicit ok/no-sound semantics | FAIL if the snippet crashes or returns malformed data |
 | Missing or unhealthy hardware | A status of `unavailable` or `malformed` appears in the printed dictionary; the snippet does not crash | PASS when failures are represented as statuses | FAIL when a vendor exception escapes the service |
+
+### Microphone capture service check
+
+For speech-input milestones, run the simulator-backed unit tests first so the
+committed WAV fixtures prove replay and normalization without a robot:
+
+```bash
+python -m unittest tests.test_audio_service
+```
+
+Then validate the planner-facing microphone boundary on the Pi. This captures
+three normalized chunks, flushes the bounded buffer, and prints the STT-ready
+PCM shape. Keep the room quiet except for a short sound near the microphone
+array after the snippet starts.
+
+```bash
+python - <<'PY'
+from sparky_device.hardware import create_ports
+from sparky_device.services import AudioService
+
+with create_ports("pidog") as robot:
+    service = AudioService(robot.microphone, source_id="sparky-pi-microphone")
+    print(service.start().as_dict())
+    for _ in range(3):
+        print(service.capture_chunk().as_dict())
+    print(service.flush().as_dict())
+    print(service.stop().as_dict())
+PY
+```
+
+Pass criteria: `start.status` is `ok`, each capture reports status `ok`, chunks
+are normalized to 16000 Hz, mono, 16-bit PCM, and the flush contains bounded
+non-empty audio bytes with an accurate `chunk_count` and `duration_seconds`.
+Fail criteria: the snippet crashes, busy-device errors escape instead of
+returning `malformed`, missing-device errors escape instead of returning
+`unavailable`, or flushed audio is empty while the microphone was expected to
+capture sound. Record any accepted SKIP/FAIL as a milestone acceptance risk.
 
 ### Camera service check
 
