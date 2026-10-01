@@ -236,13 +236,26 @@ entry point in simulator mode:
 python scripts\motion_service_hil.py --ci
 ```
 
+Voice-loop work also has a CI-safe harness that exercises microphone capture,
+persona prompt composition, mocked STT/chat/TTS relay legs, and speaker playback
+without touching Azure:
+
+```powershell
+python scripts\conversation_orchestrator_hil.py --ci
+```
+
 Planner-facing device services live in `sparky_device.services`. `MotionService`
 normalizes movement intents, `SensorService` returns status-bearing sensor
 snapshots, and `CameraService` owns camera start/capture/stop while packaging
 frames for relay submission. Camera packaging records source dimensions,
 packaged dimensions, sequence, monotonic timestamp, and source ID; optional
 resizing is best-effort and falls back to the native bytes when no image stack is
-installed.
+installed. `ConversationOrchestrator` composes a complete voice turn above
+`AudioService`: capture microphone chunks, submit relay-shaped STT, compose the
+chat system prompt through the active persona registry with global safety first,
+submit chat and persona-routed TTS, and play the synthesized audio. Its frozen
+state/result DTOs make the active persona, phase, degraded flag, and STT/chat/TTS
+failure branch explicit for tests and runtime recovery.
 
 For next steps:
 

@@ -183,6 +183,8 @@ must include one of these acceptance records before it is closed:
 - for synthesized-speech playback milestones, `python -m unittest
   tests.test_audio_service` plus the speaker playback snippet below against
   the PiDog Robot HAT speaker; and
+- for conversation-loop milestones, `python scripts/conversation_orchestrator_hil.py
+  --ci` plus a Pi run of `python scripts/conversation_orchestrator_hil.py`; and
 - for relay-auth milestones, `python scripts/relay_auth_smoke.py --ci` plus a
   Pi run of `python scripts/relay_auth_smoke.py` against the deployed relay; and
 - notes for any SKIP/FAIL result, including whether the milestone accepts the
@@ -429,6 +431,40 @@ dictionary reports `audio_format='wav'`, `sample_rate=16000`, `channels=1`,
 snippet crashes, relay failure payloads attempt playback, format mismatches are
 silently coerced, the speaker is silent after `i2samp.sh` and reboot, or cleanup
 cannot stop/close the speaker. Record any accepted SKIP/FAIL as a milestone
+acceptance risk.
+
+### Conversation orchestrator check
+
+For full voice-turn milestones, run the orchestrator unit tests first:
+
+```bash
+python -m unittest tests.test_conversation_orchestrator
+```
+
+Then rehearse the hardware-in-the-loop runner off-robot. The relay legs are
+mocked, so this validates the device runtime path without Azure network access:
+
+```bash
+python scripts/conversation_orchestrator_hil.py --ci
+```
+
+On the PiDog, export the real hardware profile and run:
+
+```bash
+python scripts/conversation_orchestrator_hil.py
+```
+
+The script captures microphone chunks, sends them through mocked STT and chat
+clients, composes the prompt through the active persona registry, sends the
+reply to mocked TTS with the same persona ID, plays the relay-shaped WAV through
+`AudioService.speak()`, and closes microphone/speaker ports on success, failure,
+or Ctrl+C. Use `--chunks N` for targeted reruns and `--persona-id` to validate a
+different registered persona. Pass criteria: all six steps print PASS, the
+operator hears the synthesized fixture tone, prompt metadata reports the active
+persona, and cleanup reports ports closed. Fail criteria: the script crashes,
+the microphone remains open, the speaker is silent, relay failure mappings wedge
+the turn instead of returning a degraded status, or persona metadata/voice
+routing bypasses the registry. Record any accepted SKIP/FAIL as a milestone
 acceptance risk.
 
 ### Camera service check

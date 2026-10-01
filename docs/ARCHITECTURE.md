@@ -143,6 +143,25 @@ empty transcript, `confidence: 0.0`, `status`, and `metadata.failure`, with
 `NoMatch`, `InitialSilenceTimeout`, and `BabbleTimeout` mapped to `no_match`.
 Downstream error bodies are never echoed back to callers.
 
+The device conversation orchestrator lives in
+`sparky_device.services.conversation` above `AudioService`. One voice turn moves
+through explicit phases — `idle`, `listening`, `transcribing`, `thinking`,
+`speaking`, or `failed` — and returns a frozen `ConversationTurnResult`. The
+orchestrator converts flushed microphone PCM into a relay-shaped WAV STT
+payload, calls the injected recognizer/chat/synthesizer seams, and uses
+`AudioService.speak()` for playback. STT, chat, TTS, persona, and audio failures
+become stable `CONVERSATION_STATUS_*` results with sanitized failure details, and
+the microphone is stopped in every path so the runtime can recover instead of
+wedging mid-capture or mid-playback.
+
+Prompt and voice behavior are persona-registry driven. The active
+`PersonaRuntimeState` is embedded in `ConversationState`; prompt composition
+calls `compose_prompt()` so global safety segments precede persona identity,
+safety, behavior, and memory segments. The TTS request carries the active
+`persona_id` plus voice settings obtained through `persona_voice_settings()`, and
+persona switching delegates to `switch_persona()` to clear in-flight audio,
+motion, and transient reactions before a new persona activates.
+
 Speech Entra authentication requires a Speech resource custom subdomain such as
 `https://<custom-name>.cognitiveservices.azure.com`, plus `Cognitive Services
 User` or equivalent RBAC for the relay managed identity. SDK-native Entra auth
@@ -574,6 +593,13 @@ CI also runs the non-hardware device smoke harness,
 profile, skips all vendor imports, exercises motion, sensor, camera, board RGB,
 and audio ports through the same checklist runner used on the Pi, and exits
 non-zero on any failed required step.
+
+Conversation-loop HIL uses `python scripts/conversation_orchestrator_hil.py
+--ci` in automation and the same command without `--ci` on the PiDog. The cloud
+legs are mocked in both modes so CI and operators can validate microphone
+capture, persona prompt routing, relay-shaped speech output, speaker playback,
+and cleanup without live Azure access. Real STT/chat/TTS service validation
+remains covered by relay adapter tests and deployment smoke checks.
 
 ### Persona testing
 
