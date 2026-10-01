@@ -199,3 +199,8 @@
 **By:** lead
 **What:** Append speech_recognition_language and speech_input_format at the end of the frozen AzureRelayConfig dataclass and leave them out of the required environment tuple.
 **Why:** Existing relay deployments should continue to start without new required settings while STT receives explicit optional defaults for language and input format.
+
+### 2026-10-01: Device-side conversation orchestrator owns recoverable voice turns
+**By:** Device
+**What:** The conversation loop is implemented device-side in `sparky_device.services.conversation`, above `AudioService` and injected STT/chat/TTS relay seams. Conversation state is a frozen DTO with active persona, phase, last turn result, and degraded flag. STT, chat, TTS, persona, and audio faults normalize into typed `CONVERSATION_STATUS_*` results rather than escaping or leaving capture/playback wedged.
+**Why:** The Pi runtime owns microphone and speaker lifecycle, while cloud adapters already return structured failure mappings. Keeping orchestration on the device makes hardware and network failures independently mockable, preserves persona registry control over prompt and voice behavior, and guarantees cleanup around the hardware boundary.
