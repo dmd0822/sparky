@@ -174,3 +174,21 @@
 **By:** Lead
 **What:** Device and cloud perception modules now fall back to locating `src/shared` relative to their own files when neither an installed `sparky_contracts` package nor repo-root `src.shared.sparky_contracts` import is available.
 **Why:** Operator scripts may put only package-specific source roots on `sys.path`, where Python does not include the repo root. Fixing the package boundary keeps all current and future perception entry points consistent without patching individual scripts or weakening the approved shared contract surface.
+
+
+### 2026-10-01T09:40:15.680-04:00: Automate dev infra CD after infra CI
+**By:** lead (requested by Dave Davis)
+**What:** Dev infrastructure deployments should be automated only after Infra CI succeeds on `main`, with the deployment environment hardcoded to `dev` for non-manual runs and prod remaining manual-only.
+**Why:** This preserves the current validated path, mirrors Code CD's auto-dev/manual-prod split, prevents user-supplied automated inputs from reaching `prod`, and avoids deploying unvalidated Bicep while keeping dev drift low.
+
+
+### 2026-10-01T09:46:28.545-04:00: Keep infra CD automation scoped to dev after Infra CI
+**By:** reviewer (requested by Dave Davis)
+**What:** Implemented infra CD automation via `workflow_run` from the exact `Infra CI` workflow name on `main`, with automated runs deriving `dev` for deployment environment, file paths, deployment name, artifact name, and concurrency while preserving manual prod dispatch.
+**Why:** This preserves the security-reviewed OIDC environment boundary and prevents automated runs from routing to prod or bypassing successful CI completion.
+
+
+### 2026-10-01T09:40:15.680-04:00: Infra CD automation guardrails
+**By:** security (requested by Dave Davis)
+**What:** Dev infra deployment automation is acceptable only when the deploy job stays environment-scoped to `dev`, runs from trusted main-branch code after merge, keeps `id-token: write` job-scoped, and leaves prod manual/approval-gated. PR-triggered Azure auth should be what-if only and must not use `pull_request_target` or run deploy code from forks with deploy privileges.
+**Why:** The documented OIDC subjects are exact trust boundaries (`environment:dev`, `environment:prod`, optional `ref:refs/heads/main`, optional `pull_request`). Changing triggers without matching subject and environment design either fails auth or expands Azure reach. The current workflow parameterizes `environment`, templates, artifacts, and concurrency from `inputs.environment`, so automated defaults must be hardcoded defensively to avoid accidental prod or empty-path behavior.

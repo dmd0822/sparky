@@ -22,3 +22,5 @@
 - Reconciled ADR 0006 and architecture wording against the implemented `sparky_contracts` perception surface: `PerceptionRequest`, `PerceptionResult`, metadata/failure DTOs, prompt constants, fixtures, and device/cloud helpers.
 - Verified ADR 0005 remains honored: `PackagedFrame` stays device-local, with `request_from_packaged_frame()` bridging to the shared relay contract.
 - Required validation passed: `python -m unittest discover -s tests` (287 tests) and `python -m compileall -q src tests`.
+
+📌 Team update (2026-10-01T09:46:28.545-04:00): Infra CD Dev automation was recommended, security-reviewed, and implemented with Dev-only workflow_run guardrails; roster has a capability gap for CI/CD workflow authoring, so implementation routed to reviewer.
