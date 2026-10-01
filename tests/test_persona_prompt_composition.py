@@ -155,6 +155,18 @@ class PersonaPromptCompositionTests(unittest.TestCase):
 
         before = compose_prompt(persona=self.sunny, global_safety_rules=GLOBAL_RULES, user_turn="hello")
         after = compose_prompt(persona=self.sentinel, global_safety_rules=GLOBAL_RULES, user_turn="hello")
+        for prompt_name, composed in (("before", before), ("after", after)):
+            with self.subTest(prompt=prompt_name):
+                for rule in GLOBAL_RULES:
+                    self.assertIn(rule, composed.system)
+                categories = [segment.category for segment in composed.metadata.segments]
+                self.assertEqual(categories[: len(GLOBAL_RULES)], [PROMPT_SEGMENT_CATEGORY_SAFETY] * len(GLOBAL_RULES))
+                first_persona_index = min(
+                    index
+                    for index, category in enumerate(categories)
+                    if category != PROMPT_SEGMENT_CATEGORY_SAFETY
+                )
+                self.assertEqual(first_persona_index, len(GLOBAL_RULES))
         self.assertIn("Sunny Companion", before.system)
         self.assertNotIn("Sentinel Scout", before.system)
         self.assertIn("Sentinel Scout", after.system)
