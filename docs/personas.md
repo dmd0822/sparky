@@ -1,6 +1,6 @@
 # Sparky starter personas
 
-Sparky's first two personas are intentionally different across voice, LLM behavior, movement, sensor/vision reactions, sound effects, and safety posture. They are documented here as implementation targets; the actual manifests and source code are delivery work tracked in GitHub issues.
+Sparky's first two personas are intentionally different across voice, LLM behavior, movement, sensor/vision reactions, sound effects, and safety posture. Their starter manifests live under `src/device/sparky_device/personas/`; the sections below remain the concise source-readable profile for those manifests.
 
 ## Comparison
 
