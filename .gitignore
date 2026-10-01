@@ -218,7 +218,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 # External Libraries 
-.exlibs/
+exlibs/
 # Squad: ignore runtime state (logs, inbox, sessions)
 # Note: .squad/casting/* is identity and MUST be committed to main, not ignored
 .squad/orchestration-log/
