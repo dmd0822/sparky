@@ -80,6 +80,20 @@ class MalformedReadMicrophone(SimulatedMicrophone):
         return "not audio"
 
 
+class FailingPlaybackSpeaker(SimulatedSpeaker):
+    def play(
+        self,
+        audio: bytes,
+        *,
+        audio_format: str = "wav",
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
+        volume: int = 100,
+    ) -> None:
+        raise HardwareError("speaker playback failed: player exited with 2")
+
+
 class AudioServiceHappyPathTests(unittest.TestCase):
     def test_simulated_microphone_satisfies_port(self) -> None:
         self.assertIsInstance(SimulatedMicrophone(), MicrophonePort)
@@ -287,6 +301,16 @@ class AudioPlaybackTests(unittest.TestCase):
             service.speak(speech_payload())
 
         self.assertEqual(speaker.open_count, 0)
+
+    def test_speak_propagates_speaker_playback_failure_cleanly(self) -> None:
+        speaker = FailingPlaybackSpeaker()
+        service = AudioService(SimulatedMicrophone(), speaker=speaker)
+
+        with self.assertRaisesRegex(HardwareError, "speaker playback failed.*player exited with 2"):
+            service.speak(speech_payload())
+
+        self.assertEqual(speaker.open_count, 1)
+        self.assertEqual(speaker.playbacks, [])
 
     def test_close_closes_speaker_once(self) -> None:
         speaker = SimulatedSpeaker()

@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import unittest
+from unittest import mock
 
 from src.device.sparky_device.hardware import (
     DEFAULT_LIMITS,
@@ -876,6 +877,38 @@ class PidogSpeakerAdapterTests(unittest.TestCase):
 
         with self.assertRaises(HardwareUnavailableError):
             speaker.open()
+
+    def test_player_nonzero_exit_raises_clean_hardware_error(self) -> None:
+        class FailedPlayback:
+            returncode = 2
+
+            def communicate(self) -> tuple[bytes, bytes]:
+                return b"", b"alsa device busy"
+
+        playback_dir = Path(__file__).parents[1] / ".sparky-test-speaker-failure"
+        speaker = PidogSpeakerAdapter(
+            FakePidog(),
+            playback_dir=playback_dir,
+            players={"wav": ("sparky-player",)},
+        )
+
+        try:
+            with mock.patch(
+                "src.device.sparky_device.hardware.pidog_adapters.shutil.which",
+                return_value="sparky-player",
+            ), mock.patch(
+                "src.device.sparky_device.hardware.pidog_adapters.subprocess.Popen",
+                return_value=FailedPlayback(),
+            ):
+                speaker.open()
+                with self.assertRaisesRegex(HardwareError, "speaker playback failed.*alsa device busy"):
+                    speaker.play(b"RIFFdata", audio_format="wav")
+        finally:
+            speaker.close()
+            if playback_dir.exists():
+                for child in playback_dir.glob("*"):
+                    child.unlink()
+                playback_dir.rmdir()
 
     def test_rejects_unsupported_format_without_side_effect(self) -> None:
         speaker = PidogSpeakerAdapter(
