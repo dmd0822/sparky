@@ -194,7 +194,11 @@ def _prime_simulated_inputs(robot: RobotPorts) -> None:
         feed_distances([20.0])
     feed_touches = getattr(sensors, "feed_touches", None)
     if feed_touches is not None:
+<<<<<<< HEAD
         feed_touches([TouchState.LEFT, TouchState.RIGHT])
+=======
+        feed_touches([TouchState.LEFT, TouchState.RIGHT, TouchState.BOTH])
+>>>>>>> main
     feed_imu = getattr(sensors, "feed_imu", None)
     if feed_imu is not None:
         feed_imu(
@@ -369,6 +373,10 @@ def _run_step(
         expected_reads = (
             ("left pad", TouchState.LEFT),
             ("right pad", TouchState.RIGHT),
+<<<<<<< HEAD
+=======
+            ("both pads", TouchState.BOTH),
+>>>>>>> main
         )
         observed: list[str] = []
         for label, expected in expected_reads:

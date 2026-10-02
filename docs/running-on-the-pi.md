@@ -270,7 +270,11 @@ follow-up risk.
 | 4 | Motion | Dog supported; run `robot.motion.move_head(yaw=30)` | Head turns right about 30 degrees | PASS when head moves smoothly and stops | FAIL on no movement, wrong direction, or buzzing at limit |
 | 5 | Motion | Clear area; start slow `forward`, then call `stop()` | Forward gait starts, then halts and holds pose | PASS when stop pre-empts motion within the script timeout | FAIL when gait continues, robot falls, or stop raises |
 | 6 | Sensor | Hand or flat target about 20 cm in front of ultrasonic sensor | Numeric `distance_cm` near the target distance | PASS when a plausible numeric distance is printed | FAIL when the reading is `None`, implausible, or raises |
+<<<<<<< HEAD
 | 7 | Sensor | Touch the left pad, then the right pad at prompts | `LEFT`, then `RIGHT` | PASS when both single-pad states match the prompted fixture | FAIL on wrong state, no state change, or exception |
+=======
+| 7 | Sensor | Touch left pad, right pad, then both pads at prompts | `LEFT`, `RIGHT`, then `BOTH` | PASS when all three states match the prompted fixture | FAIL on wrong state, no state change, or exception |
+>>>>>>> main
 | 8 | Sensor | Hold dog level, then gently tilt it | Two IMU acceleration tuples with changed axes | PASS when acceleration changes after tilt | FAIL when values do not change or are malformed |
 | 9 | Audio | Speaker enabled; listen for `single_bark_1`; for synthesized-speech milestones, also play a relay-shaped WAV payload through `AudioService.speak()` | Audible bark and, when in scope, audible synthesized-tone playback from the speaker | PASS when the command returns and the operator hears the expected sound | FAIL when silent, distorted by setup, or raises |
 | 10 | Board | Watch RGB strip during blue monochromatic command | Strip turns blue, then clears | PASS when LEDs light and clear | FAIL when command is silent, wrong color, or not cleared |
@@ -315,7 +319,11 @@ with create_ports("pidog") as robot:
     service = SensorService(robot.sensors)
     input("Place a hand near the ultrasonic sensor, then press Enter.")
     print(service.read_distance().as_dict())
+<<<<<<< HEAD
     for label in ("left pad", "right pad"):
+=======
+    for label in ("left pad", "right pad", "both pads"):
+>>>>>>> main
         input(f"Touch {label}, then press Enter.")
         print(service.read_touch().as_dict())
     input("Hold the dog level, then press Enter.")
@@ -330,7 +338,11 @@ Use the same physical actions from steps 6-8 and 18 while running the snippet.
 | Check | Expected result | Pass criteria | Fail criteria |
 | --- | --- | --- | --- |
 | Ultrasonic timeout or hand distance | `distance.status` is `ok`; `distance_cm` is a number when an echo lands, or `None` with a detail message when this tick has no echo | PASS when the dictionary prints and status semantics are explicit | FAIL if the snippet crashes or status/value is malformed |
+<<<<<<< HEAD
 | Touch pad state | `touch.status` is `ok`; current SunFounder firmware reports single-pad/slide contact as `none`, `left`, or `right`; `both` is reserved for future firmware/simulators | PASS when prompted single-pad touches map to expected states | FAIL on crash, malformed state, or no state change |
+=======
+| Touch pad state | `touch.status` is `ok`; `touch` is one of `none`, `left`, `right`, or `both` | PASS when prompted touches map to expected states | FAIL on crash, malformed state, or no state change |
+>>>>>>> main
 | IMU sample | `imu.status` is `ok`; `acceleration` and `gyro` each contain three numeric axes | PASS when numeric axes print | FAIL on crash, malformed axes, or unavailable hardware without explanation |
 | Sound direction | `sound_direction.status` is `ok`; `direction_degrees` is numeric when sound is detected, or `None` with a detail message when no sound is detected | PASS when the service reports explicit ok/no-sound semantics | FAIL if the snippet crashes or returns malformed data |
 | Missing or unhealthy hardware | A status of `unavailable` or `malformed` appears in the printed dictionary; the snippet does not crash | PASS when failures are represented as statuses | FAIL when a vendor exception escapes the service |
@@ -457,6 +469,7 @@ python scripts/conversation_orchestrator_hil.py
 The script captures microphone chunks, sends them through mocked STT and chat
 clients, composes the prompt through the active persona registry, sends the
 reply to mocked TTS with the same persona ID, plays the relay-shaped WAV through
+<<<<<<< HEAD
 `AudioService.speak()`, and closes microphone/speaker ports on success, failure,
 or Ctrl+C. Use `--chunks N` for targeted reruns and `--persona-id` to validate a
 different registered persona. Pass criteria: all six steps print PASS, the
@@ -466,6 +479,19 @@ the microphone remains open, the speaker is silent, relay failure mappings wedge
 the turn instead of returning a degraded status, or persona metadata/voice
 routing bypasses the registry. Record any accepted SKIP/FAIL as a milestone
 acceptance risk.
+=======
+`AudioService.speak()`, reports per-leg latency in monotonic seconds
+(`audio_capture`, `stt`, `chat`, `tts`, `playback`, and `total`), and closes
+microphone/speaker ports on success, failure, or Ctrl+C. Use `--chunks N` for
+targeted reruns and `--persona-id` to validate a different registered persona.
+Pass criteria: all six steps print PASS, the operator hears the synthesized
+fixture tone, prompt metadata reports the active persona, timing values are
+present for each completed leg, and cleanup reports ports closed. Fail criteria:
+the script crashes, the microphone remains open, the speaker is silent, relay
+failure mappings wedge the turn instead of returning a degraded status, timing
+data is missing for a completed leg, or persona metadata/voice routing bypasses
+the registry. Record any accepted SKIP/FAIL as a milestone acceptance risk.
+>>>>>>> main
 
 ### Camera service check
 

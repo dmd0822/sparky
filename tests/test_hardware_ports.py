@@ -214,13 +214,18 @@ class ImuReadingTests(unittest.TestCase):
 
 
 class TouchStateTests(unittest.TestCase):
+<<<<<<< HEAD
     def test_maps_current_sunfounder_vendor_codes(self) -> None:
+=======
+    def test_maps_every_vendor_code(self) -> None:
+>>>>>>> main
         cases = {
             "N": TouchState.NONE,
             "L": TouchState.LEFT,
             "LS": TouchState.LEFT,
             "R": TouchState.RIGHT,
             "RS": TouchState.RIGHT,
+<<<<<<< HEAD
         }
         for code, expected in cases.items():
             with self.subTest(code=code):
@@ -228,6 +233,8 @@ class TouchStateTests(unittest.TestCase):
 
     def test_keeps_forward_compatible_both_codes(self) -> None:
         cases = {
+=======
+>>>>>>> main
             "B": TouchState.BOTH,
             "LR": TouchState.BOTH,
         }
@@ -612,9 +619,15 @@ class SimulatedSensorsTests(unittest.TestCase):
 
     def test_feed_replaces_the_script(self) -> None:
         sensors = SimulatedSensors()
+<<<<<<< HEAD
         sensors.feed_touches([TouchState.LEFT, TouchState.RIGHT])
         self.assertIs(sensors.read_touch(), TouchState.LEFT)
         self.assertIs(sensors.read_touch(), TouchState.RIGHT)
+=======
+        sensors.feed_touches([TouchState.LEFT, TouchState.BOTH])
+        self.assertIs(sensors.read_touch(), TouchState.LEFT)
+        self.assertIs(sensors.read_touch(), TouchState.BOTH)
+>>>>>>> main
 
     def test_records_which_sensors_were_read(self) -> None:
         sensors = SimulatedSensors()
