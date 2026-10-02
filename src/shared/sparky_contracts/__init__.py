@@ -296,6 +296,59 @@ class PerceptionResult:
         return self.as_dict()
 
 
+@dataclass(frozen=True)
+class ConversationTurnTimings:
+    """Per-leg conversation latency measurements in monotonic-clock seconds.
+
+    A value of ``None`` means the leg did not run. Completed and failed turns use
+    the same shape so operators can tune capture, STT, chat, TTS, and playback
+    independently without confusing an unrun leg with a zero-duration leg.
+    """
+
+    audio_capture_seconds: float | None = None
+    stt_seconds: float | None = None
+    chat_seconds: float | None = None
+    tts_seconds: float | None = None
+    playback_seconds: float | None = None
+    total_seconds: float | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "audio_capture_seconds",
+            "stt_seconds",
+            "chat_seconds",
+            "tts_seconds",
+            "playback_seconds",
+            "total_seconds",
+        ):
+            object.__setattr__(self, field_name, _optional_non_negative_float(getattr(self, field_name), field_name))
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "ConversationTurnTimings":
+        if not isinstance(payload, Mapping):
+            raise ValueError("ConversationTurnTimings payload must be a mapping.")
+        return cls(
+            audio_capture_seconds=_float_field(payload, "audio_capture_seconds"),
+            stt_seconds=_float_field(payload, "stt_seconds"),
+            chat_seconds=_float_field(payload, "chat_seconds"),
+            tts_seconds=_float_field(payload, "tts_seconds"),
+            playback_seconds=_float_field(payload, "playback_seconds"),
+            total_seconds=_float_field(payload, "total_seconds"),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return _omit_none(
+            {
+                "audio_capture_seconds": self.audio_capture_seconds,
+                "stt_seconds": self.stt_seconds,
+                "chat_seconds": self.chat_seconds,
+                "tts_seconds": self.tts_seconds,
+                "playback_seconds": self.playback_seconds,
+                "total_seconds": self.total_seconds,
+            }
+        )
+
+
 def _omit_none(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in payload.items() if value is not None}
 
@@ -326,6 +379,17 @@ def _float_field(payload: Mapping[str, Any], key: str) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     return None
+
+
+def _optional_non_negative_float(value: Any, field_name: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a non-negative number or None.")
+    number = float(value)
+    if number < 0:
+        raise ValueError(f"{field_name} must be non-negative.")
+    return number
 
 
 def _token_usage_payload(value: Any) -> Mapping[str, int | None]:
@@ -360,6 +424,7 @@ __all__ = [
     "PERCEPTION_STATUS_TRANSPORT_ERROR",
     "PERCEPTION_STATUS_UNSAFE",
     "SAMPLE_PERCEPTION_PROMPTS",
+    "ConversationTurnTimings",
     "PerceptionFailure",
     "PerceptionMetadata",
     "PerceptionRequest",

@@ -56,6 +56,8 @@ class ConversationOrchestratorHilScriptTests(unittest.TestCase):
         self.assertIn("Step 5 PASS", output.getvalue())
         self.assertIn("Step 6 PASS", output.getvalue())
         self.assertIn("transcript='hello sparky'", output.getvalue())
+        self.assertIn("timings=audio_capture=", output.getvalue())
+        self.assertIn("total=", output.getvalue())
         self.assertIn("persona_id=sunny_companion", output.getvalue())
 
     def test_simulated_run_reads_speaks_and_closes_ports(self) -> None:

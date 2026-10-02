@@ -26,3 +26,5 @@
 📌 Team update (2026-10-01T09:46:28.545-04:00): Infra CD Dev automation was recommended, security-reviewed, and implemented with Dev-only workflow_run guardrails; roster has a capability gap for CI/CD workflow authoring, so implementation routed to reviewer.
 
 📌 Team update (2026-10-01T10:15:16.0716551-04:00): Infra CD pass 2 exposed a workflow-validation pitfall — local Python YAML parsing can resolve anchors/aliases and produce a false green even when GitHub Actions policy should reject the workflow. Use raw-text policy tests for workflow anchors, aliases, and merge keys; YAML-level validation alone cannot certify Actions workflows. — decided by reviewer/coordinator
+
+📌 Team update (2026-10-01T15:17:19-04:00): Conversation turn timings are now available on `ConversationTurnResult` for future review work; device added per-leg capture, STT, chat, TTS, playback, and total turn measurements with partial timings preserved on degraded failures.

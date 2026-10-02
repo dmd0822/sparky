@@ -457,15 +457,17 @@ python scripts/conversation_orchestrator_hil.py
 The script captures microphone chunks, sends them through mocked STT and chat
 clients, composes the prompt through the active persona registry, sends the
 reply to mocked TTS with the same persona ID, plays the relay-shaped WAV through
-`AudioService.speak()`, and closes microphone/speaker ports on success, failure,
-or Ctrl+C. Use `--chunks N` for targeted reruns and `--persona-id` to validate a
-different registered persona. Pass criteria: all six steps print PASS, the
-operator hears the synthesized fixture tone, prompt metadata reports the active
-persona, and cleanup reports ports closed. Fail criteria: the script crashes,
-the microphone remains open, the speaker is silent, relay failure mappings wedge
-the turn instead of returning a degraded status, or persona metadata/voice
-routing bypasses the registry. Record any accepted SKIP/FAIL as a milestone
-acceptance risk.
+`AudioService.speak()`, reports per-leg latency in monotonic seconds
+(`audio_capture`, `stt`, `chat`, `tts`, `playback`, and `total`), and closes
+microphone/speaker ports on success, failure, or Ctrl+C. Use `--chunks N` for
+targeted reruns and `--persona-id` to validate a different registered persona.
+Pass criteria: all six steps print PASS, the operator hears the synthesized
+fixture tone, prompt metadata reports the active persona, timing values are
+present for each completed leg, and cleanup reports ports closed. Fail criteria:
+the script crashes, the microphone remains open, the speaker is silent, relay
+failure mappings wedge the turn instead of returning a degraded status, timing
+data is missing for a completed leg, or persona metadata/voice routing bypasses
+the registry. Record any accepted SKIP/FAIL as a milestone acceptance risk.
 
 ### Camera service check
 
