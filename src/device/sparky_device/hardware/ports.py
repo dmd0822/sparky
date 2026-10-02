@@ -303,6 +303,9 @@ class TouchState(Enum):
     NONE = "none"
     LEFT = "left"
     RIGHT = "right"
+    # The current SunFounder DualTouch implementation does not emit a
+    # simultaneous-contact code; keep BOTH as a stable port value for simulators
+    # and forward-compatible vendor firmware that might add one later.
     BOTH = "both"
 
     @classmethod
@@ -311,7 +314,9 @@ class TouchState(Enum):
 
         SunFounder reports ``'N'`` for no contact, ``'L'``/``'R'`` for a single
         pad, and ``'LS'``/``'RS'`` for a slide that ends on that pad. A slide is
-        still contact on that side, so both collapse to the same state.
+        still contact on that side, so both collapse to the same state. The
+        current vendor source does not return a simultaneous-touch code; ``'B'``
+        and ``'LR'`` are accepted only for forward-compatible firmware or tests.
         """
 
         if value is None:
