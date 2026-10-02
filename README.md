@@ -255,9 +255,13 @@ installed. `ConversationOrchestrator` composes a complete voice turn above
 chat system prompt through the active persona registry with global safety first,
 submit chat and persona-routed TTS, and play the synthesized audio. Its frozen
 state/result DTOs make the active persona, phase, degraded flag, and STT/chat/TTS
+<<<<<<< HEAD
+failure branch explicit for tests and runtime recovery.
+=======
 failure branch explicit for tests and runtime recovery. Results also include
 monotonic per-leg timings in seconds for capture, STT, chat, TTS, playback, and
 the total turn so Pi runs can tune latency without wall-clock skew.
+>>>>>>> main
 
 For next steps:
 

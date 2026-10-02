@@ -204,3 +204,9 @@
 **By:** Device
 **What:** The conversation loop is implemented device-side in `sparky_device.services.conversation`, above `AudioService` and injected STT/chat/TTS relay seams. Conversation state is a frozen DTO with active persona, phase, last turn result, and degraded flag. STT, chat, TTS, persona, and audio faults normalize into typed `CONVERSATION_STATUS_*` results rather than escaping or leaving capture/playback wedged.
 **Why:** The Pi runtime owns microphone and speaker lifecycle, while cloud adapters already return structured failure mappings. Keeping orchestration on the device makes hardware and network failures independently mockable, preserves persona registry control over prompt and voice behavior, and guarantees cleanup around the hardware boundary.
+
+### 2026-10-02: PiDog touch HIL only asserts reachable states
+**By:** device
+**What:** Step 7 of `scripts/motion_service_hil.py` now validates only the SunFounder DualTouch states current hardware can produce (`LEFT`, then `RIGHT`). `TouchState.BOTH` and vendor codes `B`/`LR` remain in the port contract only for simulator and forward-compatible firmware use.
+**Why:** SunFounder's `pidog.dual_touch.read()` source and example document only `N`, `L`, `LS`, `R`, and `RS`; simultaneous contact is reported as whichever pad wins the vendor `if`/`elif`, so expecting `BOTH` caused a false HIL failure on real hardware.
+

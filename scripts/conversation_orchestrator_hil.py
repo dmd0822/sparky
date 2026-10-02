@@ -237,10 +237,14 @@ def _run_step(
         return _result(
             3,
             Status.PASS,
+<<<<<<< HEAD
+            f"transcript={result.transcript!r}, reply={result.reply!r}, confidence={result.confidence:.2f}",
+=======
             (
                 f"transcript={result.transcript!r}, reply={result.reply!r}, "
                 f"confidence={result.confidence:.2f}, timings={_format_timings(result.timings)}"
             ),
+>>>>>>> main
         )
 
     if step == 4:
@@ -357,6 +361,8 @@ def print_summary(results: Iterable[StepResult], out: TextIO = sys.stdout) -> No
             print("  - Cleanup failure means the operator should confirm microphone/speaker processes stopped.", file=out)
 
 
+<<<<<<< HEAD
+=======
 def _format_timings(timings: Any) -> str:
     if timings is None:
         return "unavailable"
@@ -371,6 +377,7 @@ def _format_timings(timings: Any) -> str:
     return ", ".join(f"{name}={value:.3f}s" if value is not None else f"{name}=n/a" for name, value in values)
 
 
+>>>>>>> main
 def main(argv: list[str] | None = None, out: TextIO = sys.stdout) -> int:
     parser = build_arg_parser()
     args = parser.parse_args(argv)

@@ -296,6 +296,8 @@ class PerceptionResult:
         return self.as_dict()
 
 
+<<<<<<< HEAD
+=======
 @dataclass(frozen=True)
 class ConversationTurnTimings:
     """Per-leg conversation latency measurements in monotonic-clock seconds.
@@ -349,6 +351,7 @@ class ConversationTurnTimings:
         )
 
 
+>>>>>>> main
 def _omit_none(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in payload.items() if value is not None}
 
@@ -381,6 +384,8 @@ def _float_field(payload: Mapping[str, Any], key: str) -> float | None:
     return None
 
 
+<<<<<<< HEAD
+=======
 def _optional_non_negative_float(value: Any, field_name: str) -> float | None:
     if value is None:
         return None
@@ -392,6 +397,7 @@ def _optional_non_negative_float(value: Any, field_name: str) -> float | None:
     return number
 
 
+>>>>>>> main
 def _token_usage_payload(value: Any) -> Mapping[str, int | None]:
     return value if isinstance(value, Mapping) else {}
 
@@ -424,7 +430,10 @@ __all__ = [
     "PERCEPTION_STATUS_TRANSPORT_ERROR",
     "PERCEPTION_STATUS_UNSAFE",
     "SAMPLE_PERCEPTION_PROMPTS",
+<<<<<<< HEAD
+=======
     "ConversationTurnTimings",
+>>>>>>> main
     "PerceptionFailure",
     "PerceptionMetadata",
     "PerceptionRequest",
