@@ -35,10 +35,7 @@ from .conversation import (
     ConversationFailure,
     ConversationOrchestrator,
     ConversationState,
-<<<<<<< HEAD
-=======
     ConversationTurnTimings,
->>>>>>> main
     ConversationTurnResult,
     SpeechRecognizer,
     SpeechSynthesizer,
@@ -84,10 +81,7 @@ __all__ = [
     "ConversationFailure",
     "ConversationOrchestrator",
     "ConversationState",
-<<<<<<< HEAD
-=======
     "ConversationTurnTimings",
->>>>>>> main
     "ConversationTurnResult",
     "DistanceReading",
     "Gait",

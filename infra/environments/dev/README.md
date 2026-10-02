@@ -63,6 +63,14 @@ image, where no relay runtime configuration is emitted. Once code CD publishes
 the FastAPI relay image, provide `relayAudience` so the container starts with
 the Entra validation and managed-identity downstream scopes it needs.
 
+`infra-cd` supplies this automatically from the GitHub Actions variable
+`SPARKY_RELAY_AUDIENCE`, so no operator has to remember the flag. When that
+variable is unset the workflow emits a warning and the relay answers AI routes
+with `503 relay_unavailable`. The same workflow also reads the running relay
+image and passes it back as a `relayImage` override, so an infrastructure
+deployment never reverts a published relay to the quickstart placeholder that
+`main.bicepparam` pins as the first-boot default.
+
 ## Validate
 
 ```powershell

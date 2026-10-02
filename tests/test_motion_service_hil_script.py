@@ -9,11 +9,7 @@ from pathlib import Path
 import sys
 import unittest
 
-<<<<<<< HEAD
 from src.device.sparky_device.hardware import HardwareError
-=======
-from src.device.sparky_device.hardware import HardwareError, TouchState
->>>>>>> main
 from src.device.sparky_device.hardware.simulators import (
     SimulatedMotion,
     build_simulated_ports,
@@ -110,11 +106,7 @@ class MotionServiceHilScriptTests(unittest.TestCase):
         )
         self.assertEqual(recorder.seen_head_moves, [(30, 0.0, 0.0, 75)])
         self.assertIn("distance", robot.sensors.reads)
-<<<<<<< HEAD
         self.assertEqual(robot.sensors.reads.count("touch"), 2)
-=======
-        self.assertEqual(robot.sensors.reads.count("touch"), 3)
->>>>>>> main
         self.assertEqual(robot.sensors.reads.count("imu"), 2)
         self.assertEqual(robot.sensors.reads.count("sound"), 1)
         self.assertEqual(robot.board.sounds[0].name, "single_bark_1")
@@ -125,7 +117,6 @@ class MotionServiceHilScriptTests(unittest.TestCase):
         self.assertTrue(recorder.closed)
         self.assertTrue(robot.board.closed)
 
-<<<<<<< HEAD
     def test_step_7_asserts_only_hardware_reachable_touch_states(self) -> None:
         module = load_script_module()
         robot = build_simulated_ports()
@@ -145,8 +136,6 @@ class MotionServiceHilScriptTests(unittest.TestCase):
         self.assertEqual(robot.sensors.reads, ["touch", "touch"])
         self.assertIn("observed LEFT, RIGHT", result.results[0].message)
 
-=======
->>>>>>> main
     def test_optional_camera_import_failure_skips_step_11_without_failing(self) -> None:
         module = load_script_module()
         robot = build_simulated_ports()

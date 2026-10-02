@@ -78,22 +78,76 @@ jobs:
           az account show --query "{tenantId:tenantId, subscriptionId:id, name:name}" --output table
           az group show --name "$RESOURCE_GROUP" --output table
 
+      # The bicepparam files pin relayImage to the public quickstart placeholder so
+      # a greenfield deployment can stand up before any application image exists.
+      # Once code-cd has published a real image, re-applying that default would
+      # revert the relay to the placeholder. Read the live image (read-only) and
+      # feed it back as an override so infra-cd preserves whatever code-cd deployed.
+      #
+      # relayAudience is an Entra application ID URI - a public identifier, not a
+      # credential - but it is a tenant-specific GUID, so it is supplied as a repo
+      # or environment variable rather than committed under infra/. The relay
+      # module suppresses its entire env block while the audience is empty, so this
+      # value is what makes the relay runtime configuration materialize.
+      - name: Resolve relay deployment overrides
+        env:
+          RELAY_AUDIENCE: ${{ vars.SPARKY_RELAY_AUDIENCE }}
+        run: |
+          set -euo pipefail
+          relay_app="sparky-relay-${DEPLOYMENT_ENVIRONMENT}"
+          live_image="$(az containerapp show \
+            --name "$relay_app" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "properties.template.containers[0].image" \
+            --output tsv 2>/dev/null || true)"
+
+          if [ -n "$live_image" ] && [ "$live_image" != "None" ]; then
+            echo "::notice::Preserving live relay image $live_image"
+            echo "RELAY_IMAGE=$live_image" >> "$GITHUB_ENV"
+          else
+            echo "::notice::No live relay container app found; using the template default image"
+            echo "RELAY_IMAGE=" >> "$GITHUB_ENV"
+          fi
+
+          if [ -z "$RELAY_AUDIENCE" ]; then
+            echo "::warning::vars.SPARKY_RELAY_AUDIENCE is not set. The relay will deploy without runtime configuration and AI routes will return 503 relay_unavailable."
+          fi
+          echo "RELAY_AUDIENCE=$RELAY_AUDIENCE" >> "$GITHUB_ENV"
+
+      - name: Build deployment parameter overrides
+        run: |
+          set -euo pipefail
+          overrides=""
+          if [ -n "${RELAY_IMAGE:-}" ]; then
+            overrides="$overrides relayImage=$RELAY_IMAGE"
+          fi
+          if [ -n "${RELAY_AUDIENCE:-}" ]; then
+            overrides="$overrides relayAudience=$RELAY_AUDIENCE"
+          fi
+          echo "PARAMETER_OVERRIDES=$overrides" >> "$GITHUB_ENV"
+
       - name: What-if deployment
         run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
           az deployment group what-if \
             --name "$DEPLOYMENT_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --template-file "$TEMPLATE_FILE" \
             --parameters "$PARAMETERS_FILE" \
+            ${PARAMETER_OVERRIDES:+--parameters $PARAMETER_OVERRIDES} \
             --mode Incremental
 
       - name: Deploy infrastructure
         run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
           az deployment group create \
             --name "$DEPLOYMENT_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --template-file "$TEMPLATE_FILE" \
             --parameters "$PARAMETERS_FILE" \
+            ${PARAMETER_OVERRIDES:+--parameters $PARAMETER_OVERRIDES} \
             --mode Incremental
 
       # Code delivery reads these to discover the ACR and Container App it must

@@ -111,11 +111,11 @@ jobs:
               --registry "$ACR_NAME" \
               --image "$IMAGE" \
               --file src/cloud/Dockerfile \
-              src/cloud
+              src
             echo "image=${ACR_NAME}.azurecr.io/${IMAGE}" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::src/cloud/Dockerfile not present yet; skipping image build."
-            echo "image=" >> "$GITHUB_OUTPUT"
+            echo "::error::src/cloud/Dockerfile is missing. The relay image cannot be built, so this deploy would silently leave the previous image running. Restore src/cloud/Dockerfile."
+            exit 1
           fi
 
   deploy:
@@ -147,8 +147,8 @@ jobs:
       - name: Configure relay registry credential
         run: |
           if [ -z "$RELAY_IMAGE" ]; then
-            echo "::notice::No image was published; leaving the relay container app unchanged."
-            exit 0
+            echo "::error::The publish job produced no image reference. Refusing to report a successful deploy that changed nothing."
+            exit 1
           fi
           ACR_LOGIN_SERVER="${RELAY_IMAGE%%/*}"
           az containerapp registry set \
@@ -160,8 +160,8 @@ jobs:
       - name: Update relay container app
         run: |
           if [ -z "$RELAY_IMAGE" ]; then
-            echo "::notice::No image was published; leaving the relay container app unchanged."
-            exit 0
+            echo "::error::The publish job produced no image reference. Refusing to report a successful deploy that changed nothing."
+            exit 1
           fi
           for attempt in 1 2 3 4 5; do
             if az containerapp update \
@@ -179,4 +179,59 @@ jobs:
             sleep 20
           done
           echo "::error::Relay image update failed after retry loop exited unexpectedly."
+          exit 1
+
+      - name: Verify relay revision became healthy
+        run: |
+          set -euo pipefail
+          # `az containerapp update` returning 0 only means the control plane accepted
+          # the new revision. If the container then crashes on startup, Container Apps
+          # keeps routing to the previous healthy revision and this workflow would
+          # report a successful deploy while the old image still serves every request.
+          # That is exactly how a crash-looping revision went unnoticed, so assert the
+          # new revision actually reached a good running state before declaring success.
+          APP_NAME="sparky-relay-${ENVIRONMENT_NAME}"
+          REVISION="$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "properties.latestRevisionName" -o tsv)"
+          if [ -z "$REVISION" ] || [ "$REVISION" = "None" ]; then
+            echo "::error::Could not resolve the latest revision for ${APP_NAME}."
+            exit 1
+          fi
+          echo "Waiting for revision ${REVISION} to report a healthy running state."
+          for attempt in $(seq 1 20); do
+            RUNNING_STATE="$(az containerapp revision show \
+              --name "$APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --revision "$REVISION" \
+              --query "properties.runningState" -o tsv 2>/dev/null || echo "")"
+            HEALTH_STATE="$(az containerapp revision show \
+              --name "$APP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --revision "$REVISION" \
+              --query "properties.healthState" -o tsv 2>/dev/null || echo "")"
+            echo "Attempt ${attempt}: runningState=${RUNNING_STATE:-unknown} healthState=${HEALTH_STATE:-unknown}"
+            case "$RUNNING_STATE" in
+              ActivationFailed|Failed|Degraded)
+                echo "::error::Revision ${REVISION} reported runningState=${RUNNING_STATE}. The published image did not start, so traffic is still served by the previous revision."
+                az containerapp revision show \
+                  --name "$APP_NAME" \
+                  --resource-group "$RESOURCE_GROUP" \
+                  --revision "$REVISION" \
+                  --query "{runningState:properties.runningState,healthState:properties.healthState,image:properties.template.containers[0].image}" -o json || true
+                exit 1
+                ;;
+              Running|RunningAtMaxScale|ScaledToZero)
+                if [ "$HEALTH_STATE" = "Unhealthy" ]; then
+                  echo "::error::Revision ${REVISION} is ${RUNNING_STATE} but reports healthState=Unhealthy."
+                  exit 1
+                fi
+                echo "Revision ${REVISION} is ${RUNNING_STATE}."
+                exit 0
+                ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Revision ${REVISION} never reached a healthy running state within the timeout."
           exit 1

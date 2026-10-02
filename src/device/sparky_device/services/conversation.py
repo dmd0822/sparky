@@ -26,10 +26,7 @@ def _add_local_shared_contracts_to_path() -> None:
 
 
 try:  # pragma: no cover - installed package path.
-<<<<<<< HEAD
-=======
     from sparky_contracts import ConversationTurnTimings
->>>>>>> main
     from sparky_contracts.personas import (
         DEFAULT_GLOBAL_SAFETY_SEGMENTS,
         PersonaManifest,
@@ -41,10 +38,7 @@ try:  # pragma: no cover - installed package path.
     )
 except ImportError:  # pragma: no cover - repo-root test path.
     try:
-<<<<<<< HEAD
-=======
         from src.shared.sparky_contracts import ConversationTurnTimings
->>>>>>> main
         from src.shared.sparky_contracts.personas import (
             DEFAULT_GLOBAL_SAFETY_SEGMENTS,
             PersonaManifest,
@@ -56,10 +50,7 @@ except ImportError:  # pragma: no cover - repo-root test path.
         )
     except ImportError:  # pragma: no cover - script path outside repo root.
         _add_local_shared_contracts_to_path()
-<<<<<<< HEAD
-=======
         from sparky_contracts import ConversationTurnTimings
->>>>>>> main
         from sparky_contracts.personas import (
             DEFAULT_GLOBAL_SAFETY_SEGMENTS,
             PersonaManifest,
@@ -158,10 +149,7 @@ class ConversationTurnResult:
     tts_metadata: Mapping[str, Any] | None = None
     playback: Mapping[str, Any] | None = None
     failure: ConversationFailure | None = None
-<<<<<<< HEAD
-=======
     timings: ConversationTurnTimings | None = None
->>>>>>> main
 
     @classmethod
     def ok(
@@ -176,10 +164,7 @@ class ConversationTurnResult:
         chat_metadata: Mapping[str, Any],
         tts_metadata: Mapping[str, Any],
         playback: Mapping[str, Any],
-<<<<<<< HEAD
-=======
         timings: ConversationTurnTimings | None = None,
->>>>>>> main
     ) -> "ConversationTurnResult":
         return cls(
             status=CONVERSATION_STATUS_OK,
@@ -192,18 +177,11 @@ class ConversationTurnResult:
             chat_metadata=dict(chat_metadata),
             tts_metadata=dict(tts_metadata),
             playback=dict(playback),
-<<<<<<< HEAD
-        )
-
-    @classmethod
-    def failure(
-=======
             timings=timings,
         )
 
     @classmethod
     def failed(
->>>>>>> main
         cls,
         *,
         status: str,
@@ -219,10 +197,7 @@ class ConversationTurnResult:
         stt_metadata: Mapping[str, Any] | None = None,
         chat_metadata: Mapping[str, Any] | None = None,
         tts_metadata: Mapping[str, Any] | None = None,
-<<<<<<< HEAD
-=======
         timings: ConversationTurnTimings | None = None,
->>>>>>> main
     ) -> "ConversationTurnResult":
         return cls(
             status=status,
@@ -240,10 +215,7 @@ class ConversationTurnResult:
                 leg=leg,
                 status_code=status_code,
             ),
-<<<<<<< HEAD
-=======
             timings=timings,
->>>>>>> main
         )
 
     @classmethod
@@ -251,10 +223,7 @@ class ConversationTurnResult:
         if not isinstance(payload, Mapping):
             raise ValueError("ConversationTurnResult payload must be a mapping.")
         failure = payload.get("failure")
-<<<<<<< HEAD
-=======
         timings = payload.get("timings")
->>>>>>> main
         return cls(
             status=_required_string(payload.get("status"), "status"),
             persona_id=_required_string(payload.get("persona_id"), "persona_id"),
@@ -267,10 +236,7 @@ class ConversationTurnResult:
             tts_metadata=_optional_mapping(payload.get("tts_metadata")),
             playback=_optional_mapping(payload.get("playback")),
             failure=ConversationFailure.from_dict(failure) if isinstance(failure, Mapping) else None,
-<<<<<<< HEAD
-=======
             timings=ConversationTurnTimings.from_dict(timings) if isinstance(timings, Mapping) else None,
->>>>>>> main
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -288,11 +254,8 @@ class ConversationTurnResult:
         }
         if self.failure is not None:
             payload["failure"] = self.failure.as_dict()
-<<<<<<< HEAD
-=======
         if self.timings is not None:
             payload["timings"] = self.timings.as_dict()
->>>>>>> main
         return payload
 
 
@@ -349,10 +312,7 @@ class ConversationOrchestrator:
         persona_registry: Mapping[str, PersonaManifest],
         active_persona_id: str,
         headers_factory: Callable[[], Mapping[str, str]] | None = None,
-<<<<<<< HEAD
-=======
         clock: Callable[[], float] | None = None,
->>>>>>> main
         memory: PersonaScopedMemoryStore | None = None,
         global_safety_rules: tuple[str, ...] = DEFAULT_GLOBAL_SAFETY_SEGMENTS,
     ) -> None:
@@ -364,10 +324,7 @@ class ConversationOrchestrator:
         self._synthesizer = synthesizer
         self._persona_registry = dict(persona_registry)
         self._headers_factory = headers_factory or (lambda: {})
-<<<<<<< HEAD
-=======
         self._clock = clock or time.perf_counter
->>>>>>> main
         self._memory = memory or PersonaScopedMemoryStore()
         self._global_safety_rules = tuple(global_safety_rules)
         self._state = ConversationState(
@@ -384,11 +341,7 @@ class ConversationOrchestrator:
         """Switch active persona through the shared safe-state transition."""
 
         if target_persona_id not in self._persona_registry:
-<<<<<<< HEAD
-            result = ConversationTurnResult.failure(
-=======
             result = ConversationTurnResult.failed(
->>>>>>> main
                 status=CONVERSATION_STATUS_PERSONA_FAILED,
                 persona_id=self._state.active_persona_id,
                 leg="persona",
@@ -417,11 +370,6 @@ class ConversationOrchestrator:
         if chunks < 1:
             raise ValueError(f"chunks must be at least 1, got {chunks}")
         persona_id = self._state.active_persona_id
-<<<<<<< HEAD
-        try:
-            buffer = self._capture_audio(chunks=chunks)
-            stt_response = self._transcribe(buffer)
-=======
         turn_started = self._clock()
         timing_values: dict[str, float] = {}
         try:
@@ -431,7 +379,6 @@ class ConversationOrchestrator:
                 lambda: self._capture_audio(chunks=chunks),
             )
             stt_response = self._measure_leg(timing_values, "stt_seconds", lambda: self._transcribe(buffer))
->>>>>>> main
             transcript = _response_text(stt_response, "transcript")
             if _is_failure_response(stt_response) or not transcript:
                 return self._fail_from_response(
@@ -441,10 +388,7 @@ class ConversationOrchestrator:
                     response=stt_response,
                     default_code="empty_transcript",
                     default_message="Speech recognition returned no transcript.",
-<<<<<<< HEAD
-=======
                     timings=self._timings(timing_values, turn_started),
->>>>>>> main
                 )
 
             composed = compose_prompt(
@@ -454,16 +398,6 @@ class ConversationOrchestrator:
                 memory=self._memory,
             )
             self._state = replace(self._state, phase=CONVERSATION_PHASE_THINKING)
-<<<<<<< HEAD
-            chat_response = self._chat_client.chat(
-                {
-                    "system": composed.system,
-                    "prompt": transcript,
-                    "persona_id": persona_id,
-                    "prompt_metadata": composed.metadata.as_dict(),
-                },
-                self._headers(),
-=======
             chat_response = self._measure_leg(
                 timing_values,
                 "chat_seconds",
@@ -476,7 +410,6 @@ class ConversationOrchestrator:
                     },
                     self._headers(),
                 ),
->>>>>>> main
             )
             reply = _response_text(chat_response, "reply")
             if _is_failure_response(chat_response) or not reply:
@@ -491,28 +424,11 @@ class ConversationOrchestrator:
                     confidence=_response_float(stt_response, "confidence"),
                     prompt_metadata=composed.metadata.as_dict(),
                     stt_metadata=_metadata(stt_response),
-<<<<<<< HEAD
-=======
                     timings=self._timings(timing_values, turn_started),
->>>>>>> main
                 )
 
             self._state = replace(self._state, phase=CONVERSATION_PHASE_SPEAKING)
             voice = persona_voice_settings(self._persona_registry[persona_id])
-<<<<<<< HEAD
-            tts_response = self._synthesizer.speech(
-                {
-                    "text": reply,
-                    "persona_id": persona_id,
-                    "voice": {
-                        "name": voice.name,
-                        "rate": voice.rate,
-                        "pitch": voice.pitch,
-                        "volume": voice.volume,
-                    },
-                },
-                self._headers(),
-=======
             tts_response = self._measure_leg(
                 timing_values,
                 "tts_seconds",
@@ -529,7 +445,6 @@ class ConversationOrchestrator:
                     },
                     self._headers(),
                 ),
->>>>>>> main
             )
             if _is_failure_response(tts_response) or not _response_text(tts_response, "audio"):
                 return self._fail_from_response(
@@ -545,11 +460,6 @@ class ConversationOrchestrator:
                     prompt_metadata=composed.metadata.as_dict(),
                     stt_metadata=_metadata(stt_response),
                     chat_metadata=_metadata(chat_response),
-<<<<<<< HEAD
-                )
-            try:
-                playback = self._audio.speak(dict(tts_response))
-=======
                     timings=self._timings(timing_values, turn_started),
                 )
             try:
@@ -558,7 +468,6 @@ class ConversationOrchestrator:
                     "playback_seconds",
                     lambda: self._audio.speak(dict(tts_response)),
                 )
->>>>>>> main
             except (HardwareError, HardwareUnavailableError, TypeError, ValueError) as error:
                 return self._fail(
                     status=CONVERSATION_STATUS_TTS_FAILED,
@@ -573,15 +482,10 @@ class ConversationOrchestrator:
                     stt_metadata=_metadata(stt_response),
                     chat_metadata=_metadata(chat_response),
                     tts_metadata=_metadata(tts_response),
-<<<<<<< HEAD
-                )
-
-=======
                     timings=self._timings(timing_values, turn_started),
                 )
 
             timings = self._timings(timing_values, turn_started)
->>>>>>> main
             result = ConversationTurnResult.ok(
                 persona_id=persona_id,
                 transcript=transcript,
@@ -592,10 +496,7 @@ class ConversationOrchestrator:
                 chat_metadata=_metadata(chat_response),
                 tts_metadata=_metadata(tts_response),
                 playback=playback.as_dict(),
-<<<<<<< HEAD
-=======
                 timings=timings,
->>>>>>> main
             )
             self._memory.append(persona_id, "user", transcript)
             self._memory.append(persona_id, "assistant", reply)
@@ -613,10 +514,7 @@ class ConversationOrchestrator:
                 leg="audio",
                 code=type(error).__name__,
                 message=str(error),
-<<<<<<< HEAD
-=======
                 timings=self._timings(timing_values, turn_started),
->>>>>>> main
             )
         finally:
             self._safe_stop_audio()
@@ -657,8 +555,6 @@ class ConversationOrchestrator:
     def _headers(self) -> Mapping[str, str]:
         return dict(self._headers_factory())
 
-<<<<<<< HEAD
-=======
     def _measure_leg(
         self,
         timing_values: dict[str, float],
@@ -681,7 +577,6 @@ class ConversationOrchestrator:
             total_seconds=self._clock() - turn_started,
         )
 
->>>>>>> main
     def _fail_from_response(
         self,
         *,
@@ -697,10 +592,7 @@ class ConversationOrchestrator:
         prompt_metadata: Mapping[str, Any] | None = None,
         stt_metadata: Mapping[str, Any] | None = None,
         chat_metadata: Mapping[str, Any] | None = None,
-<<<<<<< HEAD
-=======
         timings: ConversationTurnTimings | None = None,
->>>>>>> main
     ) -> ConversationTurnResult:
         failure = _failure_payload(response)
         return self._fail(
@@ -717,10 +609,7 @@ class ConversationOrchestrator:
             stt_metadata=stt_metadata,
             chat_metadata=chat_metadata,
             tts_metadata=_metadata(response) if leg == "tts" else None,
-<<<<<<< HEAD
-=======
             timings=timings,
->>>>>>> main
         )
 
     def _fail(
@@ -739,14 +628,9 @@ class ConversationOrchestrator:
         stt_metadata: Mapping[str, Any] | None = None,
         chat_metadata: Mapping[str, Any] | None = None,
         tts_metadata: Mapping[str, Any] | None = None,
-<<<<<<< HEAD
-    ) -> ConversationTurnResult:
-        result = ConversationTurnResult.failure(
-=======
         timings: ConversationTurnTimings | None = None,
     ) -> ConversationTurnResult:
         result = ConversationTurnResult.failed(
->>>>>>> main
             status=status,
             persona_id=persona_id,
             leg=leg,
@@ -760,10 +644,7 @@ class ConversationOrchestrator:
             stt_metadata=stt_metadata,
             chat_metadata=chat_metadata,
             tts_metadata=tts_metadata,
-<<<<<<< HEAD
-=======
             timings=timings,
->>>>>>> main
         )
         self._state = ConversationState(
             persona=replace(self._state.persona, conversation_paused=False, audio_playing=False),
@@ -858,10 +739,7 @@ __all__ = [
     "ConversationFailure",
     "ConversationOrchestrator",
     "ConversationState",
-<<<<<<< HEAD
-=======
     "ConversationTurnTimings",
->>>>>>> main
     "ConversationTurnResult",
     "SpeechRecognizer",
     "SpeechSynthesizer",

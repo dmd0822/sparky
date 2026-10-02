@@ -154,8 +154,6 @@ become stable `CONVERSATION_STATUS_*` results with sanitized failure details, an
 the microphone is stopped in every path so the runtime can recover instead of
 wedging mid-capture or mid-playback.
 
-<<<<<<< HEAD
-=======
 Each turn also carries `ConversationTurnTimings`, a frozen DTO with monotonic
 seconds for audio capture, STT, chat, TTS, playback, and total turn duration.
 The orchestrator measures each leg independently with an injectable
@@ -163,7 +161,6 @@ The orchestrator measures each leg independently with an injectable
 durations plus the failed leg's partial duration, while downstream legs remain
 absent.
 
->>>>>>> main
 Prompt and voice behavior are persona-registry driven. The active
 `PersonaRuntimeState` is embedded in `ConversationState`; prompt composition
 calls `compose_prompt()` so global safety segments precede persona identity,
