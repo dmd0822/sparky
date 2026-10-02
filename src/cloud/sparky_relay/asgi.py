@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping
 from urllib.parse import urlencode
 from urllib.request import Request as UrlRequest, urlopen
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .foundry_chat import FoundryChatAdapter
@@ -35,6 +35,11 @@ from .speech_synthesis import SpeechSynthesisAdapter
 
 
 _DEFAULT_RELAY_APP: RelayApp | None = None
+
+# The deployed `relayUrl` infra output advertises `https://<fqdn>/api`, and Azure
+# Container Apps ingress does not strip path prefixes. Routes are therefore served
+# both bare and under this prefix so the published contract and the app agree.
+API_PREFIX = "/api"
 
 
 class ImdsManagedIdentityCredential:
@@ -99,28 +104,42 @@ def create_app(relay_app: RelayApp | None = None) -> FastAPI:
 
     app = FastAPI(title="Sparky Relay API")
     relay_provider = _static_provider(relay_app) if relay_app is not None else _get_default_relay_app
+    router = APIRouter()
 
-    @app.get("/health")
+    @router.get("/health")
     async def health(request: Request) -> JSONResponse:
         return _health_response(dict(request.headers))
 
-    @app.post("/ai/chat")
+    @router.post("/ai/chat")
     async def chat(request: Request) -> JSONResponse:
         return await _handle_relay_request(request, relay_provider)
 
-    @app.post("/ai/vision")
+    @router.post("/ai/vision")
     async def vision(request: Request) -> JSONResponse:
         return await _handle_relay_request(request, relay_provider)
 
-    @app.post("/speech/synthesize")
+    @router.post("/speech/synthesize")
     async def speech(request: Request) -> JSONResponse:
         return await _handle_relay_request(request, relay_provider)
 
-    @app.post("/speech/recognize")
+    @router.post("/speech/recognize")
     async def recognize(request: Request) -> JSONResponse:
         return await _handle_relay_request(request, relay_provider)
 
+    app.include_router(router)
+    app.include_router(router, prefix=API_PREFIX)
+
     return app
+
+
+def relay_path(path: str) -> str:
+    """Map an externally routed path onto the framework-neutral relay path."""
+
+    if path == API_PREFIX:
+        return "/"
+    if path.startswith(f"{API_PREFIX}/"):
+        return path[len(API_PREFIX) :]
+    return path
 
 
 async def _handle_relay_request(
@@ -154,7 +173,7 @@ async def _handle_relay_request(
 
     relay_request = RelayRequest(
         method=request.method,
-        path=request.url.path,
+        path=relay_path(request.url.path),
         headers=dict(request.headers),
         body=body,
     )
