@@ -384,8 +384,8 @@ class ConversationOrchestrator:
         persona_id = self._state.active_persona_id
         turn_started = self._clock()
         timing_values: dict[str, float] = {}
-        headers = self._headers()
         try:
+            headers = self._headers()
             buffer = self._measure_leg(
                 timing_values,
                 "audio_capture_seconds",

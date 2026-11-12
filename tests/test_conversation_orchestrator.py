@@ -6,7 +6,7 @@ import base64
 from io import BytesIO
 import json
 import logging
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 import unittest
 import wave
 
@@ -15,6 +15,7 @@ from src.device.sparky_device.personas import load_persona_registry
 from src.device.sparky_device.services import (
     CONVERSATION_PHASE_FAILED,
     CONVERSATION_PHASE_IDLE,
+    CONVERSATION_STATUS_AUDIO_FAILED,
     CONVERSATION_STATUS_CHAT_FAILED,
     CONVERSATION_STATUS_OK,
     CONVERSATION_STATUS_STT_FAILED,
@@ -107,6 +108,7 @@ class ConversationOrchestratorTests(unittest.TestCase):
         tts: Mapping[str, Any] | None = None,
         clock: FakeClock | None = None,
         headers: Mapping[str, str] | None = None,
+        headers_factory: Callable[[], Mapping[str, str]] | None = None,
         environment: str = "test",
     ) -> tuple[
         ConversationOrchestrator,
@@ -150,7 +152,7 @@ class ConversationOrchestratorTests(unittest.TestCase):
             synthesizer=synthesizer,
             persona_registry=self.registry,
             active_persona_id=self.persona_id,
-            headers_factory=lambda: headers or {"x-correlation-id": "cid-turn"},
+            headers_factory=headers_factory or (lambda: headers or {"x-correlation-id": "cid-turn"}),
             environment=environment,
             event_logger=self.event_logger,
             clock=clock,
@@ -286,6 +288,28 @@ class ConversationOrchestratorTests(unittest.TestCase):
         self.assertEqual(len(synthesizer.calls), 1)
         self.assertEqual(speaker.playbacks, [])
         self.assertFalse(microphone.is_open())
+
+    def test_header_factory_failure_returns_degraded_audio_failure(self) -> None:
+        def fail_to_acquire_headers() -> Mapping[str, str]:
+            raise RuntimeError("credential acquisition failed")
+
+        orchestrator, recognizer, chat_client, synthesizer, microphone, speaker = self.make_orchestrator(
+            headers_factory=fail_to_acquire_headers
+        )
+
+        result = orchestrator.run_voice_turn(chunks=1)
+
+        self.assertEqual(result.status, CONVERSATION_STATUS_AUDIO_FAILED)
+        self.assertEqual(result.failure.leg, "audio")
+        self.assertEqual(result.failure.code, "RuntimeError")
+        self.assertEqual(result.failure.message, "credential acquisition failed")
+        self.assertEqual(orchestrator.state.phase, CONVERSATION_PHASE_FAILED)
+        self.assertTrue(orchestrator.state.degraded)
+        self.assertFalse(microphone.is_open())
+        self.assertEqual(recognizer.calls, [])
+        self.assertEqual(chat_client.calls, [])
+        self.assertEqual(synthesizer.calls, [])
+        self.assertEqual(speaker.playbacks, [])
 
     def test_prompt_and_voice_settings_come_from_registry_with_global_safety_first(self) -> None:
         stricter = PersonaManifest(
