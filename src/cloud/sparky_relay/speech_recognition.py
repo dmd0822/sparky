@@ -93,6 +93,10 @@ class SpeechRecognitionAdapter:
             "User-Agent": "sparky-relay",
             "x-correlation-id": headers.get("x-correlation-id", ""),
         }
+        if headers.get("traceparent"):
+            request_headers["traceparent"] = headers["traceparent"]
+        if headers.get("tracestate"):
+            request_headers["tracestate"] = headers["tracestate"]
         try:
             status_code, response_bytes = self.transport.send(
                 self._request_url(),

@@ -9,8 +9,14 @@ param location string = resourceGroup().location
 @description('Tags applied to all resources.')
 param tags object
 
+@description('Logical deployment environment recorded with relay telemetry.')
+param environmentName string
+
 @description('Container Apps managed environment resource ID.')
 param managedEnvironmentId string
+
+@description('Application Insights component resource ID used to resolve the relay telemetry connection string.')
+param applicationInsightsResourceId string = ''
 
 @description('Container image for the relay shell. Code CD overrides this with the built relay image.')
 param image string = 'mcr.microsoft.com/k8se/quickstart:latest'
@@ -75,7 +81,21 @@ param speechRecognitionLanguage string = 'en-US'
 param speechInputFormat string = 'audio/wav; codecs=audio/pcm; samplerate=16000'
 
 var effectiveRelayDeviceScope = empty(relayDeviceScope) && !empty(relayAudience) ? '${relayAudience}/.default' : relayDeviceScope
+var relaySecrets = empty(relayAudience) || empty(applicationInsightsResourceId) ? [] : [
+  {
+    name: 'applicationinsights-connection-string'
+    value: reference(applicationInsightsResourceId, '2020-02-02').ConnectionString
+  }
+]
 var relayEnv = [
+  {
+    name: 'SPARKY_ENVIRONMENT'
+    value: environmentName
+  }
+  {
+    name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+    secretRef: 'applicationinsights-connection-string'
+  }
   {
     name: 'AZURE_TENANT_ID'
     value: azureTenantId
@@ -141,6 +161,7 @@ resource relay 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: managedEnvironmentId
     configuration: {
       activeRevisionsMode: 'Single'
+      secrets: relaySecrets
       ingress: {
         external: true
         targetPort: targetPort
