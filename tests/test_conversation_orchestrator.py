@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 from io import BytesIO
+import json
+import logging
 from typing import Any, Mapping
 import unittest
 import wave
@@ -70,10 +72,24 @@ class FakeClock:
         return self._values.pop(0)
 
 
+class ListHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+
+
 class ConversationOrchestratorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.registry = load_persona_registry()
         self.persona_id = "sunny_companion"
+        self.event_handler = ListHandler()
+        self.event_logger = logging.getLogger(f"{__name__}.{self._testMethodName}")
+        self.event_logger.handlers = [self.event_handler]
+        self.event_logger.propagate = False
+        self.event_logger.setLevel(logging.INFO)
 
     def make_audio(self) -> tuple[AudioService, SimulatedMicrophone, SimulatedSpeaker]:
         microphone = SimulatedMicrophone(
@@ -90,6 +106,8 @@ class ConversationOrchestratorTests(unittest.TestCase):
         chat: Mapping[str, Any] | None = None,
         tts: Mapping[str, Any] | None = None,
         clock: FakeClock | None = None,
+        headers: Mapping[str, str] | None = None,
+        environment: str = "test",
     ) -> tuple[
         ConversationOrchestrator,
         RecordingRecognizer,
@@ -132,7 +150,9 @@ class ConversationOrchestratorTests(unittest.TestCase):
             synthesizer=synthesizer,
             persona_registry=self.registry,
             active_persona_id=self.persona_id,
-            headers_factory=lambda: {"x-correlation-id": "cid-turn"},
+            headers_factory=lambda: headers or {"x-correlation-id": "cid-turn"},
+            environment=environment,
+            event_logger=self.event_logger,
             clock=clock,
             global_safety_rules=GLOBAL_RULES,
         )
@@ -322,6 +342,60 @@ class ConversationOrchestratorTests(unittest.TestCase):
         restored = type(result).from_dict(result.as_dict())
 
         self.assertEqual(restored.timings, result.timings)
+
+    def test_turn_propagates_one_correlation_and_w3c_trace_context_to_every_relay_leg(self) -> None:
+        headers = {
+            "x-correlation-id": "cid-trace",
+            "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+            "tracestate": "vendor=value",
+        }
+        orchestrator, recognizer, chat_client, synthesizer, *_ = self.make_orchestrator(headers=headers)
+
+        result = orchestrator.run_voice_turn(chunks=1)
+
+        self.assertEqual(result.status, CONVERSATION_STATUS_OK)
+        expected = dict(headers)
+        self.assertEqual(recognizer.calls[0][1], expected)
+        self.assertEqual(chat_client.calls[0][1], expected)
+        self.assertEqual(synthesizer.calls[0][1], expected)
+
+    def test_operational_events_include_required_fields_without_sensitive_turn_content(self) -> None:
+        sensitive_transcript = "transcript-should-not-be-logged"
+        sensitive_reply = "reply-should-not-be-logged"
+        secret_header = "Bearer should-not-be-logged"
+        orchestrator, *_ = self.make_orchestrator(
+            stt={"transcript": sensitive_transcript, "confidence": 1.0, "metadata": {}},
+            chat={"reply": sensitive_reply, "metadata": {}},
+            headers={"Authorization": secret_header, "x-correlation-id": "cid-safe"},
+            environment="dev",
+        )
+
+        result = orchestrator.run_voice_turn(chunks=2)
+
+        self.assertEqual(result.status, CONVERSATION_STATUS_OK)
+        events = [json.loads(message) for message in self.event_handler.messages]
+        self.assertEqual(
+            [event["event_name"] for event in events],
+            [
+                "device.perception.captured",
+                "device.relay.auth.requested",
+                "device.perception.transcription.completed",
+                "device.relay.auth.requested",
+                "device.planning.completed",
+                "device.relay.auth.requested",
+                "device.action.synthesis.completed",
+                "device.action.playback.completed",
+            ],
+        )
+        for event in events:
+            self.assertEqual(event["environment"], "dev")
+            self.assertEqual(event["correlation_id"], "cid-safe")
+            self.assertEqual(event["trace_id"], events[0]["trace_id"])
+            self.assertIn("event_name", event)
+        logged = "\n".join(self.event_handler.messages)
+        self.assertNotIn(sensitive_transcript, logged)
+        self.assertNotIn(sensitive_reply, logged)
+        self.assertNotIn(secret_header, logged)
 
 
 def _wav_bytes() -> bytes:
