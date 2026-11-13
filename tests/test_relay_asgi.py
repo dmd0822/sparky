@@ -17,6 +17,7 @@ except ImportError as exc:  # pragma: no cover - exercised in minimal CI images.
 
 from src.cloud.sparky_relay.asgi import (
     _build_relay_config_from_env,
+    _configure_telemetry,
     _handle_relay_request,
     create_app,
 )
@@ -123,6 +124,21 @@ class RelayAsgiTests(unittest.TestCase):
         self.assertEqual(config.tenant_id, "tenant-123")
         self.assertEqual(config.relay_audience, "api://relay-app-id")
         self.assertEqual(config.device_scope, "api://relay-app-id/.default")
+
+    def test_azure_monitor_uses_only_the_deployment_connection_string(self) -> None:
+        configure = unittest.mock.Mock()
+        with patch(
+            "src.cloud.sparky_relay.asgi._load_azure_monitor_configurer",
+            return_value=configure,
+        ), patch("src.cloud.sparky_relay.asgi._TELEMETRY_CONFIGURED", False):
+            _configure_telemetry(
+                {
+                    "APPLICATIONINSIGHTS_CONNECTION_STRING": "InstrumentationKey=not-logged",
+                    "SPARKY_ENVIRONMENT": "dev",
+                }
+            )
+
+        configure.assert_called_once_with(connection_string="InstrumentationKey=not-logged")
 
 
 if __name__ == "__main__":

@@ -9,8 +9,14 @@ param location string = resourceGroup().location
 @description('Tags applied to all resources.')
 param tags object
 
+@description('Logical deployment environment recorded with relay telemetry.')
+param environmentName string
+
 @description('Container Apps managed environment resource ID.')
 param managedEnvironmentId string
+
+@description('Application Insights component resource ID used to resolve the relay telemetry connection string.')
+param applicationInsightsResourceId string = ''
 
 @description('Container image for the relay shell. Code CD overrides this with the built relay image.')
 param image string = 'mcr.microsoft.com/k8se/quickstart:latest'
@@ -75,60 +81,78 @@ param speechRecognitionLanguage string = 'en-US'
 param speechInputFormat string = 'audio/wav; codecs=audio/pcm; samplerate=16000'
 
 var effectiveRelayDeviceScope = empty(relayDeviceScope) && !empty(relayAudience) ? '${relayAudience}/.default' : relayDeviceScope
-var relayEnv = [
+var relaySecrets = empty(applicationInsightsResourceId) ? [] : [
   {
-    name: 'AZURE_TENANT_ID'
-    value: azureTenantId
-  }
-  {
-    name: 'SPARKY_RELAY_AUDIENCE'
-    value: relayAudience
-  }
-  {
-    name: 'SPARKY_RELAY_DEVICE_SCOPE'
-    value: effectiveRelayDeviceScope
-  }
-  {
-    name: 'SPARKY_FOUNDRY_SCOPE'
-    value: foundryScope
-  }
-  {
-    name: 'SPARKY_SPEECH_SCOPE'
-    value: speechScope
-  }
-  {
-    name: 'SPARKY_CHAT_DEPLOYMENT'
-    value: chatDeployment
-  }
-  {
-    name: 'SPARKY_CHAT_API_VERSION'
-    value: chatApiVersion
-  }
-  {
-    name: 'SPARKY_SPEECH_ENDPOINT'
-    value: speechEndpoint
-  }
-  {
-    name: 'SPARKY_SPEECH_RESOURCE_ID'
-    value: speechResourceId
-  }
-  {
-    name: 'SPARKY_SPEECH_VOICE'
-    value: speechVoice
-  }
-  {
-    name: 'SPARKY_SPEECH_OUTPUT_FORMAT'
-    value: speechOutputFormat
-  }
-  {
-    name: 'SPARKY_SPEECH_RECOGNITION_LANGUAGE'
-    value: speechRecognitionLanguage
-  }
-  {
-    name: 'SPARKY_SPEECH_INPUT_FORMAT'
-    value: speechInputFormat
+    name: 'applicationinsights-connection-string'
+    value: reference(applicationInsightsResourceId, '2020-02-02').ConnectionString
   }
 ]
+var relayEnv = concat(
+  empty(applicationInsightsResourceId) ? [] : [
+    {
+      name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+      secretRef: 'applicationinsights-connection-string'
+    }
+  ],
+  [
+    {
+      name: 'SPARKY_ENVIRONMENT'
+      value: environmentName
+    }
+    {
+      name: 'AZURE_TENANT_ID'
+      value: azureTenantId
+    }
+    {
+      name: 'SPARKY_RELAY_AUDIENCE'
+      value: relayAudience
+    }
+    {
+      name: 'SPARKY_RELAY_DEVICE_SCOPE'
+      value: effectiveRelayDeviceScope
+    }
+    {
+      name: 'SPARKY_FOUNDRY_SCOPE'
+      value: foundryScope
+    }
+    {
+      name: 'SPARKY_SPEECH_SCOPE'
+      value: speechScope
+    }
+    {
+      name: 'SPARKY_CHAT_DEPLOYMENT'
+      value: chatDeployment
+    }
+    {
+      name: 'SPARKY_CHAT_API_VERSION'
+      value: chatApiVersion
+    }
+    {
+      name: 'SPARKY_SPEECH_ENDPOINT'
+      value: speechEndpoint
+    }
+    {
+      name: 'SPARKY_SPEECH_RESOURCE_ID'
+      value: speechResourceId
+    }
+    {
+      name: 'SPARKY_SPEECH_VOICE'
+      value: speechVoice
+    }
+    {
+      name: 'SPARKY_SPEECH_OUTPUT_FORMAT'
+      value: speechOutputFormat
+    }
+    {
+      name: 'SPARKY_SPEECH_RECOGNITION_LANGUAGE'
+      value: speechRecognitionLanguage
+    }
+    {
+      name: 'SPARKY_SPEECH_INPUT_FORMAT'
+      value: speechInputFormat
+    }
+  ]
+)
 
 resource relay 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -141,6 +165,7 @@ resource relay 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: managedEnvironmentId
     configuration: {
       activeRevisionsMode: 'Single'
+      secrets: relaySecrets
       ingress: {
         external: true
         targetPort: targetPort

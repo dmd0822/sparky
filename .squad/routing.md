@@ -7,6 +7,7 @@ How to decide who handles what.
 | Work Type | Route To | Examples |
 |-----------|----------|----------|
 | Device / Pi runtime | device | Hardware ports, adapters, simulators, motion and sensor services, `src/device/**` |
+| Azure cloud services / telemetry | cloud | FastAPI relay, Container Apps, Application Insights, `src/cloud/**`, cloud infrastructure |
 
 Preset installation adds concrete routes for the configured team. Add or edit rows
 here only when their agent names also exist in the casting registry.
@@ -45,5 +46,7 @@ here only when their agent names also exist in the casting registry.
 | security | security | — |
 | docs | docs | — |
 | device | device | lead |
+| cloud | cloud | lead |
 | Pi runtime / hardware | device | lead |
 | motion, sensors, camera, audio | device | lead |
+| Azure relay / observability | cloud | device |

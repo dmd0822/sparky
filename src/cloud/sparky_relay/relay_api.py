@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import os
+import re
 import time
 import uuid
 from typing import Any, Mapping, MutableMapping, Protocol
@@ -19,6 +21,10 @@ from .relay_auth import (
 
 
 LOGGER = logging.getLogger(__name__)
+_TRACEPARENT_PATTERN = re.compile(
+    r"^(?:00|[0-9a-f]{2})-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}$",
+    re.IGNORECASE,
+)
 
 REQUEST_SCHEMAS: dict[str, dict[str, Any]] = {
     "health": {"method": "GET", "path": "/health", "required": []},
@@ -130,6 +136,7 @@ class RelayApp:
 
     def handle(self, request: RelayRequest) -> RelayResponse:
         correlation_id = _correlation_id(request.headers)
+        _log_event("relay.auth.requested", correlation_id, request.headers)
         try:
             context = authenticate_request(
                 request.headers,
@@ -139,16 +146,19 @@ class RelayApp:
                 correlation_id=correlation_id,
             )
             if not self.rate_limiter.allow(context.subject):
+                _log_event("relay.auth.rate_limited", correlation_id, request.headers)
                 return _error(429, "rate_limited", "Too many requests.", correlation_id)
             allowed, reason = self.policy.allow(context, request)
             if not allowed:
-                LOGGER.warning("Relay policy denied request: %s", reason)
+                _log_event("relay.auth.policy_denied", correlation_id, request.headers)
                 return _error(403, "policy_denied", "The request is not allowed.", correlation_id)
+            _log_event("relay.auth.succeeded", correlation_id, request.headers)
             return self._dispatch(request, context, correlation_id)
         except AuthFailure as failure:
+            _log_event("relay.auth.failed", failure.correlation_id, request.headers)
             return _error(failure.status_code, failure.code, failure.reason, failure.correlation_id)
         except DownstreamCredentialError:
-            LOGGER.error("Relay credential boundary guard blocked a downstream request.")
+            _log_event("relay.credential_boundary.blocked", correlation_id, request.headers)
             return _error(500, "credential_boundary", "Relay credential boundary failed.", correlation_id)
 
     def _dispatch(
@@ -187,10 +197,12 @@ class RelayApp:
         prompt = request.body.get("prompt")
         if not isinstance(prompt, str) or not prompt.strip():
             return _error(400, "invalid_request", "Chat requires a prompt.", correlation_id)
+        _log_event("relay.planning.requested", correlation_id, request.headers)
         headers = self._downstream_headers(
             self.relay_config.foundry_scope,
             context,
             correlation_id,
+            request.headers,
         )
         result = dict(self.downstream.chat(request.body, headers))
         result.setdefault("reply", "")
@@ -206,10 +218,12 @@ class RelayApp:
         image = request.body.get("image")
         if not isinstance(image, str) or not image.strip():
             return _error(400, "invalid_request", "Vision requires an image payload.", correlation_id)
+        _log_event("relay.perception.vision_requested", correlation_id, request.headers)
         headers = self._downstream_headers(
             self.relay_config.foundry_scope,
             context,
             correlation_id,
+            request.headers,
         )
         result = dict(self.downstream.vision(request.body, headers))
         result.setdefault("caption", "")
@@ -226,10 +240,12 @@ class RelayApp:
         text = request.body.get("text")
         if not isinstance(text, str) or not text.strip():
             return _error(400, "invalid_request", "Speech requires text.", correlation_id)
+        _log_event("relay.action.speech_requested", correlation_id, request.headers)
         headers = self._downstream_headers(
             self.relay_config.speech_scope,
             context,
             correlation_id,
+            request.headers,
         )
         result = dict(self.downstream.speech(request.body, headers))
         result.setdefault("audio", "")
@@ -246,10 +262,12 @@ class RelayApp:
         audio = request.body.get("audio")
         if not isinstance(audio, str) or not audio.strip():
             return _error(400, "invalid_request", "Speech recognition requires audio.", correlation_id)
+        _log_event("relay.perception.speech_requested", correlation_id, request.headers)
         headers = self._downstream_headers(
             self.relay_config.speech_scope,
             context,
             correlation_id,
+            request.headers,
         )
         result = dict(self.downstream.recognize(request.body, headers))
         result.setdefault("transcript", "")
@@ -262,12 +280,20 @@ class RelayApp:
         scope: str,
         context: AuthContext,
         correlation_id: str,
+        request_headers: Mapping[str, str],
     ) -> dict[str, str]:
         managed_token = acquire_downstream_access_token(scope, self.credential)
         headers = {
             "Authorization": f"Bearer {managed_token}",
             "x-correlation-id": correlation_id,
         }
+        traceparent = _traceparent(request_headers)
+        if traceparent:
+            headers["traceparent"] = traceparent
+        tracestate = _tracestate(request_headers)
+        if tracestate:
+            headers["tracestate"] = tracestate
+        _inject_active_trace_context(headers)
         assert_caller_token_not_forwarded(context.token, headers)
         return headers
 
@@ -294,6 +320,59 @@ def _correlation_id(headers: Mapping[str, str]) -> str:
         if key.lower() == "x-correlation-id" and value.strip():
             return value.strip()
     return str(uuid.uuid4())
+
+
+def _traceparent(headers: Mapping[str, str]) -> str:
+    for key, value in headers.items():
+        if key.lower() == "traceparent":
+            candidate = value.strip()
+            if _TRACEPARENT_PATTERN.fullmatch(candidate):
+                return candidate
+    return ""
+
+
+def _tracestate(headers: Mapping[str, str]) -> str:
+    for key, value in headers.items():
+        if key.lower() == "tracestate":
+            candidate = value.strip()
+            if candidate and len(candidate) <= 512 and "\r" not in candidate and "\n" not in candidate:
+                return candidate
+    return ""
+
+
+def _inject_active_trace_context(headers: MutableMapping[str, str]) -> None:
+    """Propagate the active OpenTelemetry span when the hosting adapter created one."""
+
+    try:
+        from opentelemetry.propagate import inject
+    except ImportError:
+        return
+    inject(headers)
+
+
+def _trace_id(headers: Mapping[str, str]) -> str | None:
+    traceparent = _traceparent(headers)
+    match = _TRACEPARENT_PATTERN.fullmatch(traceparent)
+    if match:
+        return match.group(1).lower()
+    try:
+        from opentelemetry import trace
+    except ImportError:
+        return None
+    span_context = trace.get_current_span().get_span_context()
+    return f"{span_context.trace_id:032x}" if span_context.is_valid else None
+
+
+def _log_event(event_name: str, correlation_id: str, headers: Mapping[str, str]) -> None:
+    LOGGER.info(
+        event_name,
+        extra={
+            "event_name": event_name,
+            "environment": os.getenv("SPARKY_ENVIRONMENT", "local"),
+            "correlation_id": correlation_id,
+            "trace_id": _trace_id(headers),
+        },
+    )
 
 
 def _response(status_code: int, body: Mapping[str, Any], correlation_id: str) -> RelayResponse:

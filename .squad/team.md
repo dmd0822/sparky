@@ -18,6 +18,7 @@
 | security | security | `.squad/agents/security/charter.md` | ✅ Active |
 | docs | docs | `.squad/agents/docs/charter.md` | ✅ Active |
 | device | device | `.squad/agents/device/charter.md` | ✅ Active |
+| cloud | Cloud Implementation Specialist | `.squad/agents/cloud/charter.md` | ✅ Active |
 
 
 ## Coding Agent

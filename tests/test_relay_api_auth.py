@@ -241,6 +241,33 @@ class RelayAuthTests(unittest.TestCase):
         self.assertIn("managed-hop-token", headers["Authorization"])
         self.assertNotIn(caller_token, headers["Authorization"])
 
+    def test_trace_context_and_structured_events_preserve_privacy(self) -> None:
+        traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"
+        request = RelayRequest(
+            "POST",
+            "/ai/chat",
+            {
+                **self.auth_headers(),
+                "x-correlation-id": "cid-trace",
+                "traceparent": traceparent,
+                "tracestate": "vendor=value",
+            },
+            {"prompt": "private planning request"},
+        )
+
+        with self.assertLogs("src.cloud.sparky_relay.relay_api", level="INFO") as logs:
+            response = self.app.handle(request)
+
+        self.assertEqual(response.status_code, 200)
+        _, _, headers = self.downstream.calls[0]
+        self.assertEqual(headers["x-correlation-id"], "cid-trace")
+        self.assertEqual(headers["traceparent"], traceparent)
+        self.assertEqual(headers["tracestate"], "vendor=value")
+        log_text = "\n".join(logs.output)
+        self.assertIn("relay.auth.succeeded", log_text)
+        self.assertIn("relay.planning.requested", log_text)
+        self.assertNotIn("private planning request", log_text)
+
     def test_chat_endpoint_integration(self) -> None:
         response = self.app.handle(self.request("/ai/chat", {"prompt": "hello"}))
 

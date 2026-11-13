@@ -6,10 +6,14 @@ import base64
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from io import BytesIO
+import json
+import logging
+import os
 from pathlib import Path
 import sys
 import time
 from typing import Any, Mapping, Protocol
+from uuid import uuid4
 import wave
 
 
@@ -80,6 +84,8 @@ CONVERSATION_STATUS_TTS_FAILED = "tts_failed"
 CONVERSATION_STATUS_PERSONA_FAILED = "persona_failed"
 
 DEFAULT_TURN_CHUNKS = 3
+_TRACEPARENT_VERSION = "00"
+_TRACE_FLAGS = "01"
 
 
 class SpeechRecognizer(Protocol):
@@ -312,6 +318,8 @@ class ConversationOrchestrator:
         persona_registry: Mapping[str, PersonaManifest],
         active_persona_id: str,
         headers_factory: Callable[[], Mapping[str, str]] | None = None,
+        environment: str | None = None,
+        event_logger: logging.Logger | None = None,
         clock: Callable[[], float] | None = None,
         memory: PersonaScopedMemoryStore | None = None,
         global_safety_rules: tuple[str, ...] = DEFAULT_GLOBAL_SAFETY_SEGMENTS,
@@ -324,6 +332,10 @@ class ConversationOrchestrator:
         self._synthesizer = synthesizer
         self._persona_registry = dict(persona_registry)
         self._headers_factory = headers_factory or (lambda: {})
+        self._environment = (environment or os.environ.get("SPARKY_ENVIRONMENT", "dev")).strip()
+        if not self._environment:
+            raise ValueError("environment must be a non-empty string")
+        self._event_logger = event_logger or logging.getLogger(__name__)
         self._clock = clock or time.perf_counter
         self._memory = memory or PersonaScopedMemoryStore()
         self._global_safety_rules = tuple(global_safety_rules)
@@ -373,13 +385,32 @@ class ConversationOrchestrator:
         turn_started = self._clock()
         timing_values: dict[str, float] = {}
         try:
+            headers = self._headers()
             buffer = self._measure_leg(
                 timing_values,
                 "audio_capture_seconds",
                 lambda: self._capture_audio(chunks=chunks),
             )
-            stt_response = self._measure_leg(timing_values, "stt_seconds", lambda: self._transcribe(buffer))
+            self._emit_event(
+                "device.perception.captured",
+                headers,
+                chunk_count=chunks,
+                duration_ms=_milliseconds(timing_values["audio_capture_seconds"]),
+            )
+            self._emit_event("device.relay.auth.requested", headers, operation="speech_recognition")
+            stt_response = self._measure_leg(
+                timing_values,
+                "stt_seconds",
+                lambda: self._transcribe(buffer, headers),
+            )
             transcript = _response_text(stt_response, "transcript")
+            self._emit_event(
+                "device.perception.transcription.completed",
+                headers,
+                operation="speech_recognition",
+                outcome="failed" if _is_failure_response(stt_response) or not transcript else "succeeded",
+                duration_ms=_milliseconds(timing_values["stt_seconds"]),
+            )
             if _is_failure_response(stt_response) or not transcript:
                 return self._fail_from_response(
                     status=CONVERSATION_STATUS_STT_FAILED,
@@ -398,6 +429,7 @@ class ConversationOrchestrator:
                 memory=self._memory,
             )
             self._state = replace(self._state, phase=CONVERSATION_PHASE_THINKING)
+            self._emit_event("device.relay.auth.requested", headers, operation="chat")
             chat_response = self._measure_leg(
                 timing_values,
                 "chat_seconds",
@@ -408,10 +440,17 @@ class ConversationOrchestrator:
                         "persona_id": persona_id,
                         "prompt_metadata": composed.metadata.as_dict(),
                     },
-                    self._headers(),
+                    headers,
                 ),
             )
             reply = _response_text(chat_response, "reply")
+            self._emit_event(
+                "device.planning.completed",
+                headers,
+                operation="chat",
+                outcome="failed" if _is_failure_response(chat_response) or not reply else "succeeded",
+                duration_ms=_milliseconds(timing_values["chat_seconds"]),
+            )
             if _is_failure_response(chat_response) or not reply:
                 return self._fail_from_response(
                     status=CONVERSATION_STATUS_CHAT_FAILED,
@@ -429,6 +468,7 @@ class ConversationOrchestrator:
 
             self._state = replace(self._state, phase=CONVERSATION_PHASE_SPEAKING)
             voice = persona_voice_settings(self._persona_registry[persona_id])
+            self._emit_event("device.relay.auth.requested", headers, operation="speech_synthesis")
             tts_response = self._measure_leg(
                 timing_values,
                 "tts_seconds",
@@ -443,8 +483,17 @@ class ConversationOrchestrator:
                             "volume": voice.volume,
                         },
                     },
-                    self._headers(),
+                    headers,
                 ),
+            )
+            self._emit_event(
+                "device.action.synthesis.completed",
+                headers,
+                operation="speech_synthesis",
+                outcome="failed"
+                if _is_failure_response(tts_response) or not _response_text(tts_response, "audio")
+                else "succeeded",
+                duration_ms=_milliseconds(timing_values["tts_seconds"]),
             )
             if _is_failure_response(tts_response) or not _response_text(tts_response, "audio"):
                 return self._fail_from_response(
@@ -467,6 +516,13 @@ class ConversationOrchestrator:
                     timing_values,
                     "playback_seconds",
                     lambda: self._audio.speak(dict(tts_response)),
+                )
+                self._emit_event(
+                    "device.action.playback.completed",
+                    headers,
+                    operation="playback",
+                    outcome="succeeded",
+                    duration_ms=_milliseconds(timing_values["playback_seconds"]),
                 )
             except (HardwareError, HardwareUnavailableError, TypeError, ValueError) as error:
                 return self._fail(
@@ -535,7 +591,7 @@ class ConversationOrchestrator:
         self._audio.stop()
         return flush.audio
 
-    def _transcribe(self, audio: AudioBuffer) -> Mapping[str, Any]:
+    def _transcribe(self, audio: AudioBuffer, headers: Mapping[str, str]) -> Mapping[str, Any]:
         self._state = replace(self._state, phase=CONVERSATION_PHASE_TRANSCRIBING)
         wav_bytes = _wav_bytes(audio)
         return self._recognizer.recognize(
@@ -549,11 +605,26 @@ class ConversationOrchestrator:
                     "duration_seconds": audio.duration_seconds,
                 },
             },
-            self._headers(),
+            headers,
         )
 
-    def _headers(self) -> Mapping[str, str]:
-        return dict(self._headers_factory())
+    def _headers(self) -> dict[str, str]:
+        headers = dict(self._headers_factory())
+        if _header_value(headers, "x-correlation-id") is None:
+            headers["x-correlation-id"] = uuid4().hex
+        if _header_value(headers, "traceparent") is None:
+            headers["traceparent"] = f"{_TRACEPARENT_VERSION}-{uuid4().hex}-{uuid4().hex[:16]}-{_TRACE_FLAGS}"
+        return headers
+
+    def _emit_event(self, event_name: str, headers: Mapping[str, str], **fields: Any) -> None:
+        event: dict[str, Any] = {
+            "event_name": event_name,
+            "environment": self._environment,
+            "correlation_id": _header_value(headers, "x-correlation-id"),
+            "trace_id": _trace_id(headers),
+            **fields,
+        }
+        self._event_logger.info(json.dumps(event, sort_keys=True, separators=(",", ":")))
 
     def _measure_leg(
         self,
@@ -669,6 +740,25 @@ def _wav_bytes(audio: AudioBuffer) -> bytes:
         wav.setframerate(audio.sample_rate)
         wav.writeframes(audio.audio_bytes)
     return output.getvalue()
+
+
+def _header_value(headers: Mapping[str, str], name: str) -> str | None:
+    for key, value in headers.items():
+        if key.lower() == name:
+            return value
+    return None
+
+
+def _trace_id(headers: Mapping[str, str]) -> str | None:
+    traceparent = _header_value(headers, "traceparent")
+    if traceparent is None:
+        return None
+    parts = traceparent.split("-")
+    return parts[1] if len(parts) == 4 and len(parts[1]) == 32 else None
+
+
+def _milliseconds(seconds: float) -> int:
+    return round(seconds * 1000)
 
 
 def _is_failure_response(response: Mapping[str, Any]) -> bool:

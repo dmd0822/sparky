@@ -171,6 +171,35 @@ class RelayContractTests(unittest.TestCase):
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertNotIn("relayAudience", path.read_text(encoding="utf-8"))
 
+    def test_relay_uses_an_app_insights_secret_reference(self) -> None:
+        module = flatten(INFRA / "modules" / "relay-container-app.bicep")
+        self.assertRegex(module, r"param\s+applicationInsightsResourceId\s+string")
+        self.assertRegex(module, r"name:\s*'applicationinsights-connection-string'")
+        self.assertRegex(
+            module,
+            r"name:\s*'APPLICATIONINSIGHTS_CONNECTION_STRING'\s+secretRef:\s*'applicationinsights-connection-string'",
+        )
+        self.assertIn("SPARKY_ENVIRONMENT", module)
+        for path in ENV_ENTRYPOINTS:
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn(
+                    "applicationInsightsResourceId: monitoring.outputs.appInsightsResourceId",
+                    path.read_text(),
+                )
+
+    def test_relay_app_insights_secret_is_defined_when_its_env_reference_is_included(self) -> None:
+        module = flatten(INFRA / "modules" / "relay-container-app.bicep")
+        self.assertRegex(
+            module,
+            r"var\s+relaySecrets\s*=\s*empty\(applicationInsightsResourceId\)\s*\?\s*\[\]\s*:\s*\[",
+        )
+        self.assertRegex(
+            module,
+            r"var\s+relayEnv\s*=\s*concat\(\s*empty\(applicationInsightsResourceId\)\s*\?\s*\[\]\s*:\s*\[\s*\{\s*"
+            r"name:\s*'APPLICATIONINSIGHTS_CONNECTION_STRING'\s+"
+            r"secretRef:\s*'applicationinsights-connection-string'",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
