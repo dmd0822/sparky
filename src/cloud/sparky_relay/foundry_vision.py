@@ -154,6 +154,10 @@ class FoundryVisionAdapter:
             "Content-Type": "application/json",
             "x-correlation-id": headers.get("x-correlation-id", ""),
         }
+        if headers.get("traceparent"):
+            request_headers["traceparent"] = headers["traceparent"]
+        if headers.get("tracestate"):
+            request_headers["tracestate"] = headers["tracestate"]
         url = self._request_url()
         try:
             status_code, response_bytes = self.transport.send(

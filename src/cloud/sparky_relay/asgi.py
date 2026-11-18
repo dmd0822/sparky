@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Callable, Mapping
 from urllib.parse import urlencode
@@ -35,6 +36,8 @@ from .speech_synthesis import SpeechSynthesisAdapter
 
 
 _DEFAULT_RELAY_APP: RelayApp | None = None
+_TELEMETRY_CONFIGURED = False
+LOGGER = logging.getLogger(__name__)
 
 # The deployed `relayUrl` infra output advertises `https://<fqdn>/api`, and Azure
 # Container Apps ingress does not strip path prefixes. Routes are therefore served
@@ -102,6 +105,7 @@ class ManagedIdentityDownstreamRelayClient(DownstreamRelayClient):
 def create_app(relay_app: RelayApp | None = None) -> FastAPI:
     """Create the FastAPI adapter around an injected or environment-built relay."""
 
+    _configure_telemetry(os.environ)
     app = FastAPI(title="Sparky Relay API")
     relay_provider = _static_provider(relay_app) if relay_app is not None else _get_default_relay_app
     router = APIRouter()
@@ -234,6 +238,36 @@ def _build_relay_config_from_env(env: Mapping[str, str]) -> AzureRelayConfig:
         ),
         speech_input_format=env.get("SPARKY_SPEECH_INPUT_FORMAT", DEFAULT_SPEECH_INPUT_FORMAT),
     )
+
+
+def _configure_telemetry(env: Mapping[str, str]) -> None:
+    """Configure Azure Monitor only when the deployment supplies its secret connection string."""
+
+    global _TELEMETRY_CONFIGURED
+    connection_string = env.get("APPLICATIONINSIGHTS_CONNECTION_STRING", "").strip()
+    if not connection_string or _TELEMETRY_CONFIGURED:
+        return
+    _load_azure_monitor_configurer()(connection_string=connection_string)
+    _TELEMETRY_CONFIGURED = True
+    LOGGER.info(
+        "relay.telemetry.configured",
+        extra={
+            "event_name": "relay.telemetry.configured",
+            "environment": env.get("SPARKY_ENVIRONMENT", "local"),
+            "correlation_id": None,
+            "trace_id": None,
+        },
+    )
+
+
+def _load_azure_monitor_configurer() -> Callable[..., None]:
+    try:
+        from azure.monitor.opentelemetry import configure_azure_monitor
+    except ImportError as exc:
+        raise RuntimeError(
+            "Azure Monitor OpenTelemetry is required when APPLICATIONINSIGHTS_CONNECTION_STRING is set."
+        ) from exc
+    return configure_azure_monitor
 
 
 def _scope_to_resource(scope: str) -> str:

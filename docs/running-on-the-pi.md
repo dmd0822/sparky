@@ -469,6 +469,27 @@ failure mappings wedge the turn instead of returning a degraded status, timing
 data is missing for a completed leg, or persona metadata/voice routing bypasses
 the registry. Record any accepted SKIP/FAIL as a milestone acceptance risk.
 
+### Device telemetry correlation HIL check
+
+Run this check only in a non-production environment. Configure the device with
+`SPARKY_ENVIRONMENT=dev` and its normal authenticated relay endpoint in
+`rg-sparky` / `southcentralus`; do not add a separate telemetry endpoint. Run
+one ordinary, non-sensitive conversation turn while watching the device service
+logs (for example, `journalctl -u sparky-device -f` when it runs as a systemd
+service).
+
+Pass criteria: the device emits JSON events for relay authentication,
+perception, planning, and action; each event carries the same
+`environment=dev`, `correlation_id`, and `trace_id`; and the relay receives
+the identical `x-correlation-id`, `traceparent`, and, when configured,
+`tracestate` on STT, chat, and TTS requests. Confirm the related non-production
+Application Insights resource (`sparky-appi-dev`) shows the same correlation and
+trace ID and its associated Log Analytics workspace (`sparky-law-dev`) records
+the relay-side correlation. The event records must not contain Authorization
+values, credentials, prompts, transcripts, replies, images, audio, or other
+user content. Fail the check if any field changes between relay legs, a
+required event is absent, or protected content appears in a device log.
+
 ### Camera service check
 
 For camera or vision milestones, run step 11 and then validate the

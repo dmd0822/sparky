@@ -102,7 +102,9 @@ module relay '../../modules/relay-container-app.bicep' = {
     appName: relayContainerAppName
     location: location
     tags: tags
+    environmentName: environmentName
     managedEnvironmentId: containerAppsEnvironment.outputs.environmentResourceId
+    applicationInsightsResourceId: monitoring.outputs.appInsightsResourceId
     image: relayImage
     // Only declare the registry when the image is actually served from it. The
     // relay's system identity does not exist until this module runs, so its
